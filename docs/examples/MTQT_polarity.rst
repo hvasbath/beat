@@ -13,6 +13,51 @@ This will create a BEAT project directory named *MTQT_polarity* with a configura
 This directory is going to be referred to as *$project_directory* in the following.
 
 
+Data formats
+^^^^^^^^^^^^
+The station information is loaded from a pyrocko `station file <https://pyrocko.org/docs/current/formats/basic_station.html>`__ (MTQT_polarity/stations.txt).
+
+The polarity data format that BEAT uses are  `marker tables <https://pyrocko.org/docs/current/formats/snuffler_markers.html>`__ from the *snuffler* waveform browser. Please get familiar with the snuffler following its 
+`tutorial <https://pyrocko.org/docs/current/apps/snuffler/tutorial.html#snuffler-tutorial>`__ and especially, see the Marker 
+`tutorial <https://pyrocko.org/docs/current/apps/snuffler/tutorial.html#markers>`__ on how to create those markers and marker tables. The tables can then be saved through the snuffler menu with
+*File > Save markers ...*. This example contains a polarity marker file named *polarity_markers_P.pf*. The path to this file needs to be specified under *polarities_marker_path*::
+
+  polarity_config: !beat.PolarityConfig
+    datadir: ./
+    waveforms:
+    - !beat.PolarityFitConfig
+      name: any_P
+      include: true
+      polarities_marker_path: ./MTQT_polarity/polarity_markers_P.pf
+      blacklist:
+      - EO.KSM02
+      - PQ.NBC7
+
+Here, we can also blacklist specific stations for whatever reason, e.g. with erroneous polarities that we do not want to include in the inference.
+The *name* field specifies the body wave the polarities are picked at. This can optionally be "any_SH" or "any_SV" for polarities picked at the horizontally or vertically polarized S-wave.
+
+.. note:: 
+  For a joint inference of SH- and P wave polarities one would list several *PolarityFitConfig* blocks under the waveforms tab, like::
+
+    polarity_config: !beat.PolarityConfig
+      datadir: ./
+      waveforms:
+      - !beat.PolarityFitConfig
+        name: any_P
+        include: true
+        polarities_marker_path: ./MTQT_polarity/polarity_markers_P.pf
+        blacklist:
+        - EO.KSM02
+        - PQ.NBC7
+      - !beat.PolarityFitConfig
+        name: any_SH
+        include: true
+        polarities_marker_path: ./MTQT_polarity/polarity_markers_S.pf
+        blacklist:
+        - ''
+
+  
+
 Calculate Greens Functions
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 For the inference of the moment tensor using polarity data the distances and takeoff-angles of rays from the seismic event towards stations need to be calculated. If the event location is fixed
@@ -94,11 +139,9 @@ We can also plot the station map with::
 .. image:: ../_static/example8/station_map_polarity.png
 
 
-Optimization setup (PolarityConfig)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Once we are confident that the GFs are reasonable we may continue to define the optimization specific setup variables.
-In this case we want to optimize the whole polarity from first arrivals of P-wave (pwfarrival). Based on the selected seismic wave, channels should be set up. In our case, it's vertical component (Z).
-The input will be a choice between text and a binary file. There is a flag in config named "binary_input" which can be used to enter data into BEAT through seismic binary file "seismic_data.pkl". If this flag is set to false, the input will be read from config file, just like in our case:
+Optimization setup
+^^^^^^^^^^^^^^^^^^
+The 
 
   stations_polarities:
   - BCH1A -1.0

@@ -468,13 +468,14 @@ class SeisSynthesizer(theano.Op):
 
 class PolaritySynthesizer(theano.Op):
 
-    __props__ = ("engine", "source", "pmap", "is_location_fixed")
+    __props__ = ("engine", "source", "pmap", "is_location_fixed", "always_raytrace")
 
-    def __init__(self, engine, source, pmap, is_location_fixed):
+    def __init__(self, engine, source, pmap, is_location_fixed, always_raytrace):
         self.engine = engine
         self.source = source
         self.pmap = pmap
         self.is_location_fixed = is_location_fixed
+        self.always_raytrace = always_raytrace
 
     def __getstate__(self):
         self.engine.close_cashed_stores()
@@ -502,7 +503,7 @@ class PolaritySynthesizer(theano.Op):
         utility.update_source(self.source, **source_points[self.pmap.config.event_idx])
 
         if not self.is_location_fixed:
-            self.pmap.update_targets(self.engine, self.source, check=False)
+            self.pmap.update_targets(self.engine, self.source, always_raytrace=self.always_raytrace, check=False)
             self.pmap.update_radiation_weights()
 
         synths[0] = heart.pol_synthetics(

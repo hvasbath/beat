@@ -88,7 +88,8 @@ class PolarityComposite(Composite):
 
             pmap.prepare_data()
             pmap.update_targets(
-                self.engine, self.sources[pmap.config.event_idx], check=True
+                self.engine, self.sources[pmap.config.event_idx], check=True,
+                always_raytrace=self.config.gf_config.always_raytrace
             )
             self.polmaps.append(pmap)
 
@@ -122,6 +123,7 @@ class PolarityComposite(Composite):
                 self.sources[pmap.config.event_idx],
                 pmap,
                 self.is_location_fixed,
+                self.config.gf_config.always_raytrace
             )
             llk = polarity_llk(
                 pmap.shared_data_array,
@@ -257,7 +259,9 @@ class PolarityComposite(Composite):
 
         for pmap in self.polmaps:
             source = self.sources[pmap.config.event_idx]
-            pmap.update_targets(self.engine, source)
+            pmap.update_targets(
+                self.engine, source,
+                always_raytrace=self.config.gf_config.always_raytrace)
             pmap.update_radiation_weights()
             synthetics = pol_synthetics(
                 source, radiation_weights=pmap.get_radiation_weights()

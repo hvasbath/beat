@@ -844,45 +844,50 @@ class PolarityTarget(gf.meta.Receiver):
         )
         return takeoff_angle
 
-    def update_target(self, engine, source, check=False):
+    def update_target(self, engine, source, always_raytrace=False, check=False):
 
         self.azimuth_rad = self.azibazi_to(source)[1] * d2r
         self.distance = self.distance_to(source)
         logger.debug("source distance %f and depth %f", self.distance, source.depth)
         store = engine.get_store(self.store_id)
 
-        try:
-            self.takeoff_angle_rad = self.get_takeoff_angle_table(source, store) * d2r
-            if check:
-                target_id = utility.list2string(self.codes)
-                takeoff_angle_cake = self.get_takeoff_angle_cake(source, store)
-                angle_diff = num.abs(self.takeoff_angle_rad * r2d - takeoff_angle_cake)
-                if angle_diff > 1.0:
-                    logger.warning(
-                        "Tabulated takeoff-angle for station %s differs "
-                        "significantly %f [deg] from raytracing value! "
-                        "Please use finer GF gridding!" % (target_id, angle_diff)
-                    )
-                    self.check = 1
-                else:
-                    self.check = 0
-                    logger.debug(
-                        "Tabulated and raytraced takeoff-angles are"
-                        " consistent for %s" % target_id
-                    )
-
-        except OutOfBounds:
-            raise OutOfBounds(
-                "The distance-depth range of interpolation tables does not "
-                "cover the search space! Please extend these values or reduce "
-                "the search space (priors)."
-            )
-
-        except gf.StoreError:
-            logger.warning(
-                "Could not find takeoff-angle table," " falling back to cake..."
-            )
+        if always_raytrace:
             self.takeoff_angle_rad = self.get_takeoff_angle_cake(source, store) * d2r
+            self.check = 0
+        else:
+            try:
+                self.takeoff_angle_rad = self.get_takeoff_angle_table(source, store) * d2r
+                if check:
+                    target_id = utility.list2string(self.codes)
+                    takeoff_angle_cake = self.get_takeoff_angle_cake(source, store)
+                    angle_diff = num.abs(self.takeoff_angle_rad * r2d - takeoff_angle_cake)
+                    if angle_diff > 1.0:
+                        logger.warning(
+                            "Tabulated takeoff-angle for station %s differs "
+                            "significantly %f [deg] from raytracing value! "
+                            "Please use finer GF gridding!" % (target_id, angle_diff)
+                        )
+                        self.check = 1
+                    else:
+                        self.check = 0
+                        logger.debug(
+                            "Tabulated and raytraced takeoff-angles are"
+                            " consistent for %s" % target_id
+                        )
+
+            except OutOfBounds:
+                raise OutOfBounds(
+                    "The distance-depth range of interpolation tables does not "
+                    "cover the search space! Please extend these values or reduce "
+                    "the search space (priors)."
+                )
+
+            except gf.StoreError:
+                logger.warning(
+                    "Could not find takeoff-angle table," " falling back to cake..."
+                )
+                self.takeoff_angle_rad = self.get_takeoff_angle_cake(source, store) * d2r
+                self.check = 0
 
 
 class SeismicDataset(trace.Trace):
@@ -2344,7 +2349,8 @@ def seis_construct_gf(
 
 
 def polarity_construct_gf(
-    stations, event, polarity_config, crust_ind=0, execute=False, force=False
+    stations, event, polarity_config, crust_ind=0, execute=False, force=False,
+    always_raytrace=False
 ):
     """
     Calculate polarity Greens Functions (GFs) and create a repository 'store'
@@ -2409,10 +2415,13 @@ def polarity_construct_gf(
         if execute:
             phases_dir = os.path.join(store_dir, "phases")
             if not os.path.exists(phases_dir) or force:
-                logger.info("Calculating interpolation tables ...")
                 store = gf.Store(store_dir, "r")
-                store.make_travel_time_tables(force=force)
-                store.make_takeoff_angle_tables(force=force)
+                if polgf.always_raytrace:
+                    logger.info("Creating dummy store ...")
+                else:
+                    logger.info("Calculating interpolation tables ...")
+                    store.make_travel_time_tables(force=force)
+                    store.make_takeoff_angle_tables(force=force)
                 store.close()
 
                 # create dummy files for engine to recognize the store
@@ -2836,10 +2845,10 @@ class PolarityMapping(BaseMapping):
         else:
             return shared(self._prepared_data, name="%s_data" % self.name, borrow=True)
 
-    def update_targets(self, engine, source, check=False):
+    def update_targets(self, engine, source, always_raytrace=False, check=False):
 
         for target in self.targets:
-            target.update_target(engine, source, check=check)
+            target.update_target(engine, source, always_raytrace=always_raytrace, check=check)
 
         if check:
             error_counter = 0
@@ -2853,7 +2862,10 @@ class PolarityMapping(BaseMapping):
                     "spacing."
                 )
             else:
-                logger.info("Tabulated takeoff-angles are precise enough.")
+                if always_raytrace:
+                    logger.info('Ignoring interpolation tables, always ray-tracing ...')
+                else:
+                    logger.info("Tabulated takeoff-angles are precise enough.")
 
     def get_takeoff_angles_rad(self):
         return num.array([target.takeoff_angle_rad for target in self.targets])
