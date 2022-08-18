@@ -157,6 +157,7 @@ class PolarityComposite(Composite):
 
     def point2sources(self, point):
         tpoint = copy.deepcopy(point)
+        tpoint.update(self.fixed_rvs)
         tpoint = adjust_point_units(tpoint)
 
         hps = self.config.get_hypernames()

@@ -687,6 +687,7 @@ class SeismicGeometryComposite(SeismicComposite):
             with random variables from solution space
         """
         tpoint = copy.deepcopy(point)
+        tpoint.update(self.fixed_rvs)
         tpoint = utility.adjust_point_units(tpoint)
 
         # remove hyperparameters from point
@@ -1129,6 +1130,7 @@ class SeismicDistributerComposite(SeismicComposite):
             with random variables from solution space
         """
         tpoint = copy.deepcopy(point)
+        tpoint.update(self.fixed_rvs)
 
         if self.nevents == 1:
             events = [self.event]  # single event

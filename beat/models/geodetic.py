@@ -516,6 +516,7 @@ class GeodeticSourceComposite(GeodeticComposite):
         Updates the composite source(s) (in place) with the point values.
         """
         tpoint = copy.deepcopy(point)
+        tpoint.update(self.fixed_rvs)
         tpoint = utility.adjust_point_units(tpoint)
 
         # remove hyperparameters from point
@@ -840,6 +841,7 @@ class GeodeticDistributerComposite(GeodeticComposite):
             with random variables from solution space
         """
         tpoint = copy.deepcopy(point)
+        tpoint.update(self.fixed_rvs)
 
         if self.nevents == 1:
             events = [self.event]  # single event

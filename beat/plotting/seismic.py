@@ -1194,6 +1194,7 @@ def extract_mt_components(problem, po, include_magnitude=False):
         best_mt = point2array(point, varnames=varnames, rpoint=rpoint)
     else:
         llk_str = "ref"
+        point = po.reference
         if source_type == "MTQTSource":
             composite = problem.composites[problem.config.problem_config.datatypes[0]]
             composite.point2sources(po.reference)
@@ -1203,7 +1204,7 @@ def extract_mt_components(problem, po, include_magnitude=False):
             m6s = [point2array(point=po.reference, varnames=varnames)]
             best_mt = None
 
-    return m6s, best_mt, llk_str
+    return m6s, best_mt, llk_str, point
 
 
 def draw_ray_piercing_points_bb(
@@ -1219,7 +1220,7 @@ def draw_ray_piercing_points_bb(
     stations=None,
     projection="lambert",
 ):
-
+    print(takeoff_angles_rad * 180 / num.pi)
     toa_idx = takeoff_angles_rad >= (num.pi / 2.0)
     takeoff_angles_rad[toa_idx] = num.pi - takeoff_angles_rad[toa_idx]
     azimuths_rad[toa_idx] += num.pi
@@ -1263,7 +1264,7 @@ def draw_ray_piercing_points_bb(
             ax.text(
                 x[i_s],
                 y[i_s],
-                "{},{:2.1f}".format(station.station, polarities[i_s]),
+                "{}.{},{:2.1f}".format(station.network, station.station, takeoff_angles_rad[i_s] * 180 / num.pi),#polarities[i_s]),
                 color="red",
                 fontsize=5,
             )
@@ -1501,7 +1502,7 @@ def draw_fuzzy_beachball(problem, po):
     if po.load_stage is None:
         po.load_stage = -1
 
-    m6s, best_mt, llk_str = extract_mt_components(problem, po)
+    m6s, best_mt, llk_str, point = extract_mt_components(problem, po)
 
     logger.info("Drawing Fuzzy Beachball ...")
 
@@ -1521,6 +1522,7 @@ def draw_fuzzy_beachball(problem, po):
 
     if "polarity" in problem.config.problem_config.datatypes:
         composite = problem.composites["polarity"]
+        composite.point2sources(point)
         wavenames = [pmap.config.name for pmap in composite.wavemaps]
     else:
         wavenames = ["any_P"]
@@ -1577,11 +1579,15 @@ def draw_fuzzy_beachball(problem, po):
 
             if "polarity" in problem.config.problem_config.datatypes:
                 pmap = composite.wavemaps[k_pamp]
+                source = composite.sources[pmap.config.event_idx]
+                pmap.update_targets(
+                    composite.engine, source,
+                    always_raytrace=composite.config.gf_config.always_raytrace)
                 draw_ray_piercing_points_bb(
                     axes,
                     pmap.get_takeoff_angles_rad(),
                     pmap.get_azimuths_rad(),
-                    pmap.get_polarities(),
+                    pmap._prepared_data,
                     stations=pmap.stations,
                     size=size,
                     position=position,
@@ -1802,7 +1808,7 @@ def draw_fuzzy_mt_decomposition(problem, po):
     if po.load_stage is None:
         po.load_stage = -1
 
-    m6s, _, llk_str = extract_mt_components(problem, po, include_magnitude=True)
+    m6s, _, llk_str, _ = extract_mt_components(problem, po, include_magnitude=True)
 
     outpath = os.path.join(
         problem.outfolder,
@@ -1849,7 +1855,7 @@ def draw_hudson(problem, po):
     if po.load_stage is None:
         po.load_stage = -1
 
-    m6s, best_mt, llk_str = extract_mt_components(problem, po)
+    m6s, best_mt, llk_str, _ = extract_mt_components(problem, po)
 
     logger.info("Drawing Hudson plot ...")
 
