@@ -1,25 +1,33 @@
 --- !beat.BEATconfig
-name: 'PolarityTest'
-date: '2021-03-11'
+name: Polarity_tutorial
+date: '2020-09-11'
 event: !pf.Event
-  lat: 55.8921
-  lon: -120.6303
-  time: '2021-03-11 09:37:32'
-  depth: 5000.0
-  name: '20210311.093732'
-  magnitude: 1.6
+  lat: 55.89310323984567
+  lon: -120.38565188644934
+  time: '2020-09-11 22:37:26'
+  depth: 1650.0
+  name: '20200911.223726'
+  magnitude: 3.41
   magnitude_type: 'Ml'
   region: 'KSMMA'
-  catalog: 'NRC'
+  catalog: 'ATHENA'
   moment_tensor: !pf.MomentTensor
-    mnn: -0.832
-    mee: 0.10
-    mdd: 0.72
-    mne: 0.36
-    mnd: 0.10
-    med: -0.488
+    mnn: -0.72
+    mee: -0.25
+    mdd: 0.8
+    mne: -0.42
+    mnd: -0.27
+    med: 0.35
+    strike1: 278.19172532085196
+    dip1: 51.538415768618236
+    rake1: 59.1612406053596
+    strike2: 142.01907199209353
+    dip2: 47.753932248516
+    rake2: 122.83593838052417
+    moment: 0.9910852637386955
+    magnitude: -6.035925987505385
   duration: 0.6
-project_dir: /home/vasyurhm/BEATS/PolarityTest
+project_dir: /home/vasyurhm/BEATS/Polarity_tutorial
 problem_config: !beat.ProblemConfig
   mode: geometry
   source_type: MTQTSource
@@ -32,11 +40,11 @@ problem_config: !beat.ProblemConfig
       name: h_any_P_pol_0
       form: Uniform
       lower:
-      - 0.0
+      - 0.05
       upper:
-      - 2.0
+      - 0.05
       testvalue:
-      - 0.1
+      - 0.05
   priors:
     depth: !beat.heart.Parameter
       name: depth
@@ -64,7 +72,7 @@ problem_config: !beat.ProblemConfig
       upper:
       - 1.0
       testvalue:
-      - 0.9
+      - 0.2
     kappa: !beat.heart.Parameter
       name: kappa
       form: Uniform
@@ -73,25 +81,7 @@ problem_config: !beat.ProblemConfig
       upper:
       - 6.283185307179586
       testvalue:
-      - 0.785
-    v: !beat.heart.Parameter
-      name: v
-      form: Uniform
-      lower:
-      - 0.0
-      upper:
-      - 0.0
-      testvalue:
-      - 0.0
-    w: !beat.heart.Parameter
-      name: w
-      form: Uniform
-      lower:
-      - 0.0
-      upper:
-      - 0.0
-      testvalue:
-      - 0.0
+      - 1.2566370614359172
     north_shift: !beat.heart.Parameter
       name: north_shift
       form: Uniform
@@ -109,61 +99,43 @@ problem_config: !beat.ProblemConfig
       upper:
       - 1.5707963267948966
       testvalue:
-      - 0.5
+      - -1.2566370614359172
+    w: !beat.heart.Parameter
+      name: w
+      form: Uniform
+      lower:
+      - 0.0
+      upper:
+      - 0.0
+      testvalue:
+      - 0.0
+    v: !beat.heart.Parameter
+      name: v
+      form: Uniform
+      lower:
+      - 0.0
+      upper:
+      - 0.0
+      testvalue:
+      - 0.0
 polarity_config: !beat.PolarityConfig
   datadir: ./
   waveforms:
   - !beat.PolarityFitConfig
     name: any_P
     include: true
-    stations_polarities:
-    - [1E.BCH1A, 1]
-    - [1E.BCH2A, 1]
-    - [1E.MONT1, 1]
-    - [1E.MONT2, -1]
-    - [1E.MONT3, 1]
-    - [1E.MONT4, -1]
-    - [1E.MONT7, -1]
-    - [1E.MONT8, -1]
-    - [1E.MONT9, -1]
-    - [1E.MONTA, 1]
-    - [CN.BMTB ,1]
-    - [EO.KSM01, 1]
-    - [EO.KSM02, 1]
-    - [EO.KSM03, 1]
-    - [EO.KSM04, -1]
-    - [EO.KSM05, -1]
-    - [EO.KSM06, 1]
-    - [EO.KSM07, -1]
-    - [EO.KSM08, 1]
-    - [EO.KSM09, -1]
-    - [EO.KSM10, -1]
-    - [EO.KSM11, 1]
-    - [EO.KSM12, -1]
-    - [EO.KSM13, 1]
-    - [PQ.NBC4 ,-1]
-    - [PQ.NBC5 ,-1]
-    - [PQ.NBC7 ,-1]
-    - [PQ.NBC8 ,-1]
-    - [RV.BDMTA, -1]
-    - [RV.FAIRA, -1]
-    - [RV.WTMTA, -1]
-    - [XL.MG01 ,-1]
-    - [XL.MG03 ,1]
-    - [XL.MG05 ,1]
-    - [XL.MG07 ,-1]
-    - [XL.MG08 ,1]
-    - [XL.MG09 ,-1]
-    - [XL.MG10 ,-1]
-    - [XL.MG11 ,1]
+    polarities_marker_path: ./Polarity_tutorial/polarity_markers_P.pf
+    blacklist:
+    - EO.KSM02
+    - PQ.NBC7
   gf_config: !beat.PolarityGFConfig
-    store_superdir: /home/vasyurhm/BEATS/GF/
+    store_superdir: /home/vasyurhm/BEATS/GF
     reference_model_idx: 0
     n_variations:
     - 0
     - 1
     earth_model_name: local
-    nworkers: 20
+    nworkers: 4
     use_crust2: false
     replace_water: false
     custom_velocity_model: |2
@@ -175,43 +147,41 @@ polarity_config: !beat.PolarityConfig
          21.             6.271          3.74           2.781        471.7          210.1
          21.             6.407          3.767          2.822        900.           401.6
          40.             6.407          3.767          2.822        900.           401.6
-         40.             7.9            4.35           3.276       1400.0         600.0
-         77.5            8.045          4.49           3.500       1444.69         600.0
-         77.5            8.045          4.49           3.500        180.585         75.0
-    source_depth_min: 0.5
-    source_depth_max: 10.0
+    source_depth_min: 0.1
+    source_depth_max: 7.5
     source_depth_spacing: 0.1
-    source_distance_radius: 222.38
+    source_distance_radius: 250.0
     source_distance_spacing: 0.1
     error_depth: 0.1
     error_velocities: 0.1
     depth_limit_variation: 600.0
     reference_location: !beat.heart.ReferenceLocation
-      lat: 55.8921
-      lon: -120.6303
-      depth: 5.0
-      station: PolarityTest
-    sample_rate: 10.0
+      lat: 55.89310323984567
+      lon: -120.38565188644934
+      depth: 1.65
+      station: polarity
+    code: cake
+    always_raytrace: True
 sampler_config: !beat.SamplerConfig
   name: SMC
   backend: bin
-  progressbar: false
-  buffer_size: 5000
-  buffer_thinning: 20
+  progressbar: true
+  buffer_size: 1000
+  buffer_thinning: 10
   parameters: !beat.SMCConfig
     tune_interval: 50
     check_bnd: true
     rm_flag: false
     n_jobs: 4
-    n_steps: 400
-    n_chains: 200
+    n_steps: 200
+    n_chains: 300
     coef_variation: 1.0
     stage: 0
     proposal_dist: MultivariateCauchy
     update_covariances: false
 hyper_sampler_config: !beat.SamplerConfig
   name: Metropolis
-  backend: bin
+  backend: csv
   progressbar: true
   buffer_size: 5000
   buffer_thinning: 1
