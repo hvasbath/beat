@@ -2183,7 +2183,7 @@ def draw_station_map_gmt(problem, po):
 
         event = problem.config.event
 
-        gmtconfig = get_gmt_config(gmtpy, h=h, w=h)
+        gmtconfig = get_gmt_config(gmtpy, h=h, w=h, fontsize=fontsize)
         gmtconfig["MAP_LABEL_OFFSET"] = "4p"
         for wmap in wmaps:
             outpath = os.path.join(
@@ -2269,7 +2269,7 @@ def draw_station_map_gmt(problem, po):
                         )
 
                     draw_events(m.gmt, [event], *m.jxyr, **dict(G="yellow", S="a14p"))
-                    m.save(outpath, resolution=po.dpi, oversample=2.0, size=w)
+                    m.save(outpath, resolution=po.dpi, oversample=2.0)
 
                 logger.info("saving figure to %s" % outpath)
             else:
