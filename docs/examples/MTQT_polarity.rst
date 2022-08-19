@@ -1,5 +1,5 @@
-Example 1: Regional Full Moment Tensor
---------------------------------------
+Example 8: Polarity: Regional DC Moment Tensor
+----------------------------------------------
 Clone project
 ^^^^^^^^^^^^^
 This setup is comprised of 25 seismic stations in a distance range of 3 to 162 km with respect to a reference event occurred on 2021-03-11 with the
@@ -140,7 +140,7 @@ We can also plot the station map with::
 
   beat plot MTQT_polarity station_map
 
-.. image:: ../_static/example8/station_map_polarity.png
+.. image:: ../_static/example8/pol_station_map.png
 
 Please continue the tutorial under optimization setup.
 
@@ -323,23 +323,23 @@ Now we can run the inference using the likelihood formulation for polarity data 
 a Sequential Monte Carlo sampler. The sampler can effectively exploit the parallel architecture of nowadays computers. 
 The *n_jobs* number should be set to as many CPUs as possible in the configuration file.::
 
-sampler_config: !beat.SamplerConfig
-  name: SMC
-  backend: bin
-  progressbar: true
-  buffer_size: 1000
-  buffer_thinning: 10
-  parameters: !beat.SMCConfig
-    tune_interval: 50
-    check_bnd: true
-    rm_flag: false
-    n_jobs: 4
-    n_steps: 200
-    n_chains: 300
-    coef_variation: 1.0
-    stage: 0
-    proposal_dist: MultivariateCauchy
-    update_covariances: false
+  sampler_config: !beat.SamplerConfig
+    name: SMC
+    backend: bin
+    progressbar: true
+    buffer_size: 1000
+    buffer_thinning: 10
+    parameters: !beat.SMCConfig
+      tune_interval: 50
+      check_bnd: true
+      rm_flag: false
+      n_jobs: 4
+      n_steps: 200
+      n_chains: 300
+      coef_variation: 1.0
+      stage: 0
+      proposal_dist: MultivariateCauchy
+      update_covariances: false
 
 .. note:: *n_chains* divided by *n_jobs* MUST yield a *Integer* number! An error is going to be thrown if this is not the case!
 
@@ -376,30 +376,33 @@ For example for the first 4 entries (h, kappa, sigma, polarity likelihood for fi
 Plotting
 ^^^^^^^^
 To see results of the source inference based on polarity, we can plot the source radiation pattern (beachball) with the ray-piercing points at
-seismic stations and the respective polarities on it. The *nensemble* arguement would add uncertainty to the plot.
+seismic stations and the respective polarities on it. The *nensemble* arguement would add uncertainty to the plot.::
 
-    beat plot MTQT_polarity fuzzy_beachball --nensemble=200
-    
- .. image:: ../_static/example8/
+    beat plot MTQT_polarity fuzzy_beachball --nensemble=300 --stage_number=-1
+
+
+.. image:: ../_static/example8/pol_fuzzy_bb.png
 
 The following command produces a '.png' file with the final posterior distribution. In the $beat_models run::
 
-    beat plot MTQT_polarity stage_posteriors --reference --stage_number=-1 --format='png'
+    beat plot MTQT_polarity stage_posteriors --stage_number=-1 --format='png' --varnames=kappa,h,sigma,strike1,dip1,rake1
 
 It may look like this.
 
- .. image:: ../_static/example8/
+.. image:: ../_static/example8/pol_posteriors.png
+  :width: 550 px
 
 The vertical black lines are the true values and the vertical red lines are the maximum likelihood values.
 
 
-To get an image of parameter correlations (including the maximum aposterior (MAP) value in red) of moment tensor components
+To get an image of parameter correlations (including the maximum aposterior (MAP) value in red) of moment tensor components and posterior likelihood.::
 
-    beat plot MTQT_polarity correlation_hist --stage_number=-1 --format='png' --varnames='h,sigma,kappa'
+    beat plot MTQT_polarity correlation_hist --stage_number=-1 --format='png' --varnames='kappa,h,sigma,like'
 
 This will show an image like that.
 
- .. image:: ../_static/example1/FullMT_corr_hist_ref_variance.png
+.. image:: ../_static/example8/pol_correlation.png
+
 
 This shows 2d kernel density estimates (kde) and histograms of the specified model parameters. The darker the 2d kde the higher the probability
 of the model parameter.
