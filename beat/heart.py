@@ -856,11 +856,15 @@ class PolarityTarget(gf.meta.Receiver):
             self.check = 0
         else:
             try:
-                self.takeoff_angle_rad = self.get_takeoff_angle_table(source, store) * d2r
+                self.takeoff_angle_rad = (
+                    self.get_takeoff_angle_table(source, store) * d2r
+                )
                 if check:
                     target_id = utility.list2string(self.codes)
                     takeoff_angle_cake = self.get_takeoff_angle_cake(source, store)
-                    angle_diff = num.abs(self.takeoff_angle_rad * r2d - takeoff_angle_cake)
+                    angle_diff = num.abs(
+                        self.takeoff_angle_rad * r2d - takeoff_angle_cake
+                    )
                     if angle_diff > 1.0:
                         logger.warning(
                             "Tabulated takeoff-angle for station %s differs "
@@ -886,7 +890,9 @@ class PolarityTarget(gf.meta.Receiver):
                 logger.warning(
                     "Could not find takeoff-angle table," " falling back to cake..."
                 )
-                self.takeoff_angle_rad = self.get_takeoff_angle_cake(source, store) * d2r
+                self.takeoff_angle_rad = (
+                    self.get_takeoff_angle_cake(source, store) * d2r
+                )
                 self.check = 0
 
 
@@ -2349,8 +2355,13 @@ def seis_construct_gf(
 
 
 def polarity_construct_gf(
-    stations, event, polarity_config, crust_ind=0, execute=False, force=False,
-    always_raytrace=False
+    stations,
+    event,
+    polarity_config,
+    crust_ind=0,
+    execute=False,
+    force=False,
+    always_raytrace=False,
 ):
     """
     Calculate polarity Greens Functions (GFs) and create a repository 'store'
@@ -2848,7 +2859,9 @@ class PolarityMapping(BaseMapping):
     def update_targets(self, engine, source, always_raytrace=False, check=False):
 
         for target in self.targets:
-            target.update_target(engine, source, always_raytrace=always_raytrace, check=check)
+            target.update_target(
+                engine, source, always_raytrace=always_raytrace, check=check
+            )
 
         if check:
             error_counter = 0
@@ -2863,7 +2876,7 @@ class PolarityMapping(BaseMapping):
                 )
             else:
                 if always_raytrace:
-                    logger.info('Ignoring interpolation tables, always ray-tracing ...')
+                    logger.info("Ignoring interpolation tables, always ray-tracing ...")
                 else:
                     logger.info("Tabulated takeoff-angles are precise enough.")
 

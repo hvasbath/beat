@@ -1220,22 +1220,25 @@ def draw_ray_piercing_points_bb(
     stations=None,
     projection="lambert",
 ):
-    print(takeoff_angles_rad * 180 / num.pi)
+    # overturn takeoff-angles above 90 deg
     toa_idx = takeoff_angles_rad >= (num.pi / 2.0)
     takeoff_angles_rad[toa_idx] = num.pi - takeoff_angles_rad[toa_idx]
-    azimuths_rad[toa_idx] += num.pi
 
-    # use project instead?
-    r = size * num.sqrt(2) * num.sin(0.5 * takeoff_angles_rad)
-    x = r * num.sin(azimuths_rad) + position[1]
-    y = r * num.cos(azimuths_rad) + position[0]
+    # project stations to coordinate system of beachball
+    rtp = num.vstack(
+        [num.ones_like(takeoff_angles_rad), takeoff_angles_rad, azimuths_rad]
+    ).T
+    points = beachball.numpy_rtp2xyz(rtp)
+    x, y = beachball.project(points, projection=projection).T
+    x = size * x + position[1]
+    y = size * y + position[0]
 
     if not nomask:
         xp, yp = x[polarities >= 0], y[polarities >= 0]
         xt, yt = x[polarities < 0], y[polarities < 0]
         ax.plot(
-            xp,
             yp,
+            xp,
             "D",
             ms=markersize,
             mew=0.5,
@@ -1244,8 +1247,8 @@ def draw_ray_piercing_points_bb(
             transform=transform,
         )
         ax.plot(
-            xt,
             yt,
+            xt,
             "s",
             ms=markersize,
             mew=0.5,
@@ -1262,9 +1265,14 @@ def draw_ray_piercing_points_bb(
 
         for i_s, station in enumerate(stations):
             ax.text(
-                x[i_s],
                 y[i_s],
-                "{}.{},{:2.1f}".format(station.network, station.station, takeoff_angles_rad[i_s] * 180 / num.pi),#polarities[i_s]),
+                x[i_s],
+                "{}.{}".format(
+                    station.network,
+                    station.station,
+                    # takeoff_angles_rad[i_s] * 180 / num.pi,
+                    # azimuths_rad[i_s] * 180 / num.pi,
+                ),  # polarities[i_s]),
                 color="red",
                 fontsize=5,
             )
@@ -1320,6 +1328,7 @@ def lower_focalsphere_angles(grid_resolution, projection):
         plt.colorbar(im1)
         im2 = axs[1].imshow(aphi_re, origin="lower")
         plt.colorbar(im2)
+        plt.show()
     return amps, atheta, aphi, ii_ok, x, y
 
 
@@ -1482,8 +1491,8 @@ def plot_fuzzy_beachball_mpl_pixmap(
     x = num.cos(phi)
     y = num.sin(phi)
     axes.plot(
-        position[0] + x * size,
-        position[1] + y * size,
+        position[0] + y * size,
+        position[1] + x * size,
         linewidth=linewidth,
         color=edgecolor,
         transform=transform,
@@ -1581,8 +1590,10 @@ def draw_fuzzy_beachball(problem, po):
                 pmap = composite.wavemaps[k_pamp]
                 source = composite.sources[pmap.config.event_idx]
                 pmap.update_targets(
-                    composite.engine, source,
-                    always_raytrace=composite.config.gf_config.always_raytrace)
+                    composite.engine,
+                    source,
+                    always_raytrace=composite.config.gf_config.always_raytrace,
+                )
                 draw_ray_piercing_points_bb(
                     axes,
                     pmap.get_takeoff_angles_rad(),
@@ -2253,7 +2264,9 @@ def draw_station_map_gmt(problem, po):
                             text = "{}.{}".format(st.network, st.station)
                             m.add_label(lat=st.lat, lon=st.lon, text=text)
                     else:
-                        m.add_stations(wmap.stations, psxy_style=dict(S="t14p", G="red"))
+                        m.add_stations(
+                            wmap.stations, psxy_style=dict(S="t14p", G="red")
+                        )
 
                     draw_events(m.gmt, [event], *m.jxyr, **dict(G="yellow", S="a14p"))
                     m.save(outpath, resolution=po.dpi, oversample=2.0, size=w)

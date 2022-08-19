@@ -762,8 +762,8 @@ class PolarityGFConfig(NonlinearGFConfig):
         default="cake", help="Raytracing code to use for takeoff-angle computations."
     )
     always_raytrace = Bool.T(
-        default=True,
-        help="Set to true for ignoring the interpolation table.")
+        default=True, help="Set to true for ignoring the interpolation table."
+    )
     reference_location = ReferenceLocation.T(
         default=None,
         help="Reference location for the midpoint of the " "Green's Function 'grid.",
