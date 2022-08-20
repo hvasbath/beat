@@ -5,7 +5,7 @@ All notable changes to BEAT will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 
-## [1.2.0] TBD June 2022
+## [1.2.0] 21 August 2022
 Contributors: Mahdi Hamidbeygi @mahdihamidbeygi, Hannes Vasyura-Bathke @hvasbath
 
 ### Added
@@ -24,6 +24,7 @@ Contributors: Mahdi Hamidbeygi @mahdihamidbeygi, Hannes Vasyura-Bathke @hvasbath
 - adapted installation scheme to fulfill PEP517 through pip and .toml
 - providing beat binary packages on PyPi
 - github actions workflow for code formatting and wheel building
+- pre-commit and hooks for yaml, spellchecking, tailing whitespaces and eof
 
 ### Changed
 - split plotting module into plotting directory with submodules
