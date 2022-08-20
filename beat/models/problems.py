@@ -1,23 +1,18 @@
+import copy
 import os
 import time
-import copy
-
-from pymc3 import Uniform, Model, Deterministic, Potential
-
-from pyrocko import util
+from logging import getLogger
 
 import numpy as num
-
 import theano.tensor as tt
+from pymc3 import Deterministic, Model, Potential, Uniform
+from pyrocko import util
 from theano import config as tconfig
-
-from beat.utility import list2string, transform_sources, weed_input_rvs
-from beat.models import geodetic, seismic, laplacian, polarity
 
 from beat import config as bconfig
 from beat.backend import ListArrayOrdering, ListToArrayBijection
-
-from logging import getLogger
+from beat.models import geodetic, laplacian, polarity, seismic
+from beat.utility import list2string, transform_sources, weed_input_rvs
 
 # disable theano rounding warning
 tconfig.warn.round = False

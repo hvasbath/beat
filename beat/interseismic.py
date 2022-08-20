@@ -15,17 +15,16 @@ Savage & Prescott 1978
 Metzger et al. 2011
 """
 
-from beat import utility
-from beat.heart import geo_synthetics
+import copy
+import logging
 
 import numpy as num
-import logging
-import copy
-
-from pyrocko.orthodrome import latlon_to_ne_numpy, latlon_to_xyz, earthradius
-from pyrocko.gf import RectangularSource as RS
-
 from matplotlib.path import Path
+from pyrocko.gf import RectangularSource as RS
+from pyrocko.orthodrome import earthradius, latlon_to_ne_numpy, latlon_to_xyz
+
+from beat import utility
+from beat.heart import geo_synthetics
 
 logger = logging.getLogger("interseismic")
 
@@ -41,7 +40,7 @@ __all__ = ["geo_backslip_synthetics"]
 
 def block_mask(easts, norths, sources, east_ref, north_ref):
     """
-    Determine stable and moving observation points dependend on the input
+    Determine stable and moving observation points dependent on the input
     fault orientation.
 
     Parameters
@@ -124,7 +123,7 @@ def block_mask(easts, norths, sources, east_ref, north_ref):
 
 def block_geometry(lons, lats, sources, reference):
     """
-    Construct block geometry determine stable and moving parts dependend
+    Construct block geometry determine stable and moving parts dependent
     on the reference location.
 
     Parameters
@@ -323,7 +322,7 @@ def geo_backslip_synthetics(
 
 def seperate_point(point):
     """
-    Seperate point into source object related components and the rest.
+    Separate point into source object related components and the rest.
     """
     tpoint = copy.deepcopy(point)
 

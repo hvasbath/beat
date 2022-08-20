@@ -3,41 +3,39 @@ Core module with functions to calculate Greens Functions and synthetics.
 Also contains main classes for setup specific parameters.
 """
 
-import os
-import logging
-from random import choice, choices
-import shutil
 import copy
-from time import time
+import logging
+import os
+import shutil
 from collections import OrderedDict
+from random import choice, choices
+from time import time
 
-from beat import utility
-from theano import config as tconfig
-from theano import shared
 import numpy as num
-from scipy import linalg
-
+from pymc3 import plots as pmp
+from pyrocko import cake, crust2x2, gf, orthodrome, trace, util
+from pyrocko.cake import GradientLayer
+from pyrocko.fomosto import qseis, qssp
 from pyrocko.guts import (
+    Bool,
     Dict,
+    Float,
+    Int,
+    List,
     Object,
     String,
     StringChoice,
-    Float,
-    Int,
     Tuple,
-    List,
-    Bool,
 )
 from pyrocko.guts_array import Array
-
-from pyrocko import crust2x2, gf, cake, orthodrome, trace, util
-from pyrocko.cake import GradientLayer
-from pyrocko.fomosto import qseis, qssp
 from pyrocko.model import gnss
 from pyrocko.moment_tensor import to6
 from pyrocko.spit import OutOfBounds
+from scipy import linalg
+from theano import config as tconfig
+from theano import shared
 
-from pymc3 import plots as pmp
+from beat import utility
 
 # from pyrocko.fomosto import qseis2d
 
@@ -56,7 +54,7 @@ stackmodes = ["array", "data", "stacked_traces", "tapered_data"]
 _domain_choices = ["time", "spectrum"]
 
 lambda_sensors = {
-    "Envisat": 0.056,  # needs updating- no ressource file
+    "Envisat": 0.056,  # needs updating- no resource file
     "ERS1": 0.05656461471698113,
     "ERS2": 0.056,  # needs updating
     "JERS": 0.23513133960784313,
@@ -74,7 +72,7 @@ def log_determinant(A, inverse=False):
     A : n x n :class:`numpy.ndarray`
     inverse : boolean
         If true calculates the log determinant of the inverse of the colesky
-        decomposition, which is equvalent to taking the determinant of the
+        decomposition, which is equivalent to taking the determinant of the
         inverse of the matrix.
 
         L.T* L = R           inverse=False
@@ -793,7 +791,7 @@ class PolarityTarget(gf.meta.Receiver):
     distance = Float.T(optional=True, help="epicentral distance of sensor in [m].")
     takeoff_angle_rad = Float.T(
         optional=True,
-        help="takeoff-angle of ray emmited from source with respect to"
+        help="takeoff-angle of ray emitted from source with respect to"
         "distance & source depth recorded by sensor in [rad]."
         "upward ray when > 90.",
     )
@@ -1543,7 +1541,7 @@ class DiffIFG(IFG):
             leaf_idxs_cols = scene.quadtree.leaf_eastings / scene.frame.dE
 
             points = num.vstack([leaf_idxs_cols, leaf_idxs_rows]).T
-            for vertices in polygons.values():  # vertexes [cols, rows]
+            for vertices in polygons.values():  # vertices [cols, rows]
                 p = Path(vertices)
                 mask |= p.contains_points(points)
 
@@ -2666,7 +2664,7 @@ class BaseMapping(object):
         raise NotImplementedError
 
     def _load_phase_markers(self, path):
-        from pyrocko.gui.marker import load_markers, PhaseMarker
+        from pyrocko.gui.marker import PhaseMarker, load_markers
 
         if self._phase_markers is None:
             try:
@@ -3467,7 +3465,7 @@ def init_wavemap(waveformfit_config, datahandler=None, event=None, mapnumber=0):
     """
     Initialise wavemap, which sets targets, datasets and stations into
     relation to the seismic Phase of interest and allows individual
-    specificiations.
+    specifications.
 
     Parameters
     ----------
@@ -3641,8 +3639,8 @@ def seis_synthetics(
         'data' returns traces unstacked including post-processing,
         'tapered_data' returns unstacked but tapered traces
     pre_stack_cut : boolean
-        flag to decide wheather prior to stacking the GreensFunction traces
-        should be cutted according to the phase arival time and the defined
+        flag to decide whether prior to stacking the GreensFunction traces
+        should be cut according to the phase arrival time and the defined
         taper
     taper_tolerance_factor : float
         tolerance to chop traces around taper.a and taper.d
@@ -3801,7 +3799,7 @@ def seis_synthetics(
 
 def radiation_weights_p(takeoff_angles, azimuths):
     """
-    Station dependend propagation coefficients for P waves
+    Station dependent propagation coefficients for P waves
 
     Notes
     -----
@@ -3825,7 +3823,7 @@ def radiation_weights_p(takeoff_angles, azimuths):
 
 def radiation_weights_sv(takeoff_angles, azimuths):
     """
-    Station dependend propagation coefficients for SV waves
+    Station dependent propagation coefficients for SV waves
 
     Notes
     -----
@@ -3848,7 +3846,7 @@ def radiation_weights_sv(takeoff_angles, azimuths):
 
 def radiation_weights_sh(takeoff_angles, azimuths):
     """
-    Station dependend propagation coefficients for SV waves
+    Station dependent propagation coefficients for SV waves
 
     Notes
     -----

@@ -8,31 +8,26 @@ import sys
 # disable internal(fine) blas parallelisation as we parallelise over chains
 os.environ["OMP_NUM_THREADS"] = "1"
 
-from mpi4py import MPI
-import numpy as num
-
-from beat.utility import load_objects, list2string, setup_logging, dump_objects
-from beat.sampler import distributed
-from beat.backend import MemoryChain, backend_catalog, SampleStage
-
-from beat.sampler.base import (
-    _iter_sample,
-    Proposal,
-    choose_proposal,
-    ChainCounter,
-    multivariate_proposals,
-)
-from beat.config import sample_p_outname
-
-from logging import getLogger, getLevelName
-
-from theano import config as tconfig
-
 from collections import OrderedDict
 from copy import deepcopy
-
+from logging import getLevelName, getLogger
 from pickle import HIGHEST_PROTOCOL
 
+import numpy as num
+from mpi4py import MPI
+from theano import config as tconfig
+
+from beat.backend import MemoryChain, SampleStage, backend_catalog
+from beat.config import sample_p_outname
+from beat.sampler import distributed
+from beat.sampler.base import (
+    ChainCounter,
+    Proposal,
+    _iter_sample,
+    choose_proposal,
+    multivariate_proposals,
+)
+from beat.utility import dump_objects, list2string, load_objects, setup_logging
 
 logger = getLogger("pt")
 
@@ -822,7 +817,7 @@ def pt_sample(
     record_worker_chains=False,
 ):
     """
-    Paralell Tempering algorithm
+    Parallel Tempering algorithm
 
     (adaptive) Metropolis sampling over n_jobs of MC chains.
     Half (floor) of these are sampling at beta = 1 (the posterior).

@@ -1,21 +1,18 @@
-from beat.utility import (
-    list2string,
-    positions2idxs,
-    kmtypes,
-    split_off_list,
-    Counter,
-    mod_i,
-    rotate_coords_plane_normal,
-    split_point,
-    update_source,
-    check_point_keys,
-    dump_objects,
-    load_objects,
-    find_elbow,
-)
+import copy
+import os
+from collections import OrderedDict, namedtuple
+from logging import getLogger
 
-from beat.fast_sweeping import fast_sweep
-from beat.heart import velocities_from_pole
+import numpy as num
+from matplotlib import pyplot as plt
+from pyrocko.gf.seismosizer import Cloneable
+from pyrocko.guts import Dict, Float, Int, List, Object, dump, load
+from pyrocko.moment_tensor import moment_to_magnitude
+from pyrocko.orthodrome import latlon_to_ne_numpy, ne_to_latlon
+from pyrocko.plot import mpl_papersize
+from pyrocko.util import ensuredir
+from scipy.linalg import block_diag, svd
+from theano import shared
 
 from beat.config import (
     ResolutionDiscretizationConfig,
@@ -23,32 +20,30 @@ from beat.config import (
     discretization_dir_name,
     fault_geometry_name,
 )
+from beat.fast_sweeping import fast_sweep
+from beat.heart import velocities_from_pole
 from beat.models.laplacian import (
+    distances,
     get_smoothing_operator_correlated,
     get_smoothing_operator_nearest_neighbor,
-    distances,
 )
-from .base import get_backend, geo_construct_gf_linear_patches
+from beat.utility import (
+    Counter,
+    check_point_keys,
+    dump_objects,
+    find_elbow,
+    kmtypes,
+    list2string,
+    load_objects,
+    mod_i,
+    positions2idxs,
+    rotate_coords_plane_normal,
+    split_off_list,
+    split_point,
+    update_source,
+)
 
-from pyrocko.util import ensuredir
-from pyrocko.gf.seismosizer import Cloneable
-from pyrocko.orthodrome import latlon_to_ne_numpy, ne_to_latlon
-from pyrocko.moment_tensor import moment_to_magnitude
-from pyrocko.guts import Object, List, Float, Int, Dict, dump, load
-from pyrocko.plot import mpl_papersize
-
-import os
-import copy
-from logging import getLogger
-from collections import namedtuple, OrderedDict
-
-import numpy as num
-
-from scipy.linalg import block_diag, svd
-
-from theano import shared
-from matplotlib import pyplot as plt
-
+from .base import geo_construct_gf_linear_patches, get_backend
 
 logger = getLogger("ffi.fault")
 
@@ -791,7 +786,7 @@ total number of patches: %i """ % (
         """
         Get second order Laplacian smoothing operator.
 
-        This is beeing used to smooth the slip-distribution
+        This is being used to smooth the slip-distribution
         in the optimization.
 
 
@@ -807,7 +802,7 @@ total number of patches: %i """ % (
                 for ns in range(self.nsubfaults):
                     self._check_index(ns)
                     npw, npl = self.ordering.get_subfault_discretization(ns)
-                    # no smoothing accross sub-faults!
+                    # no smoothing across sub-faults!
                     L = get_smoothing_operator_nearest_neighbor(
                         n_patch_strike=npl,
                         n_patch_dip=npw,
@@ -1018,13 +1013,13 @@ def write_fault_to_pscmp(
 #                Z      -------------------------
 #                              L e n g t h
 #
-#    Note that a point inflation can be simulated by three point openning
+#    Note that a point inflation can be simulated by three point opening
 #    faults (each causes a third part of the volume of the point inflation)
 #    with orientation orthogonal to each other. the results obtained should
 #    be multiplied by a scaling factor 3(1-nu)/(1+nu), where nu is the Poisson
 #    ratio at the source. The scaling factor is the ratio of the seismic
 #    moment (energy) of an inflation source to that of a tensile source inducing
-#    a plate openning with the same volume change.
+#    a plate opening with the same volume change.
 #===============================================================================
 # n_faults
 #-------------------------------------------------------------------------------
@@ -1544,8 +1539,9 @@ def optimize_discretization(
         Mexico
         Remote Sensing of Environment, 234, 111461,
     """
-    from beat.plotting import source_geometry
     from numpy.testing import assert_array_equal
+
+    from beat.plotting import source_geometry
 
     _available_methods = ("laplacian", "svd")
 

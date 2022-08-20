@@ -21,7 +21,7 @@ https://pyrocko.org/beat/
 
 New [tutorial](https://pyrocko.org/beat/docs/current/examples/Rectangular_tensile.html) on tensile dislocation modeling.
 
-**HELP wanted!** 
+**HELP wanted!**
 
 The new release contains a lot of undocumented features a list of these can be found here:
 https://github.com/hvasbath/beat/issues/69
@@ -33,7 +33,7 @@ you in writing parts of the documentation for a particular feature-if you want t
 
 The legacy documentation of beat v1.0. can be found under: https://hvasbath.github.io/beat/
 
-## License 
+## License
 GNU General Public License, Version 3, 29 June 2007
 
 Copyright © 2017 Hannes Vasyura-Bathke
@@ -61,15 +61,15 @@ We recommend to prepare the SAR data (subsampling, data covariance estimation) u
 kite supports import of ISCE, GAMMA, ROI_Pac and GMTSAR processed interferograms. BEAT then supports import of the native KITE format.
 
 ### Seismic
-To see a list of the supported data types please see: [Trace Handeling](https://pyrocko.org/docs/current/library/examples/trace_handling.html)
+To see a list of the supported data types please see: [Trace Handling](https://pyrocko.org/docs/current/library/examples/trace_handling.html)
 In addition to these an ascii text file with the station information is needed of the format::
-    
+
     #network_name.station_name.location_name latitude[deg] longitude[deg] elevation[m] depth[m]
-    IU.TSUM.10            -19.20220       17.58380         1260.0            0.0 
+    IU.TSUM.10            -19.20220       17.58380         1260.0            0.0
       BHE             90              0              1   # channel name azimuth[deg] dip[deg] gain \n
       BHN              0              0              1
       BHZ              0            -90              1
-    IU.RCBR.00             -5.82740      -35.90140          291.0          109.0 
+    IU.RCBR.00             -5.82740      -35.90140          291.0          109.0
       BH1             48              0              1
       BH2            138              0              1
       BHZ              0            -90              1
@@ -86,8 +86,8 @@ containing a list of 2 lists:
 1. list of "pyrocko.trace.Trace" objects alternating for (Z / T / R) rotated traces.
 2. list of "pyrocko.model.Station" objects in the same order like the data traces.
 
-We invite the users to propose data formats or outputs of specific programs that they would 
-like to see implemented. 
+We invite the users to propose data formats or outputs of specific programs that they would
+like to see implemented.
 
 ## Support
 For substantial issues please use and check the "issues" tab here in the repository.

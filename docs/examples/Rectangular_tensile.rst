@@ -36,7 +36,7 @@ sources has been added.
 Please open $project_directory/config_geometry.yaml with any text editor (e.g. vi) and search for: store_superdir.
 The path specified here needs to be replaced with the path to where the GFs are supposed to be stored on your computer.
 This directory is referred to as the $GF_path in the rest of the text. It is strongly recommended to use a separate directory
-apart from the beat source directory. The statics Green's function stores are not very large, but could be re-used by several projects in the
+apart from the beat source directory. The statistics Green's function stores are not very large, but could be re-used by several projects in the
 future.
 
 In the $project_path/config_geometry.yaml under geodetic_config we find the gf_config, which holds the major parameters for GF calculation::
@@ -156,7 +156,7 @@ The sampler can effectively exploit the parallel architecture of nowadays comput
 
 .. note:: 'n_chains' divided by 'n_jobs' MUST yield a whole number! An error is going to be thrown if this is not the case!
 
-Dependend on the hardware, sampler specifications and number of jobs that have been defined, this calculation is going to take few hours.
+Dependent on the hardware, sampler specifications and number of jobs that have been defined, this calculation is going to take few hours.
 Therefore, in order to avoid crashes or in the case of remote connection via ssh it is very much recommended to use software like 'screen'
 to detach the terminal where the process is running. For now we do not do that, simply run::
 
@@ -168,13 +168,13 @@ The sampling is successfully finished if the screen shows something like this::
     2021-03-03 12:58:33,749 - backend - INFO - Loading multitrace from /home/vasyurhm/BEATS/Fernandina/geometry/stage_15
     2021-03-03 12:58:33,768 - smc - INFO - Beta > 1.: 1.005489
     2021-03-03 12:58:33,769 - smc - INFO - Saving sampler state ...
-    2021-03-03 12:58:33,771 - smc - INFO - Sample final stage with n_steps 300 
+    2021-03-03 12:58:33,771 - smc - INFO - Sample final stage with n_steps 300
     2021-03-03 12:58:33,775 - sampler - INFO - Initialising 40 chain traces ...
     2021-03-03 12:58:33,783 - sampler - INFO - Serial time per sample: 0.349948
-    2021-03-03 12:58:33,783 - sampler - INFO - Data to be memory shared: 
+    2021-03-03 12:58:33,783 - sampler - INFO - Data to be memory shared:
     2021-03-03 12:58:33,783 - sampler - INFO - No data to be memshared!
     2021-03-03 12:58:33,783 - sampler - INFO - Sampling ...
-    2021-03-03 13:03:11,741 - parallel - INFO - 
+    2021-03-03 13:03:11,741 - parallel - INFO -
      Feierabend! Done with the work!
 
 .. note:: The reader might have noticed the two different *backends* that have been specified in the *SamplerConfigs*, "csv" and "bin". `Here <https://hvasbath.github.io/beat/getting_started/backends.html#sampling-backends>`__ we refer to the backend section that describe these further.
@@ -192,7 +192,7 @@ To summarize only a specific stage please add the 'stage_number' option, e.g. th
     Only for SMC:
     All the chain_*.csv/.bin files under the $project_directory/geometry/stage_* directories can be problematic for
     the operation system, e.g. on Clusters. Once a stage finished sampling these can be also deleted by setting the 'rm_flag'
-    under the 'SamplerConfig.parameters'. The program will ask again once for safety reasons if the files are really supposed to be deleted. Once they are gone, they are gone! Restarting the sampling from that stage (see above) wont be possible anymore.
+    under the 'SamplerConfig.parameters'. The program will ask again once for safety reasons if the files are really supposed to be deleted. Once they are gone, they are gone! Restarting the sampling from that stage (see above) won't be possible anymore.
 
 After that, several figures illustrating the results can be created. To do so the **kite** software needs to be installed and the original displacement data needs to be downloaded `here <https://github.com/hvasbath/fernandina_kite_container>`__. They need to be put into the specified data path given under "datadir" in the geodetic_config section of the configuration file.
 For a comparison between data, synthetic displacements and residuals for the two InSAR tracks in a local coordinate system please run::

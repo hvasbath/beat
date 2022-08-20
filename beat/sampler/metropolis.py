@@ -5,38 +5,33 @@ Provides the possibility to update the involved covariance matrixes within
 the course of sampling the chain.
 """
 
-import shutil
+import logging
 import os
+import shutil
+from copy import deepcopy
 from time import time
 
-import logging
-from copy import deepcopy
-
 import numpy as num
-
-from theano import config as tconfig
-
-from pymc3.vartypes import discrete_types
-from pymc3.model import modelcontext, Point
+from pymc3.backends import text
+from pymc3.model import Point, modelcontext
 from pymc3.step_methods.metropolis import metrop_select
 from pymc3.step_methods.metropolis import tune as step_tune
-
-from pymc3.theanof import make_shared_replacements, inputvars
-from pymc3.backends import text
-
+from pymc3.theanof import inputvars, make_shared_replacements
+from pymc3.vartypes import discrete_types
 from pyrocko import util
+from theano import config as tconfig
 
 from beat import backend, utility
 from beat.covariance import init_proposal_covariance
-from .base import (
-    iter_parallel_chains,
-    choose_proposal,
-    logp_forw,
-    init_stage,
-    update_last_samples,
-    multivariate_proposals,
-)
 
+from .base import (
+    choose_proposal,
+    init_stage,
+    iter_parallel_chains,
+    logp_forw,
+    multivariate_proposals,
+    update_last_samples,
+)
 
 __all__ = ["metropolis_sample", "get_trace_stats", "get_final_stage", "Metropolis"]
 

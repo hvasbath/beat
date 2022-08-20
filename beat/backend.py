@@ -23,10 +23,9 @@ import json
 import logging
 import os
 import shutil
+from collections import OrderedDict
 from glob import glob
 from time import time
-
-from collections import OrderedDict
 
 import numpy as num
 import pandas as pd
@@ -40,19 +39,19 @@ except ImportError:
 
 from pymc3.backends import base, ndarray
 from pymc3.backends import tracetab as ttab
-from pymc3.blocking import DictToArrayBijection, ArrayOrdering
+from pymc3.blocking import ArrayOrdering, DictToArrayBijection
 from pymc3.model import modelcontext
 from pymc3.step_methods.arraystep import BlockedStep
 from pyrocko import util
 
-from beat.config import sample_p_outname, transd_vars_dist, mt_components, dc_components
+from beat.config import dc_components, mt_components, sample_p_outname, transd_vars_dist
 from beat.covariance import calc_sample_covariance
 from beat.utility import (
-    load_objects,
-    dump_objects,
     ListArrayOrdering,
     ListToArrayBijection,
+    dump_objects,
     list2string,
+    load_objects,
 )
 
 logger = logging.getLogger("backend")
@@ -101,7 +100,7 @@ class ArrayStepSharedLLK(BlockedStep):
         variables to be stored in the traces
     shared : dict
         theano variable -> shared variables
-    blocked : boolen
+    blocked : boolean
         (default True)
     """
 
@@ -420,7 +419,7 @@ class TextChain(FileChain):
         every nth sample of the buffer is written to disk
     progressbar : boolean
         flag if a progressbar is active, if not a logmessage is printed
-        everytime the buffer is written to disk
+        every time the buffer is written to disk
     k : int, optional
         if given dont use shape from testpoint as size of transd variables
     """
@@ -542,7 +541,7 @@ class TextChain(FileChain):
             Burn-in samples from trace. This is the number of samples to be
             thrown out from the start of the trace
         thin : int
-            Nuber of thinning samples. Throw out every 'thin' sample of the
+            Number of thinning samples. Throw out every 'thin' sample of the
             trace.
 
         Returns
@@ -614,7 +613,7 @@ class NumpyChain(FileChain):
         every nth sample of the buffer is written to disk
     progressbar : boolean
         flag if a progressbar is active, if not a logmessage is printed
-        everytime the buffer is written to disk
+        every time the buffer is written to disk
     k : int, optional
         if given dont use shape from testpoint as size of transd variables
     """
@@ -1228,7 +1227,7 @@ def get_highest_sampled_stage(homedir, return_final=False):
         try:
             stagenumbers.append(int(stage_ending))
         except ValueError:
-            logger.debug("string - Thats the final stage!")
+            logger.debug("string - That's the final stage!")
             if return_final:
                 return stage_ending
 

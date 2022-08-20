@@ -1,8 +1,8 @@
 #!/usr/bin/env python
-from glob import glob
 import os
-from os.path import join as pjoin
+from glob import glob
 from os.path import basename
+from os.path import join as pjoin
 
 # disable internal blas parallelisation as we parallelise over chains
 nthreads = "1"
@@ -12,34 +12,30 @@ os.environ["OPENBLAS_NUM_THREADS"] = nthreads
 os.environ["MKL_NUM_THREADS"] = nthreads
 os.environ["VECLIB_MAXIMUM_THREADS"] = nthreads
 
-import logging
-import sys
 import copy
+import logging
 import shutil
+import sys
 from collections import OrderedDict
-
 from optparse import OptionParser
 
-from beat import heart, utility, inputf, plotting, config as bconfig
-from beat.info import version
-from beat.config import ffi_mode_str, geometry_mode_str, dist_vars
-from beat.models import load_model, Stage, estimate_hypers, sample
-from beat.backend import backend_catalog, extract_bounds_from_summary, thin_buffer
-from beat.sampler.pt import SamplingHistory
-from beat.sampler.smc import sample_factor_final_stage
-
-from beat.sources import MTSourceWithMagnitude, MTQTSource
-from beat.utility import list2string
-from numpy import atleast_2d, floor, array, zeros
-
+from numpy import array, atleast_2d, floor, zeros
 from pyrocko import model, util
-from pyrocko.trace import snuffle
 from pyrocko.gf import LocalEngine
-
-from pyrocko.guts import load, dump, Dict
-
+from pyrocko.guts import Dict, dump, load
+from pyrocko.trace import snuffle
 from tqdm import tqdm
 
+from beat import config as bconfig
+from beat import heart, inputf, plotting, utility
+from beat.backend import backend_catalog, extract_bounds_from_summary, thin_buffer
+from beat.config import dist_vars, ffi_mode_str, geometry_mode_str
+from beat.info import version
+from beat.models import Stage, estimate_hypers, load_model, sample
+from beat.sampler.pt import SamplingHistory
+from beat.sampler.smc import sample_factor_final_stage
+from beat.sources import MTQTSource, MTSourceWithMagnitude
+from beat.utility import list2string
 
 logger = logging.getLogger("beat")
 
@@ -150,11 +146,11 @@ def add_common_options(parser):
 
 def get_project_directory(args, options, nargs=1, popflag=False):
 
-    larg = len(args)
+    largs = len(args)
 
-    if larg == nargs - 1:
+    if largs == nargs - 1:
         project_dir = os.getcwd()
-    elif larg == nargs:
+    elif largs == nargs:
         if popflag:
             name = args.pop(0)
         else:
@@ -1036,10 +1032,10 @@ def result_check(mtrace, min_length):
 
 def command_summarize(args):
 
+    from numpy import hstack, ravel, split, vstack
     from pymc3 import summary
-    from numpy import hstack, vstack, split, ravel
-    from pyrocko.moment_tensor import MomentTensor
     from pyrocko.gf import RectangularSource
+    from pyrocko.moment_tensor import MomentTensor
 
     command_str = "summarize"
 
@@ -1827,7 +1823,7 @@ def command_plot(args):
     plots_avail = plotting.available_plots()
 
     details = """Available <plot types> are: %s or "all". Multiple plots can be
-selected giving a comma seperated list.""" % list2string(
+selected giving a comma separated list.""" % list2string(
         plots_avail
     )
 
@@ -1923,7 +1919,7 @@ selected giving a comma seperated list.""" % list2string(
 def command_check(args):
 
     command_str = "check"
-    whats = ["stores", "traces", "library", "geometry", "discretization"]
+    what_choices = ["stores", "traces", "library", "geometry", "discretization"]
 
     def setup(parser):
         parser.add_option(
@@ -1957,9 +1953,10 @@ def command_check(args):
         parser.add_option(
             "--what",
             dest="what",
-            choices=whats,
+            choices=what_choices,
             default="stores",
-            help="Setup item to check; " '"%s", Default: "stores"' % list2string(whats),
+            help="Setup item to check; "
+            '"%s", Default: "stores"' % list2string(what_choices),
         )
 
         parser.add_option(
@@ -2102,10 +2099,10 @@ def command_check(args):
             raise ValueError("Checking geometry is only available for geodetic data")
 
         try:
-            from kite.talpa import Talpa
             from kite import SandboxScene
-            from kite.scene import Scene, UserIOWarning
             from kite import sources as ksources
+            from kite.scene import Scene, UserIOWarning
+            from kite.talpa import Talpa
 
             talpa_source_catalog = {
                 "RectangularSource": ksources.OkadaSource,

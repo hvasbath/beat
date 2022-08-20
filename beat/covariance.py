@@ -1,17 +1,14 @@
-from pyrocko import gf, trace
+import logging
+from time import time
 
 import numpy as num
-from time import time
+from pymc3 import Point
+from pyrocko import gf, trace
 from scipy.linalg import toeplitz
-
-import logging
-
-from beat import heart
-from beat.utility import ensure_cov_psd, running_window_rms, list2string
 from theano import config as tconfig
 
-from pymc3 import Point
-
+from beat import heart
+from beat.utility import ensure_cov_psd, list2string, running_window_rms
 
 logger = logging.getLogger("covariance")
 

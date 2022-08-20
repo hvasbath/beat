@@ -1,13 +1,13 @@
-import scipy.io
-import numpy as num
 import copy
+import logging
+import os
 from glob import glob
 
-from beat import heart, utility
-from pyrocko import model, io
+import numpy as num
+import scipy.io
+from pyrocko import io, model
 
-import os
-import logging
+from beat import heart, utility
 
 logger = logging.getLogger("inputf")
 
@@ -202,7 +202,7 @@ def load_repsonses_from_file(projectpath):
 
         if len(t) == 8:
             sta, cha, instrument, lat, lon, mag, damp, period = t
-            # plese see the file format below
+            # please see the file format below
             if damp == "No_damping":
                 damp = 0.001
 

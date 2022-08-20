@@ -12,11 +12,11 @@ References
 """
 
 import numpy as num
-import fast_sweep_ext
 import theano
 import theano.tensor as tt
 from theano.ifelse import ifelse
 
+import fast_sweep_ext
 
 km = 1000.0
 

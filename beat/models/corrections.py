@@ -1,19 +1,17 @@
-from pyrocko import orthodrome
-from theano import shared
-from theano import config as tconfig
-
-from beat.theanof import EulerPole, StrainRateTensor
-from beat.heart import (
-    velocities_from_pole,
-    get_ramp_displacement,
-    velocities_from_strain_rate_tensor,
-)
-
-from collections import OrderedDict
 import logging
+from collections import OrderedDict
 
 from numpy import array, zeros
+from pyrocko import orthodrome
+from theano import config as tconfig
+from theano import shared
 
+from beat.heart import (
+    get_ramp_displacement,
+    velocities_from_pole,
+    velocities_from_strain_rate_tensor,
+)
+from beat.theanof import EulerPole, StrainRateTensor
 
 logger = logging.getLogger("models.corrections")
 
@@ -60,7 +58,7 @@ class RampCorrection(Correction):
             locx.astype(tconfig.floatX) / km, name="localx", borrow=True
         )
         self.slocy = shared(
-            locy.astype(tconfig.floatX) / km, name="localy", borrow=True
+            locy.astype(tconfig.floatX) / km, name="locally", borrow=True
         )
 
         self.correction_names = self.config.get_hierarchical_names(

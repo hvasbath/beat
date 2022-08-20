@@ -6,22 +6,18 @@ Far future:
     include a 'def grad:' -method to each Op in order to enable the use of
     gradient based optimization algorithms
 """
+import copy
 import logging
-
 from collections import OrderedDict
 
-from beat import heart, utility, interseismic
-from beat.fast_sweeping import fast_sweep
-
+import numpy as num
+import theano
+import theano.tensor as tt
+from pymc3.model import FreeRV
 from pyrocko.trace import nextpow2
 
-from pymc3.model import FreeRV
-
-import theano.tensor as tt
-import theano
-import copy
-
-import numpy as num
+from beat import heart, interseismic, utility
+from beat.fast_sweeping import fast_sweep
 
 km = 1000.0
 logger = logging.getLogger("theanof")

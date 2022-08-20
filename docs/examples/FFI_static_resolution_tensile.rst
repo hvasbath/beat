@@ -2,9 +2,9 @@
 Example 7: Static tensile finite-fault inference, resolution based patch discretization
 ---------------------------------------------------------------------------------------
 
-In this example we will determine a variable opening distribution for the magmatic intrusion at Fernandina during the time Dec 2014 - June 2018. This example  
+In this example we will determine a variable opening distribution for the magmatic intrusion at Fernandina during the time Dec 2014 - June 2018. This example
 The data is the exact same from `Example 6 <https://pyrocko.org/beat/docs/current/examples/Rectangular_tensile.html>`__, where the overall geometry of the dike was estimated.
-Here we use resolution based discretization of dividing the dike surface into smaller 
+Here we use resolution based discretization of dividing the dike surface into smaller
 patches following the approach of [Atzori2011]_. It is assumed that the reader has Example 6 completed before following this example.
 
 Init
@@ -23,10 +23,10 @@ Optimization setup
 ^^^^^^^^^^^^^^^^^^
 
 To infer a tensile slip component instead of a shear slip component in BEAT, *priors* parameters
-need to be adjusted. Users that are familiar with the variable shear slip inference on a fault 
+need to be adjusted. Users that are familiar with the variable shear slip inference on a fault
 will not find many differences compared to such a scenario.
 Under *priors* the *problem_config* we find the default parameters that we need to adjust.
-The default is estimation of slip in rake parallel *uparr* and rake perpendicular *uperp* direction and no tensile *utens* slip.:: 
+The default is estimation of slip in rake parallel *uparr* and rake perpendicular *uperp* direction and no tensile *utens* slip.::
 
   priors:
     uparr: !beat.heart.Parameter
@@ -49,7 +49,7 @@ The default is estimation of slip in rake parallel *uparr* and rake perpendicula
       testvalue: [0.0]
 
 
-This needs to be adjusted to sth like the follwing to enable the tensile slip and disable the shear slip components. (If we remember from earlier tutorials, a variable can be fixed by setting, *upper*, *lower* and *testvalue* fields to the same value, in our case zero)::
+This needs to be adjusted to sth like the following to enable the tensile slip and disable the shear slip components. (If we remember from earlier tutorials, a variable can be fixed by setting, *upper*, *lower* and *testvalue* fields to the same value, in our case zero)::
 
   priors:
     uparr: !beat.heart.Parameter
@@ -132,7 +132,7 @@ For the distributed opening estimation a reference dike has to be defined that d
     sample_rate: 1.1574074074074073e-05
 
 
-The values shown above are parts of the MAP solution from the inference from `Example 6 <https://pyrocko.org/beat/docs/current/examples/Rectangular_tensile.html>`__ . The results can been imported through the import command specifiying the --results option. We want to import the results from the *Fernandina* project_directory from an inference in *geometry* mode and we want to update the *geodetic* part of the *config_ffi.yaml*::
+The values shown above are parts of the MAP solution from the inference from `Example 6 <https://pyrocko.org/beat/docs/current/examples/Rectangular_tensile.html>`__ . The results can been imported through the import command specifying the --results option. We want to import the results from the *Fernandina* project_directory from an inference in *geometry* mode and we want to update the *geodetic* part of the *config_ffi.yaml*::
 
   beat import Fernandina --results=Fernandina --mode='ffi' --datatypes=geodetic --import_from_mode=geometry
 
@@ -193,10 +193,10 @@ epsilon_search_runs     20
       depth_penalty    3.5
 =================== ======
 
-The *nworkers* attribute determines the number of processes to be run in parallel to calculate the Greens Functions and should be set to a sufficiently high number that the hardware supports (number of CPU -1). 
+The *nworkers* attribute determines the number of processes to be run in parallel to calculate the Greens Functions and should be set to a sufficiently high number that the hardware supports (number of CPU -1).
 
-With *epsilon_search_runs* we can controll the number of models that
-are run automatically with different *epsilon* parameters on a sensible search bound, starting with *epsilon* as the lowest. 
+With *epsilon_search_runs* we can control the number of models that
+are run automatically with different *epsilon* parameters on a sensible search bound, starting with *epsilon* as the lowest.
 
 We can start the discretization optimization with::
 
@@ -204,12 +204,12 @@ We can start the discretization optimization with::
 
 .. note:: The --force option is needed to overwrite the previously discretized fault object that was copied during the clone command above. The object is implemented as *fault*, but it might be confusing as we want to infer parameters of a dike, which is nothing different than magma intruded along a crack in the host-rock. Consequently, a dike in BEAT is a fault with a tensile component.
 
-The --plot option creates a plot of the discretized dike geometry (under Fernandina/ffi/figures) with the individual patch resolutions. The higher the resolution the better the opening can be resolved. Also it will generate following trade-off curve showing the model resolution spread vs. epsilon [Atzori2019]_. The black numbers indicate the corresponding number of patches. 
+The --plot option creates a plot of the discretized dike geometry (under Fernandina/ffi/figures) with the individual patch resolutions. The higher the resolution the better the opening can be resolved. Also it will generate following trade-off curve showing the model resolution spread vs. epsilon [Atzori2019]_. The black numbers indicate the corresponding number of patches.
 
 .. image:: ../_static/example7/discretization_tradeoff.png
    :width: 80%
 
-The fault/dike at the elbow of the trade-off curve (red star) will then be selected to run the sampling (middle). Also we see an over- and under-damped case top and bottom, respectively. 
+The fault/dike at the elbow of the trade-off curve (red star) will then be selected to run the sampling (middle). Also we see an over- and under-damped case top and bottom, respectively.
 
 .. image:: ../_static/example7/patch_resolutions_6.png
    :width: 80%
@@ -328,7 +328,7 @@ References
 ^^^^^^^^^^
 .. [Atzori2011] Atzori, S. and Antonioli, A. (2011).
     Optimal fault resolution in geodetic inversion of coseismic data
-    Geophys. J. Int. (2011) 185, 529–538, 
+    Geophys. J. Int. (2011) 185, 529–538,
     `link <http://ascelibrary.org/doi: 10.1111/j.1365-246X.2011.04955.x>`__
 .. [Atzori2019] Atzori, S.; Antonioli, A.; Tolomei, C.; De Novellis, V.;
     De Luca, C. and Monterroso, F.

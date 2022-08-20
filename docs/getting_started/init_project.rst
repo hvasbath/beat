@@ -3,12 +3,12 @@ Initialise a new Modeling Project
 
 Each modeling project is initiated with the "beat init" command. There are many options that define the type of optimization, datatypes to include, sampling algorithm to use, number of sources, velocity model to use for the Greens Function calculations etc ...
 
-For example to optimize for a Full Moment Tensor for the Landers EQ by using seismic data, with station dependend Greens Functions for P and S waves with the default sampling algorithm (Sequential Monte Carlo) run::
+For example to optimize for a Full Moment Tensor for the Landers EQ by using seismic data, with station dependent Greens Functions for P and S waves with the default sampling algorithm (Sequential Monte Carlo) run::
 
     beat init LandersEQ 1992-06-28 --datatypes='seismic' --individual_gfs --n_sources=1 --source_type=MTSource --min_mag=7
 
 This will create project directory called LandersEQ in the current directory.
-Within the directoy you will see that there have been two files created:
+Within the directory you will see that there have been two files created:
 
 - BEAT_log.txt
 - geometry_config.yaml
@@ -28,7 +28,7 @@ For now it contains::
 The second file is a yaml-configuration file and it is where ALL the changes in parameters and settings have to be done to avoid tinkering with the program itself!
 This file can be read as is by the computer, therefore, it is important to keep the syntax clean!
 The content of this file is basically the serialised instance of the BEAT config class. At first the amount of content seems overwhelming, but once you are familiar with the variables you will find that there are not too many things that will need to be edited. Also we have to be aware that the problem we are going to try to solve is very complex, ergo a complex parameter file is somewhat understandable.
-To find a short explanation to each parameter and its format the reader is refered to the webpage of the `config <https://hvasbath.github.io/beat/_modules/config.html#SeismicConfig>`__ module.
+To find a short explanation to each parameter and its format the reader is referred to the webpage of the `config <https://hvasbath.github.io/beat/_modules/config.html#SeismicConfig>`__ module.
 
 This example configuration file looks like this::
 
@@ -275,7 +275,7 @@ manually edited and filled up. These are some suggested initial changes in the c
   2) Edit the Green’s functions parameters in this block and then calculate the Green’s functions.
      General instructions and suggestions can be found `here <https://pyrocko.org/beat/docs/current/getting_started/custom_gf_store.html>`__.
 
- * **sampler_config: !beat.SamplerConfig** and **hyper_sampler_config: !beat.SamplerConfig**: Parameters 
+ * **sampler_config: !beat.SamplerConfig** and **hyper_sampler_config: !beat.SamplerConfig**: Parameters
    in these blocks are related to the sampling method and can be edited depending on
    the user needs. In terms of calculation performance, the “bin” backend is considerably faster
    than “csv” (see `sampling backends <https://pyrocko.org/beat/docs/current/getting_started/backends.html>`__).

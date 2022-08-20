@@ -1,36 +1,35 @@
-import logging
-import os
 import copy
+import logging
 import math
+import os
 
 import numpy as num
-
 from matplotlib import pyplot as plt
-from matplotlib.patches import FancyArrow
 from matplotlib.backends.backend_pdf import PdfPages
+from matplotlib.patches import FancyArrow
 from matplotlib.ticker import MaxNLocator
-
 from pymc3.plots.utils import make_2d
+from pyrocko import gmtpy
+from pyrocko import orthodrome as otd
+from pyrocko.cake_plot import light
+from pyrocko.cake_plot import str_to_mpl_color as scolor
+from pyrocko.plot import AutoScaler, mpl_graph_color, mpl_papersize, nice_value
 
 from beat import utility
-from beat.models import Stage
 from beat.config import ffi_mode_str
+from beat.models import Stage
+
 from .common import (
     format_axes,
-    get_result_point,
-    set_anchor,
     get_gmt_colorstring_from_mpl,
     get_latlon_ratio,
-    scale_axes,
-    plot_inset_hist,
-    km,
     get_nice_plot_bounds,
+    get_result_point,
+    km,
+    plot_inset_hist,
+    scale_axes,
+    set_anchor,
 )
-
-from pyrocko.cake_plot import light, str_to_mpl_color as scolor
-from pyrocko import orthodrome as otd
-from pyrocko import gmtpy
-from pyrocko.plot import mpl_papersize, mpl_graph_color, AutoScaler, nice_value
 
 logger = logging.getLogger("plotting.geodetic")
 
@@ -60,8 +59,8 @@ def shaded_displacements(
     Map color data (displacement) on shaded relief.
     """
 
-    from scipy.ndimage import convolve as im_conv
     from matplotlib.cm import ScalarMappable
+    from scipy.ndimage import convolve as im_conv
 
     # Light source from somewhere above - psychologically the best choice
     # from upper left
@@ -71,7 +70,7 @@ def shaded_displacements(
     shad = im_conv(shad_data * km, ramp.T)
     shad *= -1.0
 
-    # if there are strong artifical edges in the data, shades get
+    # if there are strong artificial edges in the data, shades get
     # dominated by them. Cutting off the largest and smallest 2% of
     # shades helps
     percentile2 = num.quantile(shad, 0.02)
@@ -430,10 +429,12 @@ def scene_fits(problem, stage, plot_options):
     """
     Plot geodetic data, synthetics and residuals.
     """
-    from pyrocko.dataset import gshhg
-    from kite.scene import Scene, UserIOWarning
-    from beat.colormap import roma_colormap
     import gc
+
+    from kite.scene import Scene, UserIOWarning
+    from pyrocko.dataset import gshhg
+
+    from beat.colormap import roma_colormap
 
     try:
         homepath = problem.config.geodetic_config.types["SAR"].datadir
@@ -787,7 +788,7 @@ def scene_fits(problem, stage, plot_options):
 
         urE, urN, llE, llN = (0.0, 0.0, 0.0, 0.0)
 
-        turE, turN, tllE, tllN = zip(
+        true, turN, tllE, tllN = zip(
             *[
                 (
                     l.gridE.max() - offset_e,
@@ -799,9 +800,9 @@ def scene_fits(problem, stage, plot_options):
             ]
         )
 
-        turE, turN = map(max, (turE, turN))
+        true, turN = map(max, (true, turN))
         tllE, tllN = map(min, (tllE, tllN))
-        urE, urN = map(max, ((turE, urE), (urN, turN)))
+        urE, urN = map(max, ((true, urE), (urN, turN)))
         llE, llN = map(min, ((tllE, llE), (llN, tllN)))
 
         lat, lon = otd.ne_to_latlon(

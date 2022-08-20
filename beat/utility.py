@@ -17,8 +17,8 @@ from functools import wraps
 from timeit import Timer
 
 import numpy as num
-from pyrocko import util, orthodrome, catalog
-from pyrocko.cake import m2d, LayeredModel, read_nd_model_str
+from pyrocko import catalog, orthodrome, util
+from pyrocko.cake import LayeredModel, m2d, read_nd_model_str
 from pyrocko.gf.seismosizer import RectangularSource
 from theano import config as tconfig
 
@@ -704,7 +704,7 @@ def check_point_keys(point, phrase):
 
 def update_source(source, **point):
     """
-    Update source keeping stf and source params seperate.
+    Update source keeping stf and source params separate.
     Modifies input source Object!
 
     Parameters
@@ -990,7 +990,7 @@ def ensure_cov_psd(cov):
 
 def near_psd(x, epsilon=num.finfo(num.float64).eps):
     """
-    Calculates the nearest postive semi-definite matrix for a correlation/
+    Calculates the nearest positive semi-definite matrix for a correlation/
     covariance matrix
 
     Parameters
@@ -1009,7 +1009,7 @@ def near_psd(x, epsilon=num.finfo(num.float64).eps):
 
     Notes
     -----
-    Numpy number precission not high enough to resolve this for low valued
+    Numpy number precision not high enough to resolve this for low valued
     covariance matrixes! The result will have very small negative eigvals!!!
 
     See repair_covariance below for a simpler implementation that can resolve
@@ -1043,7 +1043,7 @@ def near_psd(x, epsilon=num.finfo(num.float64).eps):
 def repair_covariance(x, epsilon=num.finfo(num.float64).eps):
     """
     Make covariance input matrix A positive definite.
-    Setting eigenvalues that are lower than the precission of numpy floats to
+    Setting eigenvalues that are lower than the  of numpy floats to
     at least that precision and backtransform.
 
     Parameters
@@ -1156,7 +1156,7 @@ def split_off_list(l, off_length):
     Parameters
     ----------
     l : list
-        of objects to be seperated
+        of objects to be separated
     off_length : int
         number of elements from l to be split off
 

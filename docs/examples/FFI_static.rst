@@ -67,7 +67,7 @@ The fault geometry needs to be defined in the *geodetic.gf_config.reference_sour
       - 2.0
     sample_rate: 1.1574074074074073e-05
 
-The values shown above are parts of the MAP solution from the optimization from `Example 3 <https://pyrocko.org/beat/docs/current/examples/Rectangular.html#>`__ . The results can been imported through the import command specifiying the --results option. We want to import the results from the *Laquila* project_directory from an optimization in *geometry* mode and we want to update the *geodetic* part of the *config_ffi.yaml*::
+The values shown above are parts of the MAP solution from the optimization from `Example 3 <https://pyrocko.org/beat/docs/current/examples/Rectangular.html#>`__ . The results can been imported through the import command specifying the --results option. We want to import the results from the *Laquila* project_directory from an optimization in *geometry* mode and we want to update the *geodetic* part of the *config_ffi.yaml*::
 
   beat import Laquila --results=Laquila --mode='ffi' --datatypes=geodetic --import_from_mode=geometry
 
@@ -93,7 +93,7 @@ This will open an interactive 3d plot of the fault geometry, which looks along t
 The grey rectangle shows the geometry of the fault specified under *reference_sources* and the red rectangle(s) show the extended fault with the respective discretization of the sub-patches. The grey and red dots mark the centres of the *reference_fault(s)* and the extended faults, respectively.
 The numbers are the indexes of the repsective sub-patch in the Green's Function matrix we are going to calculate next.
 
-.. note:: If the upper edge of the fault would intersect the surface (no topography assumed) due to the extension it is truncated at the intersection and not extended further. Which is why the extent of the red fault is assymetric around the grey reference fault in dip-direction.
+.. note:: If the upper edge of the fault would intersect the surface (no topography assumed) due to the extension it is truncated at the intersection and not extended further. Which is why the extent of the red fault is asymmetric around the grey reference fault in dip-direction.
 
 To repeat the fault discretization after changing some parameters please add the --force option and the previously fault geometry will be overwritten.::
 
@@ -242,7 +242,7 @@ Priors
 ======
 The upper and lower bounds of the two prior variables can be adjusted to reduce the solution space (slip parameters [m]). For the L'aquila earthquake it is highly unlikely to have 6 meters of slip, which is simply the default parameter. A maximum slip of 2 meters in slip parallel direction may be more reasonable. In order to be able to sample the zero value at the lower bound it is necessary to allow for some backslip- ergo negative *uparr*; here 0.1 might be a reasonable choice.
 
-To also allow for variable rake angles accross the fault we may want to allow some rake perpendicular slip. Here the lower and upper bounds should be set to -1. and 1., respectively.
+To also allow for variable rake angles across the fault we may want to allow some rake perpendicular slip. Here the lower and upper bounds should be set to -1. and 1., respectively.
 
 .. note:: In order to fix a variable at a certain value, the lower and upper bounds as well as the testvlue need to be set to the same value.
 

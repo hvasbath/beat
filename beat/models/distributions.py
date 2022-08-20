@@ -1,14 +1,12 @@
 from logging import getLogger
 
 import numpy as num
-
 import theano.tensor as tt
+from theano import config as tconfig
 from theano import shared
 from theano.printing import Print
-from theano import config as tconfig
 
 from beat.utility import Counter
-
 
 logger = getLogger("distributions")
 

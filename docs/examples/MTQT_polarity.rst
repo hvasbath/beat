@@ -19,8 +19,8 @@ Data formats
 ^^^^^^^^^^^^
 The station information is loaded from a pyrocko `station file <https://pyrocko.org/docs/current/formats/basic_station.html>`__ (MTQT_polarity/stations.txt).
 
-The polarity data format that BEAT uses are  `marker tables <https://pyrocko.org/docs/current/formats/snuffler_markers.html>`__ from the *snuffler* waveform browser. Please get familiar with the snuffler following its 
-`tutorial <https://pyrocko.org/docs/current/apps/snuffler/tutorial.html#snuffler-tutorial>`__ and especially, see the Marker 
+The polarity data format that BEAT uses are  `marker tables <https://pyrocko.org/docs/current/formats/snuffler_markers.html>`__ from the *snuffler* waveform browser. Please get familiar with the snuffler following its
+`tutorial <https://pyrocko.org/docs/current/apps/snuffler/tutorial.html#snuffler-tutorial>`__ and especially, see the Marker
 `tutorial <https://pyrocko.org/docs/current/apps/snuffler/tutorial.html#markers>`__ on how to create those markers and marker tables. The tables can then be saved through the snuffler menu with
 *File > Save markers ...*. This example contains a polarity marker file named *polarity_markers_P.pf*. The path to this file needs to be specified under *polarities_marker_path*::
 
@@ -58,12 +58,12 @@ The *name* field specifies the body wave the polarities are picked at. This can 
         - ''
 
   If seismic phases have been added, for which ray-tracing has not been done yet, the next step of GF calculation needs to be repeated.
-  
+
 
 Calculate Greens Functions
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 For the inference of the moment tensor using polarity data the distances and takeoff-angles of rays from the seismic event towards stations need to be
-calculated. This is dependend on the velocity model, the seismic phase and the source and receiver depth and distances. This information is stored
+calculated. This is dependent on the velocity model, the seismic phase and the source and receiver depth and distances. This information is stored
 in databases called Greens Function (GF) store.
 
 Please open $project_directory/config_geometry.yaml with any text editor (e.g. vi) and search for *store_superdir*. Here, it is written for
@@ -282,7 +282,7 @@ Finally, we need to configure *priors* and *hyperparameters*::
       - 0.0
       testvalue:
       - 0.0
-    v: !beat.heart.Parameter      # Definded: -1/3 <= v <= 1/3. "
+    v: !beat.heart.Parameter      # Defined: -1/3 <= v <= 1/3. "
       name: v                     # If fixed to zero together with w the MT is pure DC.
       form: Uniform
       lower:
@@ -306,7 +306,7 @@ Nothing else needs to be adjusted, as the location parameters, *depth*, *east_sh
 
 Option 2: Unknown location
 ==========================
-Please extend the *lower* and *upper* bounds for the *east_shift* and *north_shift* parameters to -10 and 10, respectively. Please alse set the
+Please extend the *lower* and *upper* bounds for the *east_shift* and *north_shift* parameters to -10 and 10, respectively. Please also set the
 bounds for *depth* to 0.5 and 7.0.
 
 .. warning:: The lower and upper bounds of the *depth* parameter must not exceed the *source_depth_min* and *source_depth_max* of the GF store. In case larger depths are required the takeoff-angle tables need to be recalculated.
@@ -320,7 +320,7 @@ Sample the solution space
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Now we can run the inference using the likelihood formulation for polarity data after [Brillinger1980]_ and the default sampling algorithm,
-a Sequential Monte Carlo sampler. The sampler can effectively exploit the parallel architecture of nowadays computers. 
+a Sequential Monte Carlo sampler. The sampler can effectively exploit the parallel architecture of nowadays computers.
 The *n_jobs* number should be set to as many CPUs as possible in the configuration file.::
 
   sampler_config: !beat.SamplerConfig
@@ -351,12 +351,12 @@ Finally, we sample the solution space with::
 
 Summarize the results
 ^^^^^^^^^^^^^^^^^^^^^
-The sampled chain results of the SMC sampler are stored in seperate files and have to be summarized.
+The sampled chain results of the SMC sampler are stored in separate files and have to be summarized.
 To summarize the final stage of the sampler please run the summarize command.::
 
     beat summarize MTQT_polarity --stage_number=-1 --calc_derived
 
-.. note:: The --calc_derived option transforms the parameters from the MTQT source to standard NED moment tensor components, which is needed for the plotting later.
+.. note:: The --calc_derived option transforms the parameters from the MTQT source to standard NEED moment tensor components, which is needed for the plotting later.
 
 
 If the final stage is included in the stages to be summarized also a summary file with the posterior quantiles will be created.
@@ -376,7 +376,7 @@ For example for the first 4 entries (h, kappa, sigma, polarity likelihood for fi
 Plotting
 ^^^^^^^^
 To see results of the source inference based on polarity, we can plot the source radiation pattern (beachball) with the ray-piercing points at
-seismic stations and the respective polarities on it. The *nensemble* arguement would add uncertainty to the plot.::
+seismic stations and the respective polarities on it. The *nensemble* argument would add uncertainty to the plot.::
 
     beat plot MTQT_polarity fuzzy_beachball --nensemble=300 --stage_number=-1
 
@@ -407,7 +407,7 @@ This will show an image like that.
 This shows 2d kernel density estimates (kde) and histograms of the specified model parameters. The darker the 2d kde the higher the probability
 of the model parameter.
 
-The *varnames* option may take any parameter that has been optimized for. For example one might als want to try (option 2) --varnames='h,sigma,kappa,north_shift,east_shift,depth'.
+The *varnames* option may take any parameter that has been optimized for. For example one might also want to try (option 2) --varnames='h,sigma,kappa,north_shift,east_shift,depth'.
 If it is not specified all sampled parameters are taken into account.
 
 

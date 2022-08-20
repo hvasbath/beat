@@ -1,13 +1,13 @@
-from subprocess import PIPE, Popen
-from os.path import join as pjoin
-import os
-from tempfile import mkdtemp
 import logging
-import signal
+import os
 import shutil
+import signal
 import sys
-from beat.utility import list2string
+from os.path import join as pjoin
+from subprocess import PIPE, Popen
+from tempfile import mkdtemp
 
+from beat.utility import list2string
 
 logger = logging.getLogger("distributed")
 
@@ -144,7 +144,7 @@ class MPIRunner(object):
                         pass
 
             logger.warning("Done shutting down child processes!")
-            raise KeyboardInterrupt("Master interupted!")
+            raise KeyboardInterrupt("Master interrupted!")
 
         errmess = []
         if proc.returncode != 0:
@@ -181,7 +181,7 @@ def run_mpi_sampler(
     Execute a sampling algorithm that requires the call of mpiexec
     as it uses MPI for parallelization.
 
-    A run directory is created unter '/tmp/' where the sampler
+    A run directory is created under '/tmp/' where the sampler
     arguments are pickled and then reloaded by the MPI sampler
     script.
 

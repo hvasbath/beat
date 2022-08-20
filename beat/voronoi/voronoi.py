@@ -1,5 +1,6 @@
-import voronoi_ext
 import numpy as num
+
+import voronoi_ext
 
 
 def get_voronoi_cell_indexes_c(

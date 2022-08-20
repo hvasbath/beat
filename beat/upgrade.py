@@ -2,14 +2,14 @@
 Config file upgrading module modified from grond
 """
 
-import sys
-import os
 import copy
 import difflib
-from pyrocko import guts_agnostic as aguts
+import os
+import sys
 from logging import getLogger
-from pyrocko import guts
 
+from pyrocko import guts
+from pyrocko import guts_agnostic as aguts
 
 logger = getLogger("upgrade")
 

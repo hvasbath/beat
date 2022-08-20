@@ -1,30 +1,40 @@
 #!/usr/bin/env pyrocko-python
 
-import sys
 import logging
-import tempfile
 import math
 import os.path as op
 import shutil
+import sys
+import tempfile
 
 try:
     from urllib.error import HTTPError
 except:
     from urllib2 import HTTPError
+
 import glob
 import pipes
-from optparse import OptionParser
 from collections import defaultdict
+from optparse import OptionParser
 
 import numpy as num
-
-from pyrocko import trace, util, io, cake, catalog, automap, pile, model
-from pyrocko import orthodrome, weeding
+from pyrocko import (
+    automap,
+    cake,
+    catalog,
+    io,
+    model,
+    orthodrome,
+    pile,
+    trace,
+    util,
+    weeding,
+)
 from pyrocko.client import fdsn
-from pyrocko.io import resp, enhanced_sacpz as epz, stationxml
-from beat import utility
-from beat import heart
+from pyrocko.io import enhanced_sacpz as epz
+from pyrocko.io import resp, stationxml
 
+from beat import heart, utility
 
 km = 1000.0
 

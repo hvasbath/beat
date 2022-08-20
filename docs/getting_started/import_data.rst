@@ -9,7 +9,7 @@ geodetic data
 InSAR
 =====
 To use static displacement InSAR measurements you need to prepare your data first with `kite <https://github.com/pyrocko/kite>`__.
-Kite handels displacement data from a variety of formats, such as e.g. GMTSAR, ISCE, ROIPAC and GAMMA. After importing the data into kite you
+Kite handles displacement data from a variety of formats, such as e.g. GMTSAR, ISCE, ROIPAC and GAMMA. After importing the data into kite you
 should consider to subsample it and to calculate the data-error-variance-covariance as described in the `kite documentation <https://pyrocko.org/kite/docs/current/>`__.
 Once you are satisfied with your specifications please store the kite scenes in its native format as "numpy-npz containers".
 
@@ -24,9 +24,9 @@ GNSS
 ====
 The supported format for GNSS data is an ASCII file of the following format::
 
-  #SUMMARY VELOCITY ESTIMATES FROM GLOBK 
-  # Long.  Lat.   E & N Rate      E & N Adj.      E & N   +-    RHO    H Rate   H adj.  +-   SITE 
-  # (deg)  (deg)  (mm/yr)         (mm/yr)         (mm/yr)              (mm/yr) 
+  #SUMMARY VELOCITY ESTIMATES FROM GLOBK
+  # Long.  Lat.   E & N Rate      E & N Adj.      E & N   +-    RHO    H Rate   H adj.  +-   SITE
+  # (deg)  (deg)  (mm/yr)         (mm/yr)         (mm/yr)              (mm/yr)
    30.4    40.6   -14.98   -2.12  -14.98   -2.12  1.34    1.62 -0.042  -2.16   -2.16    5.77 DOGG_FRM
    31.6    42.7   -13.92    2.11  -13.92    2.11  1.98    2.44 -0.012   6.71    6.71    8.91 CATT_FRM
    32.5    41.5    -5.43   -4.25   -5.43   -4.25  1.35    1.67 -0.013  -5.34   -5.34    5.97 COOW_FRM
@@ -39,7 +39,7 @@ The units for the location and the measurements are [decimal deg] and [mm/yr], r
 seismic data
 ^^^^^^^^^^^^
 For the import and aquistion of seismic data for beat exist several options. The command beatdown can be used to download a
-dataset from available FDSN services. Alternatively, exisiting files from any custom source may be converted by using the pyrocko framework.
+dataset from available FDSN services. Alternatively, existing files from any custom source may be converted by using the pyrocko framework.
 
 beatdown
 ========
@@ -86,7 +86,7 @@ Data import
 
 The output of `autokiwi <https://github.com/emolch/kiwi>`__ is supported for automatic import of seismic data.
 
-To see a list of the supported data types ($ending) please see: `Trace Handeling <https://pyrocko.org/docs/current/library/examples/trace_handling.html>`__
+To see a list of the supported data types ($ending) please see: `Trace Handling <https://pyrocko.org/docs/current/library/examples/trace_handling.html>`__
 or type.::
 
     beat import --help
@@ -110,7 +110,7 @@ To ease the creation of this textfile we refer the user to investigate the pyroc
 
 Custom Data import
 ==================
-To get other types of data imported the user will have to do some programing.
+To get other types of data imported the user will have to do some programming.
 
 The following remarks are just bits and pieces that may be followed to write a script to bring the data into the necessary format.
 
@@ -136,5 +136,3 @@ Once a list of traces and station objects exists it may be exported to the proje
 
     seismic_outpath='/home/vasyurhm/BEATS/LandersEQ/seismic_data.pkl'
     utility.dump_objects(seismic_outpath, outlist=[stations, data_traces])
-
-

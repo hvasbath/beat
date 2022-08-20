@@ -4,8 +4,8 @@ How to setup a Finite Fault Inference
 With the finite fault inference (ffi) mode in beat a pre-defined RectangularSource (reference fault) is discretized into sub-patches.
 Each of these sub-patches may have up to 4 parameters to be optimized for. In the static case (geodetic data) these are two slip-parameters
 perpendicular and parallel to the rake direction of the reference fault. In the kinematic case there is the temporal evolution of the rupture
-considered as well. So there are additional parameters: (1) the rupture nucleation point from which the rupture originates and propagates accross the fault
-following the eikonal equation, (2) the slip-duration and the rupture velocity accross each sub-patch. Each sub-patch is considered to be active only once.
+considered as well. So there are additional parameters: (1) the rupture nucleation point from which the rupture originates and propagates across the fault
+following the eikonal equation, (2) the slip-duration and the rupture velocity across each sub-patch. Each sub-patch is considered to be active only once.
 Optimizing for the rupture nucleation point makes the problem non-linear.
 
 The finite fault inference in beat is considered to be a follow-up step of the geometry estimation for a RectangularSource. Which is why first, a new project directory to solve for the geometry of a RectangularSource has to be created. If the reader has setup such a problem already and finished the sampling for a the geometry the next command can be skipped.::
@@ -21,7 +21,7 @@ The "source_type" argument will replace any existing source with the specified s
 
 Now the Green's Functions store(s) have to be calculated for the "geometry" problem if not done so yet. Instructions on this and what to keep in mind are given `here <https://hvasbath.github.io/beat/examples.html#calculate-greens-functions>`__. For illustration, the user might have done a MomentTensor estimation already on teleseismic data using Green's Functions depth and distance sampling of 1km with 1Hz sampling. This may be accurate enough for this type of problem, however for a finite fault inference the aim is to resolve details of the rupture propagation and the slip distribution. So the setup parameters of the "geometry" Green's Functions would need to be changed to higher resolution. A depth and distance sampling of 250m and 4Hz sample rate might be precise enough, if waveforms up to 1Hz are to be used in the sampling. Of course, these parameters depend on the problem setup and have to be adjusted individually for each problem!
 
-If the Green's Functions for the "geometry" have been calculated previously with sufficient accuracy one can continue initialysing the configuration file for the finite fault inference.::
+If the Green's Functions for the "geometry" have been calculated previously with sufficient accuracy one can continue initialising the configuration file for the finite fault inference.::
 
     beat init FFIproject --mode='ffi' --datatypes='seismic'
 
@@ -71,7 +71,7 @@ In the next step again Green's Functions have to be calculated. What? Again? Tha
     beat import FFIproject --results=/path_to_geometry_project --datatypes='seismic' --mode='geometry'
 
 If not, the parameters would need to be adjusted manually based on a-priori information from structural geology, literature or ...
-Additionally, the discretization of the subpatches along this reference fault has to be set. The parameters "patch_width" and "patch_length" [km] determine these. So far only square patches are supported. "extension_width" and "extension_length" determine by how much the refernce fault is extended in EACH direction. If this would result in a fault that cuts the surface the intersection with the surface at zero depth is used. Example: 0.1 means that the fault is extended by 10% of its with/length value in each direction and 0. means no extension.
+Additionally, the discretization of the subpatches along this reference fault has to be set. The parameters "patch_width" and "patch_length" [km] determine these. So far only square patches are supported. "extension_width" and "extension_length" determine by how much the reference fault is extended in EACH direction. If this would result in a fault that cuts the surface the intersection with the surface at zero depth is used. Example: 0.1 means that the fault is extended by 10% of its with/length value in each direction and 0. means no extension.
 
 The "store_superdir" to the "geometry" Green's Functions needs to be correct and the "sample_rate" needs to be set likely higher than from the "geometry" setup.
 The last two parameters are "duration_sampling" and "starttime_sampling" for the sampling of the source-time-function (STF) for each patch. For efficiency during sampling the STF is convolved for each source patch with the synthetic seismogram. The upper and lower bound for the STF duration and the STF (rupture) starttimes are determined by the problem parameters in the "priors" under "problem_config".::
@@ -176,7 +176,7 @@ The output might look like this::
     number of subfaults: 1
     number of patches: 10
 
-This shows the new parameters of the extended reference source. The "width" and "length" are rounded to full mutliples of the "patch_length" and "patch_width" parameters.
+This shows the new parameters of the extended reference source. The "width" and "length" are rounded to full multiples of the "patch_length" and "patch_width" parameters.
 Also we see here the rake directions of the slip parallel and slip perpendicular directions.
 The hypocentral location bounds have been adjusted to be within the bounds of the extended fault dimensions! To allow for potential rupture nucleation all along the reference fault in the example, the priors of "nucleation_strike" and "nucleation_dip" were set to be between (0, 12.5)[km] and (0,5)[km], respectively! Of course, the bounds may be set manually to custom values within the fault dimensions!
 

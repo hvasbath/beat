@@ -4,16 +4,15 @@ Sequential Monte Carlo Sampler module;
 Runs on any pymc3 model.
 """
 
-import numpy as np
-
 import logging
 
+import numpy as np
 from pymc3.model import modelcontext
 
 from beat import backend, utility
-from .base import iter_parallel_chains, update_last_samples, init_stage, choose_proposal
-from .metropolis import Metropolis
 
+from .base import choose_proposal, init_stage, iter_parallel_chains, update_last_samples
+from .metropolis import Metropolis
 
 __all__ = ["SMC", "smc_sample"]
 
@@ -60,7 +59,7 @@ class SMC(Metropolis):
         results in many stages and vice verca (default: 1.)
     check_bound : boolean
         Check if current sample lies outside of variable definition
-        speeds up computation as the forward model wont be executed
+        speeds up computation as the forward model won't be executed
         default: True
     model : :class:`pymc3.Model`
         Optional model for sampling step.

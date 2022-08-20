@@ -41,7 +41,7 @@ GitHub = "https://github.com/hvasbath/beat"
 Issues = "https://github.com/hvasbath/beat/issues"
 
 [project.optional-dependencies]
-formating = ["flake8", "black"]
+formatting = ["flake8", "black"]
 
 [project.scripts]
 beat = "beat.apps.beat:main"

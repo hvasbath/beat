@@ -17,7 +17,7 @@ Prerequisites
 -------------
 First of all please download the beat source code::
 
-    cd ~/src  # or whereever you keep the packages
+    cd ~/src  # or wherever you keep the packages
     git clone https://github.com/hvasbath/beat
 
 The package includes scripts that help setting up and testing the following
@@ -87,7 +87,7 @@ Building numpy from source requires cython::
     pip3 install cython
 
 If you compile numpy locally against the previously installed OpenBlas
-library you can gain significant speedup. For my machine it resulted 
+library you can gain significant speedup. For my machine it resulted
 in a speed-up of the numpy related calculations by a factor of at least 3.::
 
     cd ~/src
@@ -168,7 +168,7 @@ CPU setup
 Optional: Setup for libamdm
 ___________________________
 Only for 64-bit machines!
-This again speeds up the elemantary operations! Theano will for sure work
+This again speeds up the elementary operations! Theano will for sure work
 without including this, but the performance increase (below)
 will convince you to do so ;) .
 
@@ -264,7 +264,7 @@ as intended::
 
 Using the CPU (amdlibm = False)::
 
-    THEANO_FLAGS=mode=FAST_RUN,device=cpu,floatX=float32 python3 test/gpu_test.py 
+    THEANO_FLAGS=mode=FAST_RUN,device=cpu,floatX=float32 python3 test/gpu_test.py
 
     [Elemwise{exp,no_inplace}(<TensorType(float32, vector)>)]
     Looping 1000 times took 2.717895 seconds
@@ -274,7 +274,7 @@ Using the CPU (amdlibm = False)::
 
 Using the CPU (amdlibm = True)::
 
-    THEANO_FLAGS=mode=FAST_RUN,device=cpu,floatX=float32 python3 test/gpu_test.py 
+    THEANO_FLAGS=mode=FAST_RUN,device=cpu,floatX=float32 python3 test/gpu_test.py
 
     [Elemwise{exp,no_inplace}(<TensorType(float32, vector)>)]
     Looping 1000 times took 0.703979 seconds
@@ -287,7 +287,7 @@ That's a speedup of 3.86! On the ELEMENTARY operations like exp(), log(), cos() 
 
 Using the GPU::
 
-    THEANO_FLAGS=mode=FAST_RUN,device=gpu,floatX=float32 python3 src/test/gpu_test.py 
+    THEANO_FLAGS=mode=FAST_RUN,device=gpu,floatX=float32 python3 src/test/gpu_test.py
 
     Using gpu device 0: Quadro 5000 (CNMeM is disabled, cuDNN not available)
     [GpuElemwise{exp,no_inplace}(<CudaNdarrayType(float32, vector)>),
@@ -330,7 +330,7 @@ framework to efficiently store and access Greens Functions.::
 
 OpenMPI
 """""""
-For the Parallel Tempering algorithm OpenMPI and the python 
+For the Parallel Tempering algorithm OpenMPI and the python
 bindings are required. If you do not have any MPI library installed, this needs to be installed first.
 For now BEAT only supports MPI versions <3. Available mpi versions can be listed with the command::
 
@@ -359,7 +359,7 @@ To calculate the Greens Functions we rely on modeling codes written by
 `Rongjiang Wang <http://www.gfz-potsdam.de/en/section/physics-of-earthquakes-and-volcanoes/staff/profil/rongjiang-wang/>`__.
 If you plan to use the GreensFunction calculation framework,
 these codes are required and need to be compiled manually.
-The original codes are packaged for windows and can be found 
+The original codes are packaged for windows and can be found
 `here <http://www.gfz-potsdam.de/en/section/physics-of-earthquakes-and-volcanoes/data-products-services/downloads-software/>`__.
 
 For Unix systems the codes had to be repackaged.

@@ -1,18 +1,16 @@
-from beat.models.base import Composite, FaultGeometryNotFoundError
-from beat import config as bconfig
-from beat.utility import load_objects
-from beat.heart import log_determinant
-
-from pymc3 import Deterministic
-
-from theano import tensor as tt
-from theano import shared
-from theano import config as tconfig
+import os
+from logging import getLogger
 
 import numpy as num
-from logging import getLogger
-import os
+from pymc3 import Deterministic
+from theano import config as tconfig
+from theano import shared
+from theano import tensor as tt
 
+from beat import config as bconfig
+from beat.heart import log_determinant
+from beat.models.base import Composite, FaultGeometryNotFoundError
+from beat.utility import load_objects
 
 logger = getLogger("ffi.laplacian")
 
@@ -90,7 +88,7 @@ class LaplacianDistributerComposite(Composite):
 
     def _eval_prior(self, hyperparam, exponent):
         """
-        Evaluate model parameter independend part of the smoothness prior.
+        Evaluate model parameter independent part of the smoothness prior.
         """
         return (-0.5) * (
             -self.sdet_shared_smoothing_op
@@ -246,7 +244,7 @@ def get_smoothing_operator_nearest_neighbor(
     """
     Get second order Laplacian smoothing operator between neighboring patches.
 
-    This is beeing used to smooth the slip-distribution in the optimization.
+    This is being used to smooth the slip-distribution in the optimization.
     Is only valid for a single flat fault.
 
     Parameters
@@ -296,7 +294,7 @@ def get_smoothing_operator_correlated(patches_coords, correlation_function="gaus
     """
     Get second order Laplacian finite-difference smoothing operator.
 
-    This is beeing used to smooth the slip-distribution in the optimization.
+    This is being used to smooth the slip-distribution in the optimization.
     Calculates differences between all patches.
 
     Parameters

@@ -2,43 +2,37 @@ import logging
 import os
 
 import numpy as num
-
 from matplotlib import pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.ticker import MaxNLocator
-
-from pyrocko import gmtpy
-from pyrocko.cake_plot import str_to_mpl_color as scolor
-from pyrocko.plot import (
-    mpl_papersize,
-    mpl_init,
-    mpl_graph_color,
-    mpl_margins,
-    beachball,
-)
-from pyrocko.guts import load
-
-from pyrocko import trace
-from pyrocko.moment_tensor import to6
-
 from pymc3.plots.utils import make_2d
+from pyrocko import gmtpy, trace
+from pyrocko.cake_plot import str_to_mpl_color as scolor
+from pyrocko.guts import load
+from pyrocko.moment_tensor import to6
+from pyrocko.plot import (
+    beachball,
+    mpl_graph_color,
+    mpl_init,
+    mpl_margins,
+    mpl_papersize,
+)
 
 from beat import utility
-from beat.models import Stage, load_stage
 from beat.heart import calculate_radiation_weights
+from beat.models import Stage, load_stage
 
 from .common import (
-    get_gmt_config,
-    format_axes,
     draw_line_on_array,
+    format_axes,
+    get_gmt_config,
     get_result_point,
     plot_inset_hist,
+    spherical_kde_op,
+    str_dist,
     str_duration,
     str_unit,
-    str_dist,
-    spherical_kde_op,
 )
-
 
 km = 1000.0
 SQRT2 = num.sqrt(2.0)
@@ -127,7 +121,7 @@ def load_earthmodels(store_superdir, store_ids, depth_max="cmb"):
 
 def draw_earthmodels(problem, plot_options):
 
-    from beat.heart import init_seismic_targets, init_geodetic_targets
+    from beat.heart import init_geodetic_targets, init_seismic_targets
 
     po = plot_options
 
@@ -1854,9 +1848,9 @@ def draw_hudson(problem, po):
     selected stage are plotted as smaller beachballs on the hudson graph.
     """
 
-    from pyrocko.plot import beachball, hudson
-    from pyrocko import moment_tensor as mtm
     from numpy import random
+    from pyrocko import moment_tensor as mtm
+    from pyrocko.plot import beachball, hudson
 
     if problem.config.problem_config.n_sources > 1:
         raise NotImplementedError(
@@ -2140,7 +2134,7 @@ def gmt_station_map_azimuthal(
 
 def draw_station_map_gmt(problem, po):
     """
-    Draws distance dependend for teleseismic vs regional/local setups
+    Draws distance dependent for teleseismic vs regional/local setups
     """
 
     if len(gmtpy.detect_gmt_installations()) < 1:
@@ -2227,8 +2221,8 @@ def draw_station_map_gmt(problem, po):
                         "Using equidistant projection for regional setup "
                         "of wavemap %s." % wmap._mapid
                     )
-                    from pyrocko.automap import Map
                     from pyrocko import orthodrome as otd
+                    from pyrocko.automap import Map
 
                     m = Map(
                         lat=event.lat,

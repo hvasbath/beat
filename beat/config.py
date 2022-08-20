@@ -8,28 +8,40 @@ kinematic distributed slip.
 """
 import logging
 import os
-
 from collections import OrderedDict
 
-from pyrocko.guts import Object, List, String, Float, Int, Tuple, Bool, Dict
-from pyrocko.guts import load, dump, StringChoice, ArgumentError
+import numpy as num
+from pyrocko import gf, model, trace, util
 from pyrocko.cake import load_model
-
-from pyrocko import trace, model, util, gf
 from pyrocko.gf import RectangularSource as PyrockoRS
 from pyrocko.gf.seismosizer import Cloneable, LocalEngine, stf_classes
-
-from beat.heart import Filter, FilterBase, ArrivalTaper, Parameter
-from beat.heart import ReferenceLocation, _domain_choices
-from beat.sources import RectangularSource, MTSourceWithMagnitude, MTQTSource
-from beat.covariance import available_noise_structures
-
-from beat import utility
-
-import numpy as num
-
+from pyrocko.guts import (
+    ArgumentError,
+    Bool,
+    Dict,
+    Float,
+    Int,
+    List,
+    Object,
+    String,
+    StringChoice,
+    Tuple,
+    dump,
+    load,
+)
 from theano import config as tconfig
 
+from beat import utility
+from beat.covariance import available_noise_structures
+from beat.heart import (
+    ArrivalTaper,
+    Filter,
+    FilterBase,
+    Parameter,
+    ReferenceLocation,
+    _domain_choices,
+)
+from beat.sources import MTQTSource, MTSourceWithMagnitude, RectangularSource
 
 guts_prefix = "beat"
 
@@ -371,7 +383,7 @@ class SeismicGFConfig(NonlinearGFConfig):
     )
     code = String.T(
         default="qssp",
-        help="Modeling code to use. (qssp, qseis, comming soon: " "qseis2d)",
+        help="Modeling code to use. (qssp, qseis, coming soon: " "qseis2d)",
     )
     sample_rate = Float.T(default=2.0, help="Sample rate for the Greens Functions.")
     rm_gfs = Bool.T(
@@ -396,7 +408,7 @@ class GeodeticGFConfig(NonlinearGFConfig):
     )
     sampling_interval = Float.T(
         default=1.0,
-        help="Distance dependend sampling spacing coefficient." "1. - equidistant",
+        help="Distance dependent sampling spacing coefficient." "1. - equidistant",
     )
     medium_depth_spacing = Float.T(
         default=1.0, help="Depth spacing [km] for GF medium grid."
@@ -632,7 +644,7 @@ class WaveformFitConfig(Object):
     interpolation = StringChoice.T(
         choices=_interpolation_choices,
         default="multilinear",
-        help="GF interpolation sceme. Choices: %s"
+        help="GF interpolation scheme. Choices: %s"
         % utility.list2string(_interpolation_choices),
     )
     arrival_taper = trace.Taper.T(
@@ -1556,7 +1568,7 @@ class ProblemConfig(Object):
         elif self.mode == geometry_mode_str:
             shape = param.dimension
         else:
-            raise TypeError("Mode not implemeneted: %s" % self.mode)
+            raise TypeError("Mode not implemented: %s" % self.mode)
 
         return shape
 
@@ -1729,7 +1741,7 @@ class SamplerConfig(Object):
         help="Factor by which the result trace is thinned before " "writing to disc.",
     )
     parameters = SamplerParameters.T(
-        default=SMCConfig.D(), help="Sampler dependend Parameters"
+        default=SMCConfig.D(), help="Sampler tependend Parameters"
     )
 
     def __init__(self, **kwargs):

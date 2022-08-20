@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
 import os
+import shutil
 import sys
-
-from setuptools import setup, Extension
-from setuptools.command.build_py import build_py
-
+import time
 from distutils.sysconfig import get_python_inc
 
-import shutil
-import time
+from setuptools import Extension, setup
+from setuptools.command.build_py import build_py
 
 op = os.path
 
@@ -38,7 +36,7 @@ class NotInAGitRepos(Exception):
 
 def git_infos():
 
-    from subprocess import run, PIPE
+    from subprocess import PIPE, run
 
     """Query git about sha1 of last commit and check if there are local \
        modifications."""
@@ -51,7 +49,7 @@ def git_infos():
         raise NotInAGitRepos()
 
     sha1 = q(["git", "log", "--pretty=oneline", "-n1"]).split()[0]
-    sha1 = re.sub(br"[^0-9a-f]", "", sha1)
+    sha1 = re.sub(rb"[^0-9a-f]", "", sha1)
     sha1 = str(sha1.decode("ascii"))
     sstatus = q(["git", "status", "--porcelain", "-uno"])
     local_modifications = bool(sstatus.strip())
@@ -100,7 +98,7 @@ installed_date = %s
 
 
 def bash_completions_dir():
-    from subprocess import Popen, PIPE
+    from subprocess import PIPE, Popen
 
     def q(c):
         return Popen(c, stdout=PIPE).communicate()[0]

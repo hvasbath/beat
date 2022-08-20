@@ -1,15 +1,15 @@
 import multiprocessing
-from multiprocessing import reduction
-from logging import getLogger
-import traceback
-from functools import wraps
 import signal
-from itertools import count
-import numpy as num
-from collections import OrderedDict
-from io import BytesIO
 import sys
+import traceback
+from collections import OrderedDict
+from functools import wraps
+from io import BytesIO
+from itertools import count
+from logging import getLogger
+from multiprocessing import reduction
 
+import numpy as num
 
 logger = getLogger("parallel")
 
@@ -76,7 +76,7 @@ def check_available_memory(filesize):
 
     if filesize > avail_mem_mb:
         logger.warn(
-            "The Greens Functino Library filesize is larger than"
+            "The Greens Function Library filesize is larger than"
             " the available memory. Likely it will use the SWAP which"
             " may result in extremely slowed down calculation times!"
         )
@@ -203,7 +203,7 @@ def paripool(
         of iterables that are to be looped over/ executed in parallel usually
         these objects are different for each task.
     nprocs : int
-        number of processors to be used in paralell process
+        number of processors to be used in parallel process
     chunksize : int
         number of work packages to throw at workers in each instance
     timeout : int

@@ -1,25 +1,27 @@
 import logging
-from copy import deepcopy
 import os
 import shutil
+from copy import deepcopy
 
-from beat import parallel
-from beat.backend import check_multitrace, load_multitrace, backend_catalog, MemoryChain
-from beat.utility import list2string
-
-from numpy.random import seed, randint
-from numpy.random import normal, standard_cauchy, standard_exponential, poisson
 import numpy as np
-
-from theano import function
-
-from pymc3.model import modelcontext, Point
+from numpy.random import (
+    normal,
+    poisson,
+    randint,
+    seed,
+    standard_cauchy,
+    standard_exponential,
+)
 from pymc3 import CompoundStep
+from pymc3.model import Point, modelcontext
 from pymc3.sampling import stop_tuning
 from pymc3.theanof import join_nonshared_inputs
-
+from theano import function
 from tqdm import tqdm
 
+from beat import parallel
+from beat.backend import MemoryChain, backend_catalog, check_multitrace, load_multitrace
+from beat.utility import list2string
 
 logger = logging.getLogger("sampler")
 
@@ -87,7 +89,7 @@ class Proposal(object):
 
 class DiscreteBoundedUniformProposal(Proposal):
     """
-    Returns uniform random integerers witin provided bounds.
+    Returns uniform random integerers within provided bounds.
 
     Parameters
     ----------
@@ -400,7 +402,7 @@ def _iter_sample(
 
 def init_chain_hypers(problem):
     """
-    Use random source parameters and fix the source parameter dependend
+    Use random source parameters and fix the source parameter dependent
     parts of the forward model.
 
     Parameters
@@ -607,7 +609,7 @@ def logp_forw(out_vars, vars, shared):
     vars : List
         containing :class:`pymc3.Distribution` for the input variables
     shared : List
-        containing :class:`theano.tensor.Tensor` for dependend shared data
+        containing :class:`theano.tensor.Tensor` for dependent shared data
     """
     out_list, inarray0 = join_nonshared_inputs(out_vars, vars, shared)
     f = function([inarray0], out_list)

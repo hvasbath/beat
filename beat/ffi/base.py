@@ -1,23 +1,17 @@
-from beat import heart
-from beat.utility import list2string, scalar2floatX, error_not_whole
-
-from beat import parallel
-from beat.config import SeismicGFLibraryConfig, GeodeticGFLibraryConfig
-
-import os
 import logging
-
+import os
 from multiprocessing import RawArray
 
-from pyrocko.trace import Trace
-from pyrocko.guts import load
-
-from theano import shared
-from theano import config as tconfig
-import theano.tensor as tt
-
 import numpy as num
+import theano.tensor as tt
+from pyrocko.guts import load
+from pyrocko.trace import Trace
+from theano import config as tconfig
+from theano import shared
 
+from beat import heart, parallel
+from beat.config import GeodeticGFLibraryConfig, SeismicGFLibraryConfig
+from beat.utility import error_not_whole, list2string, scalar2floatX
 
 logger = logging.getLogger("ffi")
 
@@ -139,7 +133,7 @@ class GFLibrary(object):
     def set_stack_mode(self, mode="numpy"):
         """
         Sets mode on witch backend the stacking is working.
-        Dependend on that the input to the stack function has to be
+        Dependent on that the input to the stack function has to be
         either of :class:`numpy.ndarray` or of :class:`theano.tensor.Tensor`
 
         Parameters
@@ -200,7 +194,7 @@ def load_gf_library(directory="", filename=None):
 
 class GeodeticGFLibrary(GFLibrary):
     """
-    Seismic Greens Funcion Library for the finite fault optimization.
+    Seismic Greens Function Library for the finite fault optimization.
 
     Parameters
     ----------
@@ -333,7 +327,7 @@ filename: %s""" % (
 
 class SeismicGFLibrary(GFLibrary):
     """
-    Seismic Greens Funcion Library for the finite fault optimization.
+    Seismic Greens Function Library for the finite fault optimization.
 
     Eases inspection of Greens Functions through interface to the snuffler.
 
@@ -592,7 +586,7 @@ filename: %s""" % (
     ):
         """
         Stack selected traces from the GF Library of specified
-        target, patch, durations and starttimes. Numpy or theano dependend
+        target, patch, durations and starttimes. Numpy or theano dependent
         on the stack_mode
 
         Parameters
@@ -600,7 +594,7 @@ filename: %s""" % (
 
         Returns
         -------
-        :class:`numpy.ndarray` or of :class:`theano.tensor.Tensor` dependend
+        :class:`numpy.ndarray` or of :class:`theano.tensor.Tensor` dependent
         on stack mode
         """
         durationidxs, rt_factors = self.durations2idxs(
@@ -1112,7 +1106,7 @@ def seis_construct_gf_linear(
     targets : list
         of pyrocko target objects for respective phase to compute
     wavemap : :class:`heart.WaveformMapping`
-        configuration parameters for handeling seismic data around Phase
+        configuration parameters for handling seismic data around Phase
     fault : :class:`FaultGeometry`
         fault object that may comprise of several sub-faults. thus forming a
         complex fault-geometry

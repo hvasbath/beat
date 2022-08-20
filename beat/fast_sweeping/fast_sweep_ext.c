@@ -282,7 +282,7 @@ PyInit_fast_sweep_ext(void)
     if (module == NULL)
         INITERROR;
     import_array();
-    
+
     struct module_state *st = GETSTATE(module);
     st->error = PyErr_NewException("beat.fast_sweep_ext.error", NULL, NULL);
     if (st->error == NULL) {
@@ -294,4 +294,3 @@ PyInit_fast_sweep_ext(void)
 
     return module;
 }
-

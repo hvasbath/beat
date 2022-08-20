@@ -1,9 +1,8 @@
-from .seismic import *  # noqa
-from .geodetic import *  # noqa
-from .ffi import *  # noqa
-from .marginals import *  # noqa
 from .common import *  # noqa
-
+from .ffi import *  # noqa
+from .geodetic import *  # noqa
+from .marginals import *  # noqa
+from .seismic import *  # noqa
 
 plots_catalog = {
     "correlation_hist": draw_correlation_hist,

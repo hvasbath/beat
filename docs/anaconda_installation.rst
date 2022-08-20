@@ -14,7 +14,7 @@ Create and activate a new conda environment e.g. called "beat" using python3.6 (
 
   conda create -n beat python=3.6
   conda activate beat
-  cd ~/src  # or whereever you keep the packages
+  cd ~/src  # or wherever you keep the packages
 
 Download the beat source package from github (requires git to be installed on your machine)::
 
@@ -90,4 +90,3 @@ Seismic synthetics
 Geodetic synthetics
 """""""""""""""""""
 * `PSGRN_PSCMP <https://git.pyrocko.org/pyrocko/fomosto-psgrn-pscmp>`__
-

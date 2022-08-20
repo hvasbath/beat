@@ -13,7 +13,7 @@ NameError: global name 'exc' is not defined
 |
 | **2. Theano MKL support**
 
-RuntimeError: To use MKL 2018 with Theano you MUST set "MKL_THREADING_LAYER=GNU" in your environement.
+RuntimeError: To use MKL 2018 with Theano you MUST set "MKL_THREADING_LAYER=GNU" in your environment.
 
 | add
 | export MKL_THREADING_LAYER=GNU
@@ -42,7 +42,7 @@ Please make sure that these ranges are wide enough in depths and distances!
 
 This means that the seismic Green's Function store does not cover the full depth-distance range of the source- receiver pairs. Please make sure that these ranges are wide enough in depths and distances!
 It also may occur when waveform-arrivals have been requested through the configuration at a time
-window where synthetics havent been calculated. E.g. S-waves 'any_S' are configured, but the GF store has not been computed including them. 
+window where synthetics haven't been calculated. E.g. S-waves 'any_S' are configured, but the GF store has not been computed including them.
 
 | **7. Upgrading BEAT from beta**
 
@@ -62,7 +62,7 @@ Unfortunately, some incompatibility arose from beta to version 1.0. Finite fault
 X forwarding needs to be activated in the ssh config! For linux:
 
 1. vi /etc/ssh/ssh_config
-2. set "X11Forwarding" to "yes", save and close 
+2. set "X11Forwarding" to "yes", save and close
 3. in the shell run::
 
     systemctl restart sshd   # could require sudo rights

@@ -1,17 +1,14 @@
-from logging import getLogger
 import os
-
-from beat import config as bconfig
-from beat.models import hyper_normal
-from beat.backend import SampleStage, thin_buffer
-
-from pymc3 import Deterministic
 from collections import OrderedDict
+from logging import getLogger
 
 import numpy as num
-
+from pymc3 import Deterministic
 from pyrocko.util import ensuredir
 
+from beat import config as bconfig
+from beat.backend import SampleStage, thin_buffer
+from beat.models.distributions import hyper_normal
 
 logger = getLogger("models.base")
 
@@ -70,7 +67,7 @@ class Composite(object):
     @property
     def nevents(self):
         """
-        Number of events with larger seperation in time, i.e. hours.
+        Number of events with larger separation in time, i.e. hours.
         """
         return len(self.events)
 
@@ -169,7 +166,7 @@ class Composite(object):
 
 def sample(step, problem):
     """
-    Sample solution space with the previously initalised algorithm.
+    Sample solution space with the previously initialised algorithm.
 
     Parameters
     ----------
@@ -277,7 +274,7 @@ def estimate_hypers(step, problem):
     """
     Get initial estimates of the hyperparameters
     """
-    from beat.sampler.base import iter_parallel_chains, init_stage, init_chain_hypers
+    from beat.sampler.base import init_chain_hypers, init_stage, iter_parallel_chains
 
     logger.info("... Estimating hyperparameters ...")
 

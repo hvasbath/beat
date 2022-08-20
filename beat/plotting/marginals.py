@@ -1,35 +1,29 @@
+import copy
 import logging
 import os
-import copy
 
 import numpy as num
-
 from matplotlib import pyplot as plt
 from matplotlib.ticker import MaxNLocator
-
-from pymc3 import quantiles
 from pymc3 import plots as pmp
+from pymc3 import quantiles
+from pyrocko.cake_plot import str_to_mpl_color as scolor
+from pyrocko.plot import AutoScaler, mpl_graph_color, mpl_papersize, nice_value
+from scipy.stats import kde
 
 from beat import utility
-from beat.models import Stage, load_stage
+from beat.config import dist_vars, geometry_mode_str
 from beat.heart import physical_bounds
-from beat.config import geometry_mode_str, dist_vars
+from beat.models import Stage, load_stage
 
 from .common import (
-    plot_units,
+    format_axes,
     get_result_point,
     histplot_op,
     hypername,
-    format_axes,
     kde2plot,
+    plot_units,
 )
-
-from scipy.stats import kde
-
-from pyrocko.plot import AutoScaler, nice_value
-from pyrocko.cake_plot import str_to_mpl_color as scolor
-from pyrocko.plot import mpl_graph_color, mpl_papersize
-
 
 logger = logging.getLogger("plotting.marginals")
 

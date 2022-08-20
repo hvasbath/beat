@@ -44,7 +44,7 @@ Contributors: Mahdi Hamidbeygi @mahdihamidbeygi, Hannes Vasyura-Bathke @hvasbath
 **Plotting**
 - 3d_slip_distribution: allows plotting of selected segments, slip-deficit, coupling, slip_variation
 - gnss_fits: added Variance Reduction histograms if nensemble > 1
-- slip_distribution: common colorscale and spatial scale accross subfaults
+- slip_distribution: common colorscale and spatial scale across subfaults
 - moment_rate: adjusted size and formatting to be publication ready
 - correlation_hist: plot source related correlations for nsources > 1, colorcoding
 
@@ -60,7 +60,7 @@ Contributors: Mahdi Hamidbeygi @mahdihamidbeygi, Hannes Vasyura-Bathke @hvasbath
 
 ### General
 
-Documentation moved to https://pyrocko.org/beat and is made version dependend.
+Documentation moved to https://pyrocko.org/beat and is made version dependent.
 E.g. https://pyrocko.org/beat/v1.0 to view older documentation versions.
 
 ### Added
@@ -99,7 +99,7 @@ E.g. https://pyrocko.org/beat/v1.0 to view older documentation versions.
 
 **Plotting**
 - slip_distribution allows for variable patch-size
-- plot gnss_fits for horizontal and vertical GNSS components 
+- plot gnss_fits for horizontal and vertical GNSS components
 - waveform misfits:
   + with plot_projection =individual allows to get individual source contributions for geometry mode
   + added time-shift histograms if these were sampled
@@ -121,7 +121,7 @@ E.g. https://pyrocko.org/beat/v1.0 to view older documentation versions.
 - moved beat command level export to dataset composites export method
 - MTQTSource input argument u removed in favor of w
 - filterer attribute of Wavemap is now list of filters, allows chaining of filters
-- beat import mode now cleanly referrs to the current project directory not anymore to the results directory to be imported from
+- beat import mode now cleanly refers to the current project directory not anymore to the results directory to be imported from
 - beat import got additional --import_from_mode to choose the mode of the results to import from (was previously mode)
 
 ## [v.1.0.0]  18.06.2019
@@ -131,7 +131,7 @@ Initial release:
 - estimate non-linear parameters of elastic deformation sources
 - finite fault inversion with distributed slip on uniformly discretized planar faults
 - in layered/homogeneous elastic media
-- supported datatypes: 
+- supported datatypes:
   + geodetic (InSAR, GNSS)
   + seismic (seismic waveforms)
 - Bayesian Inference with hierarchical residual estimation

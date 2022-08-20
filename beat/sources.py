@@ -3,18 +3,18 @@ Module that contains customized sources that can be used by the
 pyrocko.gf.seismosizer.Engine.
 Other specialized sources may be implemented here.
 """
-from pyrocko.guts import Float
+import copy
+import logging
+import math
+
+import numpy as num
 from pyrocko import gf
-from pyrocko.gf import meta
 from pyrocko import moment_tensor as mtm
+from pyrocko.gf import meta
 from pyrocko.gf.seismosizer import Source
+from pyrocko.guts import Float
 
 from beat.utility import get_rotation_matrix
-
-import math
-import copy
-import numpy as num
-import logging
 
 # MTQT constants
 pi = num.pi
@@ -423,7 +423,7 @@ class MTQTSource(gf.SourceWithMagnitude):
     v = Float.T(
         default=0.0,
         help="Lune co-longitude transformed to grid. "
-        "Definded: -1/3 <= v <= 1/3. "
+        "Defined: -1/3 <= v <= 1/3. "
         "If fixed to zero together with w the MT is pure DC.",
     )
 
@@ -457,21 +457,21 @@ class MTQTSource(gf.SourceWithMagnitude):
     @property
     def u(self):
         """
-        Lunar co-latitude(beta), dependend on w
+        Lunar co-latitude(beta), dependent on w
         """
         return (3.0 / 8.0) * num.pi - self.w
 
     @property
     def gamma(self):
         """
-        Lunar longitude, dependend on v
+        Lunar longitude, dependent on v
         """
         return v_to_gamma(self.v)
 
     @property
     def beta(self):
         """
-        Lunar co-latitude, dependend on u
+        Lunar co-latitude, dependent on u
         """
         return w_to_beta(self.w, u_mapping=U_MAPPING, beta_mapping=BETA_MAPPING)
 
@@ -534,7 +534,7 @@ class MTQTSource(gf.SourceWithMagnitude):
     @property
     def m9(self):
         """
-        Pyrocko MT in NED
+        Pyrocko MT in NEED
         """
         return self.rotx_pi.dot(self.m9_nwu).dot(self.rotx_pi.T)
 
@@ -577,7 +577,7 @@ class MTQTSource(gf.SourceWithMagnitude):
         if mt:
             logger.warning(
                 "From event will ignore MT components initially. "
-                "Needs mapping from NED to QT space!"
+                "Needs mapping from NEED to QT space!"
             )
             # d.update(m6=list(map(float, mt.m6())))
 

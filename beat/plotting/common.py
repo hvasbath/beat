@@ -2,24 +2,17 @@ import logging
 import os
 
 import numpy as num
-
-from pyrocko.guts import Object, String, Dict, List, Bool, Int, load, StringChoice
-
-from pyrocko import orthodrome as otd
-from pyrocko.plot import mpl_graph_color
-
-from pymc3 import quantiles
-
-from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 from matplotlib import pyplot as plt
 from matplotlib.ticker import MaxNLocator
-
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+from pymc3 import quantiles
+from pyrocko import orthodrome as otd
+from pyrocko.guts import Bool, Dict, Int, List, Object, String, StringChoice, load
+from pyrocko.plot import mpl_graph_color
 from scipy.stats import kde
-
-from beat import utility
-
 from theano import config as tconfig
 
+from beat import utility
 
 logger = logging.getLogger("plotting.common")
 
@@ -727,7 +720,7 @@ def draw_line_on_array(
             )
             new_grid[rr, cc] = w.astype(grid.dtype)
         except ValueError:
-            # line start and end fall in the same grid point cant be drawn
+            # line start and end fall in the same grid point can't be drawn
             pass
 
     grid += new_grid

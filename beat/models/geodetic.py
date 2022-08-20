@@ -1,32 +1,28 @@
-from logging import getLogger
-import os
 import copy
-from time import time
+import os
 from collections import OrderedDict
+from logging import getLogger
+from time import time
 
 import numpy as num
-
-from theano.printing import Print
-from theano import shared
-from theano import config as tconfig
 import theano.tensor as tt
-
+from pymc3 import Deterministic, Uniform
 from pyrocko.gf import LocalEngine, RectangularSource
+from theano import config as tconfig
+from theano import shared
+from theano.printing import Print
 
-from beat import theanof, utility
-from beat.ffi import load_gf_library, get_gf_prefix
 from beat import config as bconfig
-from beat import heart, covariance as cov
+from beat import covariance as cov
+from beat import heart, theanof, utility
+from beat.ffi import get_gf_prefix, load_gf_library
+from beat.interseismic import geo_backslip_synthetics, seperate_point
 from beat.models.base import (
-    ConfigInconsistentError,
     Composite,
+    ConfigInconsistentError,
     FaultGeometryNotFoundError,
 )
 from beat.models.distributions import multivariate_normal_chol
-from beat.interseismic import geo_backslip_synthetics, seperate_point
-
-from pymc3 import Uniform, Deterministic
-
 
 logger = getLogger("geodetic")
 
@@ -222,8 +218,9 @@ class GeodeticComposite(Composite):
         update=False,
     ):
 
-        from pyrocko.guts import dump
         from kite.scene import Scene, UserIOWarning
+        from pyrocko.guts import dump
+
         from beat.plotting import map_displacement_grid
 
         gc = self.config

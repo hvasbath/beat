@@ -1,35 +1,28 @@
-from logging import getLogger
-import os
 import copy
+import os
+from collections import OrderedDict
+from logging import getLogger
 
-from theano import shared
-
+from pymc3 import Deterministic
 from pyrocko.gf import LocalEngine
-from pyrocko.model import load_stations
 from pyrocko.guts import dump
+from pyrocko.model import load_stations
+from theano import shared
+from theano.tensor import concatenate
 
 from beat import config as bconfig
 from beat.heart import (
     PolarityMapping,
     PolarityResult,
+    ResultPoint,
     init_polarity_targets,
     pol_synthetics,
     results_for_export,
-    ResultPoint,
 )
-from beat.theanof import PolaritySynthesizer
-
-from beat.utility import adjust_point_units, split_point, update_source, unique_list
-
 from beat.models.base import Composite
 from beat.models.distributions import polarity_llk
-
-from theano.tensor import concatenate
-
-from pymc3 import Deterministic
-
-from collections import OrderedDict
-
+from beat.theanof import PolaritySynthesizer
+from beat.utility import adjust_point_units, split_point, unique_list, update_source
 
 logger = getLogger("polarity")
 

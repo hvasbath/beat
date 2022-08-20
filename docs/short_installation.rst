@@ -31,7 +31,7 @@ The environment can be (later) deactivated NOT NOW!, with::
     deactivate
 
 Now we have created the *beat_env* environment into which we will install all the needed packages. Thus, we can avoid potential versioning conflicts
-with other packages. 
+with other packages.
 
 
 Install beat, latest release
@@ -47,7 +47,7 @@ Install beat, development version
 
 Get the development version through the github repository::
 
-    cd ~/src  # or whereever you keep the packages
+    cd ~/src  # or wherever you keep the packages
     git clone https://github.com/hvasbath/beat
     cd beat
     git pull origin master
@@ -61,7 +61,7 @@ To calculate the Greens Functions we rely on modeling codes written by
 `Rongjiang Wang <http://www.gfz-potsdam.de/en/section/physics-of-earthquakes-and-volcanoes/staff/profil/rongjiang-wang/>`__.
 If you plan to use the GreensFunction calculation framework,
 these codes are required and need to be compiled manually.
-The original codes are packaged for windows and can be found 
+The original codes are packaged for windows and can be found
 `here <http://www.gfz-potsdam.de/en/section/physics-of-earthquakes-and-volcanoes/data-products-services/downloads-software/>`__.
 
 For Unix systems the codes had to be repackaged.
@@ -83,4 +83,3 @@ Seismic synthetics
 Geodetic synthetics
 """""""""""""""""""
 * `PSGRN_PSCMP <https://git.pyrocko.org/pyrocko/fomosto-psgrn-pscmp>`__
-

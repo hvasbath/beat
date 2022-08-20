@@ -1,33 +1,29 @@
-from logging import getLogger
-import os
 import copy
+import os
+from collections import OrderedDict
+from logging import getLogger
 from time import time
 
 import numpy as num
-
-from theano import shared
-from theano import config as tconfig
 import theano.tensor as tt
-from theano.tensor import fft
-from theano.printing import Print
-
+from pymc3 import Deterministic, Uniform
 from pyrocko.gf import LocalEngine
 from pyrocko.trace import Trace
+from theano import config as tconfig
+from theano import shared
+from theano.printing import Print
+from theano.tensor import fft
 
-from beat import theanof, utility
-from beat.ffi import load_gf_library, get_gf_prefix
 from beat import config as bconfig
-from beat import heart, covariance as cov
+from beat import covariance as cov
+from beat import heart, theanof, utility
+from beat.ffi import get_gf_prefix, load_gf_library
 from beat.models.base import (
-    ConfigInconsistentError,
     Composite,
+    ConfigInconsistentError,
     FaultGeometryNotFoundError,
 )
-from beat.models.distributions import multivariate_normal_chol, get_hyper_name
-
-from pymc3 import Uniform, Deterministic
-from collections import OrderedDict
-
+from beat.models.distributions import get_hyper_name, multivariate_normal_chol
 
 logger = getLogger("seismic")
 
@@ -955,7 +951,7 @@ class SeismicGeometryComposite(SeismicComposite):
 
         self.point2sources(point)
 
-        # update data covariances in case model dependend non-toeplitz
+        # update data covariances in case model dependent non-toeplitz
         if self.config.noise_estimator.structure == "non-toeplitz":
             logger.info("Updating data-covariances ...")
             self.analyse_noise(point, chop_bounds=chop_bounds)
@@ -1513,7 +1509,7 @@ class SeismicDistributerComposite(SeismicComposite):
         if not self.weights:
             self.init_weights()
 
-        # update data covariances in case model dependend non-toeplitz
+        # update data covariances in case model dependent non-toeplitz
         if self.config.noise_estimator.structure == "non-toeplitz":
             logger.info("Updating data-covariances ...")
             self.analyse_noise(point, chop_bounds=chop_bounds)

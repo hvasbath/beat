@@ -2,36 +2,35 @@ import logging
 import os
 
 import numpy as num
-
+import pyrocko.moment_tensor as mt
 from matplotlib import pyplot as plt
-from matplotlib.patches import Rectangle, FancyArrow
-from matplotlib.collections import PatchCollection
-from matplotlib.ticker import MaxNLocator, FormatStrFormatter
 from matplotlib.backends.backend_pdf import PdfPages
-
-from beat import utility
-from beat.models import Stage, load_stage
-from beat.config import ffi_mode_str
-from .common import (
-    draw_line_on_array,
-    get_result_point,
-    format_axes,
-    scale_axes,
-    km,
-    get_gmt_config,
-)
-
+from matplotlib.collections import PatchCollection
+from matplotlib.patches import FancyArrow, Rectangle
+from matplotlib.ticker import FormatStrFormatter, MaxNLocator
+from pyrocko import gmtpy
+from pyrocko import orthodrome as otd
 from pyrocko.cake_plot import str_to_mpl_color as scolor
 from pyrocko.plot import (
-    mpl_papersize,
-    mpl_init,
-    mpl_graph_color,
-    mpl_margins,
     AutoScaler,
+    mpl_graph_color,
+    mpl_init,
+    mpl_margins,
+    mpl_papersize,
 )
-from pyrocko import orthodrome as otd
-from pyrocko import gmtpy
-import pyrocko.moment_tensor as mt
+
+from beat import utility
+from beat.config import ffi_mode_str
+from beat.models import Stage, load_stage
+
+from .common import (
+    draw_line_on_array,
+    format_axes,
+    get_gmt_config,
+    get_result_point,
+    km,
+    scale_axes,
+)
 
 logger = logging.getLogger("plotting.ffi")
 
@@ -574,8 +573,9 @@ def fault_slip_distribution(
             )
         return u
 
-    from beat.colormap import slip_colormap
     from tqdm import tqdm
+
+    from beat.colormap import slip_colormap
 
     fontsize = 12
 
@@ -921,6 +921,7 @@ def draw_3d_slip_distribution(problem, po):
 
         if po.varnames[0] == "slip_variation":
             from pandas import read_csv
+
             from beat.backend import extract_bounds_from_summary
 
             summarydf = read_csv(
