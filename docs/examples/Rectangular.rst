@@ -117,9 +117,9 @@ In the $project_path/config_geometry.yaml under seismic config we find the gf_co
     use_crust2: false
     replace_water: false
     source_depth_min: 0.0
-    source_depth_max: 30.0
+    source_depth_max: 32.0
     source_depth_spacing: 4.0
-    source_distance_radius: 30.0
+    source_distance_radius: 60.0
     source_distance_spacing: 4.0
     error_depth: 0.1
     error_velocities: 0.1
@@ -156,13 +156,13 @@ The seismic phases for which the GFs are going to be calculated are defined unde
           lower_corner: 0.01
           upper_corner: 0.1
           order: 3
-        distances: [0.0, 9.0]
+        distances: [30.0, 90.0]
         interpolation: multilinear
         arrival_taper: !beat.heart.ArrivalTaper
-          a: -20.0
+          a: -15.0
           b: -10.0
-          c: 250.0
-          d: 270.0
+          c: 40.0
+          d: 55.0
 
 In this case the GFs are going to be calculated for the P body waves as can be seen by the "name" parameter "any_P". How to calculate GFs also for S or surface waves is discussed in `Example 1 <https://pyrocko.org/beat/docs/current/examples/FullMT_regional.html#calculate-greens-functions>`__.
 
