@@ -12,12 +12,6 @@ repos:
   hooks:
   - id: codespell
     args: [--write-changes, "-L ure,nd,ue,parms,Ue,statics,indexs"]
-- repo: https://github.com/pycqa/isort
-  rev: 5.10.1
-  hooks:
-  - id: isort
-    name: isort (python)
-    args: [--profile, black]
 - repo: https://github.com/psf/black
   rev: 22.6.0
   hooks:
