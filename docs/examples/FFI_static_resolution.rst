@@ -66,10 +66,10 @@ epsilon_search_runs     15
       depth_penalty    3.5
 =================== ======
 
-The *nworkers* attribute determines the number of processes to be run in parallel to calculate the Greens Functions and should be set to a sufficiently high number that the hardware supports (number of CPU -1). 
+The *nworkers* attribute determines the number of processes to be run in parallel to calculate the Greens Functions and should be set to a sufficiently high number that the hardware supports (number of CPU -1).
 
-With *epsilon_search_runs* we can controll the number of models that
-are run automatically with different *epsilon* parameters on a sensible search bound, starting with *epsilon* as the lowest. 
+With *epsilon_search_runs* we can control the number of models that
+are run automatically with different *epsilon* parameters on a sensible search bound, starting with *epsilon* as the lowest.
 
 We can start the discretization optimization with::
 
@@ -77,12 +77,12 @@ We can start the discretization optimization with::
 
 .. note:: The --force option is needed to overwrite the previously discretized fault object that was copied during the clone command above.
 
-The --plot option creates a plot of the discretized fault geometry (under Laquila_resolution/ffi/figures) with the individual patch resolutions. The higher the resolution the better the slip can be resolved. Also it will generate following trade-off curve showing the model resolution spread vs. epsilon [Atzori2019]_. The black numbers indicate the corresponding number of patches. 
+The --plot option creates a plot of the discretized fault geometry (under Laquila_resolution/ffi/figures) with the individual patch resolutions. The higher the resolution the better the slip can be resolved. Also it will generate following trade-off curve showing the model resolution spread vs. epsilon [Atzori2019]_. The black numbers indicate the corresponding number of patches.
 
 .. image:: ../_static/example4/discretization_tradeoff.png
    :width: 80%
 
-The fault at the elbow of the trade-off curve (red star) will then be selected to run the sampling (middle). Also we see an over- and under-damped case top and bottom, respectively. 
+The fault at the elbow of the trade-off curve (red star) will then be selected to run the sampling (middle). Also we see an over- and under-damped case top and bottom, respectively.
 
 .. image:: ../_static/example4/patch_resolutions_10.png
    :width: 80%
@@ -116,7 +116,7 @@ The fault_geometry, which is used for sampling is stored under::
   Laquila_resolution/ffi/linear_gfs/discretization/fault_geometry.pkl
 
 In our case here the user might favor for example the fault that was discretized with 42 patches
-instead of the selected solution with 28 patches, because it potentialy allows to sample finer features of the slip distribution. In our case the fault with 42 patches has an epsilon value of 
+instead of the selected solution with 28 patches, because it potentially allows to sample finer features of the slip distribution. In our case the fault with 42 patches has an epsilon value of
 ca. 0.05. Checking the discretization directory with::
 
   ls Laquila_resolution/ffi/linear_gfs/discretization/
@@ -147,7 +147,7 @@ Now the solution space can be sampled using the same sampler configuration as fo
   beat sample Laquila_resolution --mode=ffi
 
 
-.. warning:: Please be aware that if the full kinematic model setup is planned to be run after the variable static slip estimation, the resolution based discretization cannot be used in its implemented form as the algorithm only works for static surface data. 
+.. warning:: Please be aware that if the full kinematic model setup is planned to be run after the variable static slip estimation, the resolution based discretization cannot be used in its implemented form as the algorithm only works for static surface data.
 
 
 Summarize and plotting
@@ -185,7 +185,7 @@ References
 ^^^^^^^^^^
 .. [Atzori2011] Atzori, S. and Antonioli, A. (2011).
     Optimal fault resolution in geodetic inversion of coseismic data
-    Geophys. J. Int. (2011) 185, 529–538, 
+    Geophys. J. Int. (2011) 185, 529–538,
     `link <http://ascelibrary.org/doi: 10.1111/j.1365-246X.2011.04955.x>`__
 .. [Atzori2019] Atzori, S.; Antonioli, A.; Tolomei, C.; De Novellis, V.;
     De Luca, C. and Monterroso, F.

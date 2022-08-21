@@ -3,30 +3,44 @@ Module that contains customized sources that can be used by the
 pyrocko.gf.seismosizer.Engine.
 Other specialized sources may be implemented here.
 """
-from pyrocko.guts import Float
+import copy
+import logging
+import math
+
+import numpy as num
 from pyrocko import gf
-from pyrocko.gf import meta
 from pyrocko import moment_tensor as mtm
+from pyrocko.gf import meta
 from pyrocko.gf.seismosizer import Source
+from pyrocko.guts import Float
 
 from beat.utility import get_rotation_matrix
 
-import math
-import copy
-import numpy as num
-import logging
-
+# MTQT constants
 pi = num.pi
-pi4 = pi / 4.
-km = 1000.
-d2r = pi / 180.
-r2d = 180. / pi
+pi4 = pi / 4.0
+km = 1000.0
+d2r = pi / 180.0
+r2d = 180.0 / pi
 
-sqrt3 = num.sqrt(3.)
-sqrt2 = num.sqrt(2.)
-sqrt6 = num.sqrt(6.)
+SQRT3 = num.sqrt(3.0)
+SQRT2 = num.sqrt(2.0)
+SQRT6 = num.sqrt(6.0)
 
-logger = logging.getLogger('sources')
+n = 1000
+BETA_MAPPING = num.linspace(0, pi, n)
+U_MAPPING = (
+    (3.0 / 4.0 * BETA_MAPPING)
+    - (1.0 / 2.0 * num.sin(2.0 * BETA_MAPPING))
+    + (1.0 / 16.0 * num.sin(4.0 * BETA_MAPPING))
+)
+
+LAMPBDA_FACTOR_MATRIX = num.array(
+    [[SQRT3, -1.0, SQRT2], [0.0, 2.0, SQRT2], [-SQRT3, -1.0, SQRT2]], dtype="float64"
+)
+
+
+logger = logging.getLogger("sources")
 
 
 class RectangularSource(gf.RectangularSource):
@@ -57,9 +71,12 @@ class RectangularSource(gf.RectangularSource):
         """
 
         return num.array(
-            [num.cos(self.dip * d2r) * num.cos(self.strike * d2r),
-             -num.cos(self.dip * d2r) * num.sin(self.strike * d2r),
-             num.sin(self.dip * d2r)])
+            [
+                num.cos(self.dip * d2r) * num.cos(self.strike * d2r),
+                -num.cos(self.dip * d2r) * num.sin(self.strike * d2r),
+                num.sin(self.dip * d2r),
+            ]
+        )
 
     @property
     def strikevector(self):
@@ -76,10 +93,7 @@ class RectangularSource(gf.RectangularSource):
         :class:`numpy.ndarray`
         """
 
-        return num.array(
-            [num.sin(self.strike * d2r),
-             num.cos(self.strike * d2r),
-             0.])
+        return num.array([num.sin(self.strike * d2r), num.cos(self.strike * d2r), 0.0])
 
     @property
     def center(self):
@@ -97,8 +111,10 @@ class RectangularSource(gf.RectangularSource):
         fault
         """
 
-        return num.array([self.east_shift, self.north_shift, self.depth]) + \
-            0.5 * self.width * self.dipvector
+        return (
+            num.array([self.east_shift, self.north_shift, self.depth])
+            + 0.5 * self.width * self.dipvector
+        )
 
     def center2top_depth(self, center):
         """
@@ -117,8 +133,9 @@ class RectangularSource(gf.RectangularSource):
         upper edge of the fault
         """
 
-        return num.array([center[0], center[1], center[2]]) - \
-            (0.5 * self.width * self.dipvector)
+        return num.array([center[0], center[1], center[2]]) - (
+            0.5 * self.width * self.dipvector
+        )
 
     @property
     def bottom_center(self):
@@ -132,8 +149,9 @@ class RectangularSource(gf.RectangularSource):
         lower edge of the fault
         """
 
-        return num.array([self.east_shift, self.north_shift, self.depth]) + \
-               (self.width * self.dipvector)
+        return num.array([self.east_shift, self.north_shift, self.depth]) + (
+            self.width * self.dipvector
+        )
 
     @property
     def bottom_depth(self):
@@ -150,18 +168,20 @@ class RectangularSource(gf.RectangularSource):
     @property
     def top_left(self):
         return num.array([self.east_shift, self.north_shift, self.depth]) - (
-            0.5 * self.strikevector * self.length)
+            0.5 * self.strikevector * self.length
+        )
 
     @property
     def top_right(self):
         return num.array([self.east_shift, self.north_shift, self.depth]) + (
-            0.5 * self.strikevector * self.length)
+            0.5 * self.strikevector * self.length
+        )
 
     @property
     def corners(self):
         return num.vstack(
-            [self.top_left, self.top_right,
-             self.bottom_left, self.bottom_right])
+            [self.top_left, self.top_right, self.bottom_left, self.bottom_right]
+        )
 
     def trace_center(self):
         """
@@ -175,11 +195,9 @@ class RectangularSource(gf.RectangularSource):
         """
 
         bc = self.bottom_center
-        xtrace = bc[0] - (
-                bc[2] * num.cos(d2r * self.strike) / num.tan(d2r * self.dip))
-        ytrace = bc[1] + (
-                bc[2] * num.sin(d2r * self.strike) / num.tan(d2r * self.dip))
-        return num.array([xtrace, ytrace, 0.])
+        xtrace = bc[0] - (bc[2] * num.cos(d2r * self.strike) / num.tan(d2r * self.dip))
+        ytrace = bc[1] + (bc[2] * num.sin(d2r * self.strike) / num.tan(d2r * self.dip))
+        return num.array([xtrace, ytrace, 0.0])
 
     def patches(self, nl, nw, datatype):
         """
@@ -211,9 +229,11 @@ class RectangularSource(gf.RectangularSource):
         patches = []
         for j in range(nw):
             for i in range(nl):
-                sub_top = self.center2top_depth(self.center) + \
-                    self.strikevector * ((i + 0.5 - 0.5 * nl) * length) + \
-                    self.dipvector * (j * width)
+                sub_top = (
+                    self.center2top_depth(self.center)
+                    + self.strikevector * ((i + 0.5 - 0.5 * nl) * length)
+                    + self.dipvector * (j * width)
+                )
 
                 patch = RectangularSource(
                     lat=float(self.lat),
@@ -221,16 +241,23 @@ class RectangularSource(gf.RectangularSource):
                     east_shift=float(sub_top[0]),
                     north_shift=float(sub_top[1]),
                     depth=float(sub_top[2]),
-                    strike=self.strike, dip=self.dip, rake=self.rake,
-                    length=length, width=width, stf=self.stf,
-                    time=self.time, slip=self.slip, anchor='top',
-                    opening_fraction=self.opening_fraction)
+                    strike=self.strike,
+                    dip=self.dip,
+                    rake=self.rake,
+                    length=length,
+                    width=width,
+                    stf=self.stf,
+                    time=self.time,
+                    slip=self.slip,
+                    anchor="top",
+                    opening_fraction=self.opening_fraction,
+                )
 
                 patches.append(patch)
 
         return patches
 
-    def get_n_patches(self, patch_size=1000., dimension='length'):
+    def get_n_patches(self, patch_size=1000.0, dimension="length"):
         """
         Return number of patches along dimension of the fault.
 
@@ -244,15 +271,15 @@ class RectangularSource(gf.RectangularSource):
         -------
         int
         """
-        if dimension not in ['length', 'width']:
-            raise ValueError('Invalid dimension!')
+        if dimension not in ["length", "width"]:
+            raise ValueError("Invalid dimension!")
 
         n_p = num.round(self[dimension] / patch_size, decimals=4)
         return int(num.ceil(n_p))
 
     def extent_source(
-            self, extension_width, extension_length,
-            patch_width, patch_length):
+        self, extension_width, extension_length, patch_width, patch_length
+    ):
         """
         Extend fault into all directions. Rounds dimensions to have no
         half-patches.
@@ -279,23 +306,22 @@ class RectangularSource(gf.RectangularSource):
         width = self.width
 
         if extension_length:
-            new_length = num.ceil(
-                (length + (2. * length * extension_length)) / km) * km
+            new_length = (
+                num.ceil((length + (2.0 * length * extension_length)) / km) * km
+            )
             npl = int(num.ceil(new_length / patch_length))
             new_length = float(npl * patch_length)
         else:
             new_length = length
 
         if extension_width:
-            new_width = num.ceil(
-                (width + (2. * width * extension_width)) / km) * km
+            new_width = num.ceil((width + (2.0 * width * extension_width)) / km) * km
             npw = int(num.ceil(new_width / patch_width))
             new_width = float(npw * patch_width)
         else:
             new_width = width
 
-        logger.info(
-            'Fault extended to length=%f, width=%f!' % (new_length, new_width))
+        logger.info("Fault extended to length=%f, width=%f!" % (new_length, new_width))
 
         orig_center = s.center
 
@@ -303,17 +329,20 @@ class RectangularSource(gf.RectangularSource):
 
         top_center = s.center2top_depth(orig_center)
 
-        if top_center[2] < 0.:
-            logger.info('Fault would intersect surface!'
-                        ' Setting top center to 0.!')
+        if top_center[2] < 0.0:
+            logger.info("Fault would intersect surface!" " Setting top center to 0.!")
             trace_center = s.trace_center()
-            s.update(east_shift=float(trace_center[0]),
-                     north_shift=float(trace_center[1]),
-                     depth=float(trace_center[2]))
+            s.update(
+                east_shift=float(trace_center[0]),
+                north_shift=float(trace_center[1]),
+                depth=float(trace_center[2]),
+            )
         else:
-            s.update(east_shift=float(top_center[0]),
-                     north_shift=float(top_center[1]),
-                     depth=float(top_center[2]))
+            s.update(
+                east_shift=float(top_center[0]),
+                north_shift=float(top_center[1]),
+                depth=float(top_center[2]),
+            )
 
         return s
 
@@ -332,11 +361,12 @@ class RectangularSource(gf.RectangularSource):
             dip=source.dip,
             rake=source.rake,
             slip=source.slip,
-            anchor='top',
-            **kwargs)
+            anchor="top",
+            **kwargs
+        )
 
-        if hasattr(source, 'decimation_factor'):
-            d['decimation_factor'] = source.decimation_factor
+        if hasattr(source, "decimation_factor"):
+            d["decimation_factor"] = source.decimation_factor
 
         return cls(**d)
 
@@ -345,7 +375,7 @@ def v_to_gamma(v):
     """
     Converts from v parameter (Tape2015) to lune longitude [rad]
     """
-    return (1. / 3.) * num.arcsin(3. * v)
+    return (1.0 / 3.0) * num.arcsin(3.0 * v)
 
 
 def w_to_beta(w, u_mapping=None, beta_mapping=None, n=1000):
@@ -357,10 +387,11 @@ def w_to_beta(w, u_mapping=None, beta_mapping=None, n=1000):
 
     if u_mapping is None:
         u_mapping = (
-            3. / 4. * beta_mapping) - (
-            1. / 2. * num.sin(2. * beta_mapping)) + (
-            1. / 16. * num.sin(4. * beta_mapping))
-    return num.interp(3. * pi / 8. - w, u_mapping, beta_mapping)
+            (3.0 / 4.0 * beta_mapping)
+            - (1.0 / 2.0 * num.sin(2.0 * beta_mapping))
+            + (1.0 / 16.0 * num.sin(4.0 * beta_mapping))
+        )
+    return num.interp(3.0 * pi / 8.0 - w, u_mapping, beta_mapping)
 
 
 def w_to_delta(w, n=1000):
@@ -368,7 +399,7 @@ def w_to_delta(w, n=1000):
     Converts from parameter w (Tape2015) to lune latitude
     """
     beta = w_to_beta(w)
-    return pi / 2. - beta
+    return pi / 2.0 - beta
 
 
 class MTQTSource(gf.SourceWithMagnitude):
@@ -383,85 +414,77 @@ class MTQTSource(gf.SourceWithMagnitude):
     discretized_source_class = meta.DiscretizedMTSource
 
     w = Float.T(
-        default=0.,
-        help='Lune latitude delta transformed to grid. '
-             'Defined: -3/8pi <= w <=3/8pi. '
-             'If fixed to zero the MT is deviatoric.')
+        default=0.0,
+        help="Lune latitude delta transformed to grid. "
+        "Defined: -3/8pi <= w <=3/8pi. "
+        "If fixed to zero the MT is deviatoric.",
+    )
 
     v = Float.T(
-        default=0.,
-        help='Lune co-longitude transformed to grid. '
-             'Definded: -1/3 <= v <= 1/3. '
-             'If fixed to zero together with w the MT is pure DC.')
+        default=0.0,
+        help="Lune co-longitude transformed to grid. "
+        "Defined: -1/3 <= v <= 1/3. "
+        "If fixed to zero together with w the MT is pure DC.",
+    )
 
     kappa = Float.T(
-        default=0.,
-        help='Strike angle equivalent of moment tensor plane.'
-             'Defined: 0 <= kappa <= 2pi')
+        default=0.0,
+        help="Strike angle equivalent of moment tensor plane."
+        "Defined: 0 <= kappa <= 2pi",
+    )
 
     sigma = Float.T(
-        default=0.,
-        help='Rake angle equivalent of moment tensor slip angle.'
-             'Defined: -pi/2 <= sigma <= pi/2')
+        default=0.0,
+        help="Rake angle equivalent of moment tensor slip angle."
+        "Defined: -pi/2 <= sigma <= pi/2",
+    )
 
     h = Float.T(
-        default=0.,
-        help='Dip angle equivalent of moment tensor plane.'
-             'Defined: 0 <= h <= 1')
+        default=0.0,
+        help="Dip angle equivalent of moment tensor plane." "Defined: 0 <= h <= 1",
+    )
 
     def __init__(self, **kwargs):
-        n = 1000
-        self._beta_mapping = num.linspace(0, pi, n)
-        self._u_mapping = \
-            (3. / 4. * self._beta_mapping) - \
-            (1. / 2. * num.sin(2. * self._beta_mapping)) + \
-            (1. / 16. * num.sin(4. * self._beta_mapping))
-
-        self.lambda_factor_matrix = num.array(
-            [[sqrt3, -1., sqrt2],
-             [0., 2., sqrt2],
-             [-sqrt3, -1., sqrt2]], dtype='float64')
 
         self.R = get_rotation_matrix()
-        self.roty_pi4 = self.R['y'](-pi4)
-        self.rotx_pi = self.R['x'](pi)
+        self.roty_pi4 = self.R["y"](-pi4)
+        self.rotx_pi = self.R["x"](pi)
 
-        self._lune_lambda_matrix = num.zeros((3, 3), dtype='float64')
+        self._lune_lambda_matrix = num.zeros((3, 3), dtype="float64")
 
         Source.__init__(self, **kwargs)
 
     @property
     def u(self):
         """
-        Lunar co-latitude(beta), dependend on w
+        Lunar co-latitude(beta), dependent on w
         """
-        return (3. / 8.) * num.pi - self.w
+        return (3.0 / 8.0) * num.pi - self.w
 
     @property
     def gamma(self):
         """
-        Lunar longitude, dependend on v
+        Lunar longitude, dependent on v
         """
         return v_to_gamma(self.v)
 
     @property
     def beta(self):
         """
-        Lunar co-latitude, dependend on u
+        Lunar co-latitude, dependent on u
         """
-        return w_to_beta(
-            self.w, u_mapping=self._u_mapping, beta_mapping=self._beta_mapping)
+        return w_to_beta(self.w, u_mapping=U_MAPPING, beta_mapping=BETA_MAPPING)
 
     def delta(self):
         """
         From Tape & Tape 2012, delta measures departure of MT being DC
         Delta = Gamma = 0 yields pure DC
         """
-        return (pi / 2.) - self.beta
+        return (pi / 2.0) - self.beta
 
     @property
     def rho(self):
-        return mtm.magnitude_to_moment(self.magnitude) * sqrt2
+        return mtm.magnitude_to_moment(self.magnitude) * SQRT2
 
     @property
     def theta(self):
@@ -469,15 +492,15 @@ class MTQTSource(gf.SourceWithMagnitude):
 
     @property
     def rot_theta(self):
-        return self.R['x'](self.theta)
+        return self.R["x"](self.theta)
 
     @property
     def rot_kappa(self):
-        return self.R['z'](-self.kappa)
+        return self.R["z"](-self.kappa)
 
     @property
     def rot_sigma(self):
-        return self.R['z'](self.sigma)
+        return self.R["z"](self.sigma)
 
     @property
     def lune_lambda(self):
@@ -486,7 +509,7 @@ class MTQTSource(gf.SourceWithMagnitude):
         sin_gamma = num.sin(self.gamma)
         cos_gamma = num.cos(self.gamma)
         vec = num.array([sin_beta * cos_gamma, sin_beta * sin_gamma, cos_beta])
-        return 1. / sqrt6 * self.lambda_factor_matrix.dot(vec) * self.rho
+        return 1.0 / SQRT6 * LAMPBDA_FACTOR_MATRIX.dot(vec) * self.rho
 
     @property
     def lune_lambda_matrix(self):
@@ -506,13 +529,12 @@ class MTQTSource(gf.SourceWithMagnitude):
         """
         MT orientation is in NWU
         """
-        return self.rot_U.dot(
-            self.lune_lambda_matrix).dot(num.linalg.inv(self.rot_U))
+        return self.rot_U.dot(self.lune_lambda_matrix).dot(num.linalg.inv(self.rot_U))
 
     @property
     def m9(self):
         """
-        Pyrocko MT in NED
+        Pyrocko MT in NEED
         """
         return self.rotx_pi.dot(self.m9_nwu).dot(self.rotx_pi.T)
 
@@ -529,10 +551,12 @@ class MTQTSource(gf.SourceWithMagnitude):
 
     def discretize_basesource(self, store, target=None):
         times, amplitudes = self.effective_stf_pre().discretize_t(
-            store.config.deltat, self.time)
+            store.config.deltat, self.time
+        )
         return meta.DiscretizedMTSource(
             m6s=self.m6[num.newaxis, :] * amplitudes[:, num.newaxis],
-            **self._dparams_base_repeated(times))
+            **self._dparams_base_repeated(times)
+        )
 
     def pyrocko_moment_tensor(self):
         return mtm.MomentTensor(m=mtm.symmat6(*self.m6_astuple) * self.moment)
@@ -543,7 +567,8 @@ class MTQTSource(gf.SourceWithMagnitude):
             self,
             moment_tensor=self.pyrocko_moment_tensor(),
             magnitude=float(mt.moment_magnitude()),
-            **kwargs)
+            **kwargs
+        )
 
     @classmethod
     def from_pyrocko_event(cls, ev, **kwargs):
@@ -551,8 +576,9 @@ class MTQTSource(gf.SourceWithMagnitude):
         mt = ev.moment_tensor
         if mt:
             logger.warning(
-                'From event will ignore MT components initially. '
-                'Needs mapping from NED to QT space!')
+                "From event will ignore MT components initially. "
+                "Needs mapping from NEED to QT space!"
+            )
             # d.update(m6=list(map(float, mt.m6())))
 
         d.update(kwargs)
@@ -572,7 +598,7 @@ class MTQTSource(gf.SourceWithMagnitude):
 
     def __getstate__(self):
         state = self.__dict__.copy()
-        state['R'] = None
+        state["R"] = None
         return state
 
     def __setstate__(self, state):
@@ -581,40 +607,27 @@ class MTQTSource(gf.SourceWithMagnitude):
 
 
 class MTSourceWithMagnitude(gf.SourceWithMagnitude):
-    '''
+    """
     A moment tensor point source.
-    '''
+    """
 
     discretized_source_class = meta.DiscretizedMTSource
 
-    mnn = Float.T(
-        default=1.,
-        help='north-north component of moment tensor')
+    mnn = Float.T(default=1.0, help="north-north component of moment tensor")
 
-    mee = Float.T(
-        default=1.,
-        help='east-east component of moment tensor')
+    mee = Float.T(default=1.0, help="east-east component of moment tensor")
 
-    mdd = Float.T(
-        default=1.,
-        help='down-down component of moment tensor')
+    mdd = Float.T(default=1.0, help="down-down component of moment tensor")
 
-    mne = Float.T(
-        default=0.,
-        help='north-east component of moment tensor')
+    mne = Float.T(default=0.0, help="north-east component of moment tensor")
 
-    mnd = Float.T(
-        default=0.,
-        help='north-down component of moment tensor')
+    mnd = Float.T(default=0.0, help="north-down component of moment tensor")
 
-    med = Float.T(
-        default=0.,
-        help='east-down component of moment tensor')
+    med = Float.T(default=0.0, help="east-down component of moment tensor")
 
     def __init__(self, **kwargs):
-        if 'm6' in kwargs:
-            for (k, v) in zip('mnn mee mdd mne mnd med'.split(),
-                              kwargs.pop('m6')):
+        if "m6" in kwargs:
+            for (k, v) in zip("mnn mee mdd mne mnd med".split(), kwargs.pop("m6")):
                 kwargs[k] = float(v)
 
         Source.__init__(self, **kwargs)
@@ -626,14 +639,17 @@ class MTSourceWithMagnitude(gf.SourceWithMagnitude):
     @property
     def scaled_m6(self):
         m9 = mtm.symmat6(*self.m6)
-        m0_unscaled = math.sqrt(num.sum(m9.A ** 2)) / math.sqrt(2.)
+        if isinstance(m9, num.matrix):
+            m9 = m9.A
+
+        m0_unscaled = math.sqrt(num.sum(m9**2)) / math.sqrt(2.0)
         m9 /= m0_unscaled
         m6 = mtm.to6(m9)
         return m6
 
     @property
     def scaled_m6_dict(self):
-        keys = ['mnn', 'mee', 'mdd', 'mne', 'mnd', 'med']
+        keys = ["mnn", "mee", "mdd", "mne", "mnd", "med"]
         return {k: m for k, m in zip(keys, self.scaled_m6.tolist())}
 
     @property
@@ -649,12 +665,14 @@ class MTSourceWithMagnitude(gf.SourceWithMagnitude):
 
     def discretize_basesource(self, store, target=None):
         times, amplitudes = self.effective_stf_pre().discretize_t(
-            store.config.deltat, self.time)
+            store.config.deltat, self.time
+        )
         m0 = mtm.magnitude_to_moment(self.magnitude)
         m6s = self.scaled_m6 * m0
         return meta.DiscretizedMTSource(
             m6s=m6s[num.newaxis, :] * amplitudes[:, num.newaxis],
-            **self._dparams_base_repeated(times))
+            **self._dparams_base_repeated(times)
+        )
 
     def pyrocko_moment_tensor(self):
         return mtm.MomentTensor(m=mtm.symmat6(*self.m6_astuple) * self.moment)
@@ -665,7 +683,8 @@ class MTSourceWithMagnitude(gf.SourceWithMagnitude):
             self,
             moment_tensor=self.pyrocko_moment_tensor(),
             magnitude=float(mt.moment_magnitude()),
-            **kwargs)
+            **kwargs
+        )
 
     @classmethod
     def from_pyrocko_event(cls, ev, **kwargs):

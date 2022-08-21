@@ -132,7 +132,7 @@ static PyObject* w_voronoi(PyObject *m, PyObject *args){
     gf_dips = PyArray_DATA(c_gf_points_dip);
     gf_strikes = PyArray_DATA(c_gf_points_strike);
     voro_dips = PyArray_DATA(c_voronoi_points_dip);
-    voro_strikes = PyArray_DATA(c_voronoi_points_strike); 
+    voro_strikes = PyArray_DATA(c_voronoi_points_strike);
     gf2voro_idxs = PyArray_DATA(gf2voro_idxs_arr);
 
     GetMinDistances(gf2voro_idxs, gf_strikes, gf_dips, voro_strikes, voro_dips, n_gfs[0], n_voros[0]);

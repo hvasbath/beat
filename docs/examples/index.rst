@@ -33,3 +33,10 @@ In the following examples we will use a deformation velocity estimate from InSAR
 
    Rectangular_tensile
    FFI_static_resolution_tensile
+
+In the following example we will use synthetic waveform amplitude polarities to estimate the parameters of a moment tensor.
+
+.. toctree::
+   :maxdepth: 3
+
+   MTQT_polarity

@@ -1,0 +1,197 @@
+--- !beat.BEATconfig
+name: Polarity_tutorial
+date: '2020-09-11'
+event: !pf.Event
+  lat: 55.89310323984567
+  lon: -120.38565188644934
+  time: '2020-09-11 22:37:26'
+  depth: 1650.0
+  name: '20200911.223726'
+  magnitude: 3.41
+  magnitude_type: 'Ml'
+  region: 'KSMMA'
+  catalog: 'ATHENA'
+  moment_tensor: !pf.MomentTensor
+    mnn: -0.72
+    mee: -0.25
+    mdd: 0.8
+    mne: -0.42
+    mnd: -0.27
+    med: 0.35
+    strike1: 278.19172532085196
+    dip1: 51.538415768618236
+    rake1: 59.1612406053596
+    strike2: 142.01907199209353
+    dip2: 47.753932248516
+    rake2: 122.83593838052417
+    moment: 0.9910852637386955
+    magnitude: -6.035925987505385
+  duration: 0.6
+project_dir: /home/vasyurhm/BEATS/Polarity_tutorial
+problem_config: !beat.ProblemConfig
+  mode: geometry
+  source_type: MTQTSource
+  stf_type: Triangular
+  n_sources: 1
+  datatypes:
+  - polarity
+  hyperparameters:
+    h_any_P_pol_0: !beat.heart.Parameter
+      name: h_any_P_pol_0
+      form: Uniform
+      lower:
+      - 0.05
+      upper:
+      - 0.05
+      testvalue:
+      - 0.05
+  priors:
+    depth: !beat.heart.Parameter
+      name: depth
+      form: Uniform
+      lower:
+      - 5.0
+      upper:
+      - 5.0
+      testvalue:
+      - 5.0
+    east_shift: !beat.heart.Parameter
+      name: east_shift
+      form: Uniform
+      lower:
+      - 0.0
+      upper:
+      - 0.0
+      testvalue:
+      - 0.0
+    h: !beat.heart.Parameter
+      name: h
+      form: Uniform
+      lower:
+      - 0.0
+      upper:
+      - 1.0
+      testvalue:
+      - 0.2
+    kappa: !beat.heart.Parameter
+      name: kappa
+      form: Uniform
+      lower:
+      - 0.0
+      upper:
+      - 6.283185307179586
+      testvalue:
+      - 1.2566370614359172
+    north_shift: !beat.heart.Parameter
+      name: north_shift
+      form: Uniform
+      lower:
+      - 0.0
+      upper:
+      - 0.0
+      testvalue:
+      - 0.0
+    sigma: !beat.heart.Parameter
+      name: sigma
+      form: Uniform
+      lower:
+      - -1.5707963267948966
+      upper:
+      - 1.5707963267948966
+      testvalue:
+      - -1.2566370614359172
+    w: !beat.heart.Parameter
+      name: w
+      form: Uniform
+      lower:
+      - 0.0
+      upper:
+      - 0.0
+      testvalue:
+      - 0.0
+    v: !beat.heart.Parameter
+      name: v
+      form: Uniform
+      lower:
+      - 0.0
+      upper:
+      - 0.0
+      testvalue:
+      - 0.0
+polarity_config: !beat.PolarityConfig
+  datadir: ./
+  waveforms:
+  - !beat.PolarityFitConfig
+    name: any_P
+    include: true
+    polarities_marker_path: ./MTQT_polarity/polarity_markers_P.pf
+    blacklist:
+    - EO.KSM02
+    - PQ.NBC7
+  gf_config: !beat.PolarityGFConfig
+    store_superdir: ./MTQT_polarity
+    reference_model_idx: 0
+    n_variations:
+    - 0
+    - 1
+    earth_model_name: local
+    nworkers: 4
+    use_crust2: false
+    replace_water: false
+    custom_velocity_model: |2
+          0.             3.406          2.009          2.215        331.1          147.3
+          1.9            3.406          2.009          2.215        331.1          147.3
+          1.9            5.545          3.295          2.609        286.5          127.5
+          8.             5.545          3.295          2.609        286.5          127.5
+          8.             6.271          3.74           2.781        471.7          210.1
+         21.             6.271          3.74           2.781        471.7          210.1
+         21.             6.407          3.767          2.822        900.           401.6
+         40.             6.407          3.767          2.822        900.           401.6
+    source_depth_min: 0.1
+    source_depth_max: 7.5
+    source_depth_spacing: 0.1
+    source_distance_radius: 250.0
+    source_distance_spacing: 0.1
+    error_depth: 0.1
+    error_velocities: 0.1
+    depth_limit_variation: 600.0
+    reference_location: !beat.heart.ReferenceLocation
+      lat: 55.89310323984567
+      lon: -120.38565188644934
+      depth: 1.65
+      station: polarity
+    code: cake
+    always_raytrace: True
+sampler_config: !beat.SamplerConfig
+  name: SMC
+  backend: bin
+  progressbar: true
+  buffer_size: 1000
+  buffer_thinning: 10
+  parameters: !beat.SMCConfig
+    tune_interval: 50
+    check_bnd: true
+    rm_flag: false
+    n_jobs: 4
+    n_steps: 200
+    n_chains: 300
+    coef_variation: 1.0
+    stage: 0
+    proposal_dist: MultivariateCauchy
+    update_covariances: false
+hyper_sampler_config: !beat.SamplerConfig
+  name: Metropolis
+  backend: csv
+  progressbar: true
+  buffer_size: 5000
+  buffer_thinning: 1
+  parameters: !beat.MetropolisConfig
+    tune_interval: 50
+    proposal_dist: Normal
+    check_bnd: true
+    rm_flag: false
+    n_jobs: 1
+    n_steps: 25000
+    n_chains: 20
+    thin: 2
+    burn: 0.5

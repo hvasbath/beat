@@ -1,0 +1,18 @@
+repos:
+- repo: https://github.com/pre-commit/pre-commit-hooks
+  rev: v2.3.0
+  hooks:
+  - id: check-added-large-files
+  - id: check-yaml
+    args: [--unsafe]
+  - id: end-of-file-fixer
+  - id: trailing-whitespace
+- repo: https://github.com/codespell-project/codespell
+  rev: v2.2.1
+  hooks:
+  - id: codespell
+    args: [--write-changes, "-L ure,nd,ue,parms,Ue,statics,indexs"]
+- repo: https://github.com/psf/black
+  rev: 22.6.0
+  hooks:
+  - id: black

@@ -1,26 +1,24 @@
-from pyrocko import gf, trace
+import logging
+from time import time
 
 import numpy as num
-from time import time
+from pymc3 import Point
+from pyrocko import gf, trace
 from scipy.linalg import toeplitz
-
-import logging
-
-from beat import heart
-from beat.utility import ensure_cov_psd, running_window_rms, list2string
 from theano import config as tconfig
 
-from pymc3 import Point
+from beat import heart
+from beat.utility import ensure_cov_psd, list2string, running_window_rms
 
-
-logger = logging.getLogger('covariance')
+logger = logging.getLogger("covariance")
 
 
 __all__ = [
-    'geodetic_cov_velocity_models',
-    'geodetic_cov_velocity_models_pscmp',
-    'seismic_cov_velocity_models',
-    'SeismicNoiseAnalyser']
+    "geodetic_cov_velocity_models",
+    "geodetic_cov_velocity_models_pscmp",
+    "seismic_cov_velocity_models",
+    "SeismicNoiseAnalyser",
+]
 
 
 def exponential_data_covariance(n, dt, tzero):
@@ -47,9 +45,10 @@ def exponential_data_covariance(n, dt, tzero):
 
     i,j are samples of the seismic trace
     """
-    return num.exp(-num.abs(
-        num.arange(n)[:, num.newaxis] - num.arange(n)[num.newaxis, :]) * (
-        dt / tzero))
+    return num.exp(
+        -num.abs(num.arange(n)[:, num.newaxis] - num.arange(n)[num.newaxis, :])
+        * (dt / tzero)
+    )
 
 
 def identity_data_covariance(n, dt=None, tzero=None):
@@ -85,10 +84,10 @@ def ones_data_covariance(n, dt=None, tzero=None):
 
 
 NoiseStructureCatalog = {
-    'variance': identity_data_covariance,
-    'exponential': exponential_data_covariance,
-    'import': ones_data_covariance,
-    'non-toeplitz': ones_data_covariance,
+    "variance": identity_data_covariance,
+    "exponential": exponential_data_covariance,
+    "import": ones_data_covariance,
+    "non-toeplitz": ones_data_covariance,
 }
 
 
@@ -96,7 +95,7 @@ def available_noise_structures():
     return list(NoiseStructureCatalog.keys())
 
 
-def import_data_covariance(data_trace, arrival_taper, sample_rate):
+def import_data_covariance(data_trace, arrival_taper, sample_rate, domain="time"):
     """
     Use imported covariance matrixes and check size consistency with taper.
     Cut or extend based on variance and taper size.
@@ -116,28 +115,28 @@ def import_data_covariance(data_trace, arrival_taper, sample_rate):
         with size of given arrival taper
     """
 
-    logger.info('No data-covariance estimation, using imported'
-                ' covariances...\n')
+    logger.info("No data-covariance estimation, using imported" " covariances...\n")
 
     at = arrival_taper
     n_samples = at.nsamples(sample_rate)
 
+    if domain == "spectrum":
+        n_samples = trace.nextpow2(n_samples)
+        n_samples = int(n_samples // 2) + 1
+
     if data_trace.covariance is None:
-        logger.warn(
-            'No data covariance given/estimated! '
-            'Setting default: eye')
+        logger.warn("No data covariance given/estimated! " "Setting default: eye")
         return num.eye(n_samples)
     else:
         data_cov = data_trace.covariance.data
         if data_cov.shape[0] != n_samples:
             logger.warn(
-                'Imported covariance %i does not agree '
-                ' with taper samples %i! Using Identity'
-                ' matrix and mean of variance of imported'
-                ' covariance matrix!' % (
-                    data_cov.shape[0], n_samples))
-            data_cov = num.eye(n_samples) * \
-                data_cov.diagonal().mean()
+                "Imported covariance %i does not agree "
+                " with taper samples %i! Using Identity"
+                " matrix and mean of variance of imported"
+                " covariance matrix!" % (data_cov.shape[0], n_samples)
+            )
+            data_cov = num.eye(n_samples) * data_cov.diagonal().mean()
 
         return data_cov
 
@@ -160,15 +159,23 @@ class SeismicNoiseAnalyser(object):
     chop_bounds : list of len 2
         of taper attributes a, b, c, or d
     """
+
     def __init__(
-            self, structure='identity', pre_arrival_time=5.,
-            engine=None, events=None, sources=None, chop_bounds=['b', 'c']):
+        self,
+        structure="identity",
+        pre_arrival_time=5.0,
+        engine=None,
+        events=None,
+        sources=None,
+        chop_bounds=["b", "c"],
+    ):
 
         avail = available_noise_structures()
         if structure not in avail:
             raise AttributeError(
                 'Selected noise structure "%s" not supported! Implemented'
-                ' noise structures: %s' % (structure, list2string(avail)))
+                " noise structures: %s" % (structure, list2string(avail))
+            )
 
         self.events = events
         self.engine = engine
@@ -177,24 +184,33 @@ class SeismicNoiseAnalyser(object):
         self.structure = structure
         self.chop_bounds = chop_bounds
 
-    def get_structure(self, wmap, sample_rate, chop_bounds=None):
+    def get_structure(self, wmap, chop_bounds=None):
 
         if chop_bounds is None:
             chop_bounds = self.chop_bounds
 
-        tzero = 1. / wmap.get_highest_frequency()
-        dt = 1. / sample_rate
-        ataper = wmap.config.arrival_taper
-        n = ataper.nsamples(sample_rate, chop_bounds)
-        return NoiseStructureCatalog[self.structure](n, dt, tzero)
+        _, fmax = wmap.get_taper_frequencies()
+        tzero = 1.0 / fmax
 
-    def do_import(self, wmap, sample_rate):
+        if wmap.config.domain == "spectrum":
+            n = wmap.get_nsamples_spectrum(chop_bounds=chop_bounds, pad_to_pow2=True)
+            dsample = wmap.get_deltaf(chop_bounds=chop_bounds, pad_to_pow2=True)
+        else:
+            n = wmap.get_nsamples_time(chop_bounds)
+            dsample = wmap.deltat
+
+        return NoiseStructureCatalog[self.structure](n, dsample, tzero)
+
+    def do_import(self, wmap):
 
         scalings = []
         for tr, target in zip(wmap.datasets, wmap.targets):
             scaling = import_data_covariance(
-                tr, arrival_taper=wmap.config.arrival_taper,
-                sample_rate=sample_rate)
+                tr,
+                arrival_taper=wmap.config.arrival_taper,
+                sample_rate=1.0 / wmap.deltat,
+                domain=wmap.config.domain,
+            )
             scalings.append(scaling)
 
         return scalings
@@ -203,43 +219,50 @@ class SeismicNoiseAnalyser(object):
 
         if results is None:
             ValueError(
-                'Results need(s) to be given for non-toeplitz'
-                ' covariance estimates!')
+                "Results need(s) to be given for non-toeplitz" " covariance estimates!"
+            )
         else:
             scalings = []
             for result in results:
                 residual = result.processed_res.get_ydata()
-                scaling = non_toeplitz_covariance(
-                    residual, window_size=residual.size // 5)
+                window_size = residual.size // 5
+                if window_size == 0:
+                    raise ValueError(
+                        "Length of trace too short! Please widen taper in time"
+                        " domain or frequency bands in spectral domain."
+                    )
+                scaling = non_toeplitz_covariance(residual, window_size=window_size)
                 scalings.append(scaling)
 
             return scalings
 
-    def do_variance_estimate(self, wmap):
+    def do_variance_estimate(self, wmap, chop_bounds=None):
 
         filterer = wmap.config.filterer
         scalings = []
 
         for i, (tr, target) in enumerate(zip(wmap.datasets, wmap.targets)):
-            wavename = None   # None uses first tabulated phase
+            wavename = None  # None uses first tabulated phase
             arrival_time = heart.get_phase_arrival_time(
                 engine=self.engine,
                 source=self.events[wmap.config.event_idx],
                 target=target,
-                wavename=wavename)
+                wavename=wavename,
+            )
 
             if arrival_time < tr.tmin:
                 logger.warning(
-                    'no data for variance estimation on pre-P arrival'
-                    ' in wavemap %s, for trace %s!' % (
-                        wmap._mapid, list2string(tr.nslc_id)))
-                logger.info(
-                    'Using reference arrival "%s" instead!' % wmap.name)
+                    "no data for variance estimation on pre-P arrival"
+                    " in wavemap %s, for trace %s!"
+                    % (wmap._mapid, list2string(tr.nslc_id))
+                )
+                logger.info('Using reference arrival "%s" instead!' % wmap.name)
                 arrival_time = heart.get_phase_arrival_time(
                     engine=self.engine,
                     source=self.events[wmap.config.event_idx],
                     target=target,
-                    wavename=wmap.name)
+                    wavename=wmap.name,
+                )
 
             if filterer:
                 ctrace = tr.copy()
@@ -248,37 +271,45 @@ class SeismicNoiseAnalyser(object):
                     filt.apply(ctrace)
 
             ctrace = ctrace.chop(
-                tmin=tr.tmin,
-                tmax=arrival_time - self.pre_arrival_time)
+                tmin=tr.tmin, tmax=arrival_time - self.pre_arrival_time
+            )
 
             nslc_id_str = list2string(ctrace.nslc_id)
-            data = ctrace.get_ydata()
+
+            if wmap.config.domain == "spectrum":
+                lower_idx, upper_idx = wmap.get_valid_spectrum_indices(
+                    chop_bounds=chop_bounds, pad_to_pow2=True
+                )
+                data = ctrace.spectrum(True, 0.05)[1]
+                data = data[lower_idx:upper_idx]
+            else:
+                data = ctrace.get_ydata()
+
             if data.size == 0:
                 raise ValueError(
-                    'Trace %s contains no pre-P arrival data! Please either '
-                    'remove/blacklist or make sure data contains times before'
-                    ' the P arrival time!' % nslc_id_str)
+                    "Trace %s contains no pre-P arrival data! Please either "
+                    "remove/blacklist or make sure data contains times before"
+                    " the P arrival time!" % nslc_id_str
+                )
 
             scaling = num.nanvar(data)
             if num.isfinite(scaling).all():
-                logger.debug(
-                    'Variance estimate of %s = %g' % (nslc_id_str, scaling))
+                logger.debug("Variance estimate of %s = %g" % (nslc_id_str, scaling))
                 scalings.append(scaling)
             else:
                 raise ValueError(
-                    'Pre P-trace of %s contains Inf or'
-                    ' NaN!' % nslc_id_str)
+                    "Pre P-trace of %s contains Inf or" " NaN!" % nslc_id_str
+                )
 
         return scalings
 
-    def get_data_covariances(
-            self, wmap, sample_rate, results=None, chop_bounds=None):
+    def get_data_covariances(self, wmap, sample_rate, results=None, chop_bounds=None):
         """
         Estimated data covariances of seismic traces
 
         Parameters
         ----------
-        wmap : :class:`eat.WaveformMapping`
+        wmap : :class:`beat.WaveformMapping`
         results
         sample_rate : float
             sampling rate of data_traces and GreensFunction stores
@@ -288,15 +319,14 @@ class SeismicNoiseAnalyser(object):
         :class:`numpy.ndarray`
         """
 
-        covariance_structure = self.get_structure(
-            wmap, sample_rate, chop_bounds)
+        covariance_structure = self.get_structure(wmap, chop_bounds)
 
-        if self.structure == 'import':
-            scalings = self.do_import(wmap, sample_rate)
-        elif self.structure == 'non-toeplitz':
+        if self.structure == "import":
+            scalings = self.do_import(wmap)
+        elif self.structure == "non-toeplitz":
             scalings = self.do_non_toeplitz(wmap, results)
         else:
-            scalings = self.do_variance_estimate(wmap)
+            scalings = self.do_variance_estimate(wmap, chop_bounds=chop_bounds)
 
         cov_ds = []
         for scaling in scalings:
@@ -307,7 +337,7 @@ class SeismicNoiseAnalyser(object):
 
 
 def model_prediction_sensitivity(engine, *args, **kwargs):
-    '''
+    """
     Calculate the model prediction Covariance Sensitivity Kernel.
     (numerical derivation with respect to the input source parameter(s))
     Following Duputel et al. 2014
@@ -328,23 +358,23 @@ def model_prediction_sensitivity(engine, *args, **kwargs):
     Returns traces in a list[parameter][targets] for each station and channel
     as specified in the targets. The location code of each trace is placed to
     show the respective source parameter.
-    '''
+    """
 
     if len(args) not in (0, 1, 2, 3):
-        raise gf.BadRequest('invalid arguments')
+        raise gf.BadRequest("invalid arguments")
 
     if len(args) == 2:
-        kwargs['request'] = args[0]
-        kwargs['source_params'] = args[1]
+        kwargs["request"] = args[0]
+        kwargs["source_params"] = args[1]
 
     elif len(args) == 3:
         kwargs.update(gf.Request.args2kwargs(args[0:1]))
-        kwargs['source_params'] = args[2]
+        kwargs["source_params"] = args[2]
 
-    request = kwargs.pop('request', None)
-    nprocs = kwargs.pop('nprocs', 1)
-    source_params = kwargs.pop('source_params', None)
-    h = kwargs.pop('h', None)
+    request = kwargs.pop("request", None)
+    nprocs = kwargs.pop("nprocs", 1)
+    source_params = kwargs.pop("source_params", None)
+    h = kwargs.pop("h", None)
 
     if request is None:
         request = gf.Request(**kwargs)
@@ -363,50 +393,58 @@ def model_prediction_sensitivity(engine, *args, **kwargs):
     for ref_source in request.sources:
         par_count = 0
         for param in source_params:
-            print(param, 'with h = ', h[par_count])
+            print(param, "with h = ", h[par_count])
             calc_source_p2h = ref_source.clone()
             calc_source_ph = ref_source.clone()
             calc_source_mh = ref_source.clone()
             calc_source_m2h = ref_source.clone()
 
-            setattr(calc_source_p2h, param,
-                    ref_source[param] + (2 * h[par_count]))
-            setattr(calc_source_ph, param,
-                    ref_source[param] + (h[par_count]))
-            setattr(calc_source_mh, param,
-                    ref_source[param] - (h[par_count]))
-            setattr(calc_source_m2h, param,
-                    ref_source[param] - (2 * h[par_count]))
+            setattr(calc_source_p2h, param, ref_source[param] + (2 * h[par_count]))
+            setattr(calc_source_ph, param, ref_source[param] + (h[par_count]))
+            setattr(calc_source_mh, param, ref_source[param] - (h[par_count]))
+            setattr(calc_source_m2h, param, ref_source[param] - (2 * h[par_count]))
 
-            calc_sources = [calc_source_p2h, calc_source_ph,
-                            calc_source_mh, calc_source_m2h]
+            calc_sources = [
+                calc_source_p2h,
+                calc_source_ph,
+                calc_source_mh,
+                calc_source_m2h,
+            ]
 
-            response = engine.process(sources=calc_sources,
-                                      targets=request.targets,
-                                      nprocs=nprocs)
+            response = engine.process(
+                sources=calc_sources, targets=request.targets, nprocs=nprocs
+            )
 
             for k in range(len(request.targets)):
                 # zero padding if necessary
                 trc_lengths = num.array(
-                    [len(response.results_list[i][k].trace.data) for i in
-                     range(len(response.results_list))])
+                    [
+                        len(response.results_list[i][k].trace.data)
+                        for i in range(len(response.results_list))
+                    ]
+                )
                 Id = num.where(trc_lengths != trc_lengths.max())
 
                 for l in Id[0]:
                     response.results_list[l][k].trace.data = num.concatenate(
-                            (response.results_list[l][k].trace.data,
-                             num.zeros(trc_lengths.max() - trc_lengths[l])))
+                        (
+                            response.results_list[l][k].trace.data,
+                            num.zeros(trc_lengths.max() - trc_lengths[l]),
+                        )
+                    )
 
                 # calculate numerical partial derivative for
                 # each source and target
-                sensitivity_param_list[par_count][k] = (
-                        sensitivity_param_list[par_count][k] + (
-                            - response.results_list[0][k].trace.data +
-                            8 * response.results_list[1][k].trace.data -
-                            8 * response.results_list[2][k].trace.data +
-                            response.results_list[3][k].trace.data) /
-                        (12 * h[par_count])
-                    )
+                sensitivity_param_list[par_count][k] = sensitivity_param_list[
+                    par_count
+                ][k] + (
+                    -response.results_list[0][k].trace.data
+                    + 8 * response.results_list[1][k].trace.data
+                    - 8 * response.results_list[2][k].trace.data
+                    + response.results_list[3][k].trace.data
+                ) / (
+                    12 * h[par_count]
+                )
 
             par_count = par_count + 1
 
@@ -415,13 +453,14 @@ def model_prediction_sensitivity(engine, *args, **kwargs):
     for param in source_params:
         for k in range(len(request.targets)):
             sensitivity_param_trcs[par_count][k] = trace.Trace(
-                        network=request.targets[k].codes[0],
-                        station=request.targets[k].codes[1],
-                        ydata=sensitivity_param_list[par_count][k],
-                        deltat=response.results_list[0][k].trace.deltat,
-                        tmin=response.results_list[0][k].trace.tmin,
-                        channel=request.targets[k].codes[3],
-                        location=param)
+                network=request.targets[k].codes[0],
+                station=request.targets[k].codes[1],
+                ydata=sensitivity_param_list[par_count][k],
+                deltat=response.results_list[0][k].trace.deltat,
+                tmin=response.results_list[0][k].trace.tmin,
+                channel=request.targets[k].codes[3],
+                location=param,
+            )
 
         par_count = par_count + 1
 
@@ -429,9 +468,18 @@ def model_prediction_sensitivity(engine, *args, **kwargs):
 
 
 def seismic_cov_velocity_models(
-        engine, sources, targets, arrival_taper, arrival_time,
-        wavename, filterer, plot=False, n_jobs=1, chop_bounds=['b', 'c']):
-    '''
+    engine,
+    sources,
+    targets,
+    arrival_taper,
+    arrival_time,
+    wavename,
+    filterer,
+    plot=False,
+    n_jobs=1,
+    chop_bounds=["b", "c"],
+):
+    """
     Calculate model prediction uncertainty matrix with respect to uncertainties
     in the velocity model for station and channel.
 
@@ -458,9 +506,9 @@ def seismic_cov_velocity_models(
     Returns
     -------
     :class:`numpy.ndarray` with Covariance due to velocity model uncertainties
-    '''
+    """
 
-    arrival_times = num.ones(len(targets), dtype='float64') * arrival_time
+    arrival_times = num.ones(len(targets), dtype="float64") * arrival_time
 
     t0 = time()
     synths, _ = heart.seis_synthetics(
@@ -473,17 +521,19 @@ def seismic_cov_velocity_models(
         arrival_times=arrival_times,
         pre_stack_cut=True,
         plot=plot,
-        outmode='array',
-        chop_bounds=chop_bounds)
+        outmode="array",
+        chop_bounds=chop_bounds,
+    )
 
     t1 = time()
-    logger.debug('Trace generation time %f' % (t1 - t0))
+    logger.debug("Trace generation time %f" % (t1 - t0))
 
     return num.cov(synths, rowvar=0)
 
 
 def geodetic_cov_velocity_models(
-        engine, sources, targets, dataset, plot=False, event=None, n_jobs=1):
+    engine, sources, targets, dataset, plot=False, event=None, n_jobs=1
+):
     """
     Calculate model prediction uncertainty matrix with respect to uncertainties
     in the velocity model for geodetic targets using fomosto GF stores.
@@ -506,22 +556,22 @@ def geodetic_cov_velocity_models(
     """
     t0 = time()
     displacements = heart.geo_synthetics(
-        engine=engine,
-        targets=targets,
-        sources=sources,
-        outmode='stacked_arrays')
+        engine=engine, targets=targets, sources=sources, outmode="stacked_arrays"
+    )
     t1 = time()
-    logger.debug('Synthetics generation time %f' % (t1 - t0))
+    logger.debug("Synthetics generation time %f" % (t1 - t0))
 
     synths = num.zeros((len(targets), dataset.samples))
     for i, disp in enumerate(displacements):
         synths[i, :] = (
-            disp[:, 0] * dataset.los_vector[:, 0] +
-            disp[:, 1] * dataset.los_vector[:, 1] +
-            disp[:, 2] * dataset.los_vector[:, 2]) * dataset.odw
+            disp[:, 0] * dataset.los_vector[:, 0]
+            + disp[:, 1] * dataset.los_vector[:, 1]
+            + disp[:, 2] * dataset.los_vector[:, 2]
+        ) * dataset.odw
 
     if plot:
         from matplotlib import pyplot as plt
+
         indexes = dataset.get_distances_to_event(event).argsort()  # noqa
         ax = plt.axes()
         im = ax.matshow(synths)  # [:, indexes])
@@ -531,8 +581,7 @@ def geodetic_cov_velocity_models(
     return num.cov(synths, rowvar=0)
 
 
-def geodetic_cov_velocity_models_pscmp(
-        store_superdir, crust_inds, target, sources):
+def geodetic_cov_velocity_models_pscmp(store_superdir, crust_inds, target, sources):
     """
     Calculate model prediction uncertainty matrix with respect to uncertainties
     in the velocity model for geodetic targets based on pscmp.
@@ -558,14 +607,17 @@ def geodetic_cov_velocity_models_pscmp(
     synths = num.zeros((len(crust_inds), target.samples))
     for crust_ind in crust_inds:
         disp = heart.geo_layer_synthetics(
-            store_superdir, crust_ind,
+            store_superdir,
+            crust_ind,
             lons=target.lons,
             lats=target.lats,
-            sources=sources)
+            sources=sources,
+        )
         synths[crust_ind, :] = (
-            disp[:, 0] * target.los_vector[:, 0] +
-            disp[:, 1] * target.los_vector[:, 1] +
-            disp[:, 2] * target.los_vector[:, 2]) * target.odw
+            disp[:, 0] * target.los_vector[:, 0]
+            + disp[:, 1] * target.los_vector[:, 1]
+            + disp[:, 2] * target.los_vector[:, 2]
+        ) * target.odw
 
     return num.cov(synths, rowvar=0)
 
@@ -603,7 +655,7 @@ def toeplitz_covariance(data, window_size):
     stds : :class:`numpy.ndarray` 1-d, size data
         of running windows
     """
-    stds = running_window_rms(data, window_size=window_size, mode='same')
+    stds = running_window_rms(data, window_size=window_size, mode="same")
     coeffs = autocovariance(data / stds)
     return toeplitz(coeffs), stds
 
@@ -666,23 +718,20 @@ def calc_sample_covariance(buffer, lij, bij, beta):
         point = lij.l2d(lpoint)
         population_array[i, :] = bij.map(point)
 
-    like_idx = lij.ordering['like'].list_ind
+    like_idx = lij.ordering["like"].list_ind
     weights = num.array([lpoint[like_idx] for lpoint, _ in buffer])
     temp_weights = num.exp((weights - weights.max())).ravel()
     norm_weights = temp_weights / num.sum(temp_weights)
 
-    cov = num.cov(
-        population_array,
-        aweights=norm_weights,
-        bias=False,
-        rowvar=0)
+    cov = num.cov(population_array, aweights=norm_weights, bias=False, rowvar=0)
 
     cov = ensure_cov_psd(cov)
     if num.isnan(cov).any() or num.isinf(cov).any():
         logger.warn(
-            'Proposal covariances contain Inf or NaN! '
-            'For chain with beta: %f '
-            'Buffer size maybe too small! Keeping previous proposal.' % beta)
+            "Proposal covariances contain Inf or NaN! "
+            "For chain with beta: %f "
+            "Buffer size maybe too small! Keeping previous proposal." % beta
+        )
         cov = None
 
     return cov

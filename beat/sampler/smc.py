@@ -4,24 +4,20 @@ Sequential Monte Carlo Sampler module;
 Runs on any pymc3 model.
 """
 
-import numpy as np
-
 import logging
 
+import numpy as np
 from pymc3.model import modelcontext
 
 from beat import backend, utility
-from .base import iter_parallel_chains, update_last_samples, init_stage, \
-    choose_proposal
+
+from .base import choose_proposal, init_stage, iter_parallel_chains, update_last_samples
 from .metropolis import Metropolis
 
-
-__all__ = [
-    'SMC',
-    'smc_sample']
+__all__ = ["SMC", "smc_sample"]
 
 
-logger = logging.getLogger('smc')
+logger = logging.getLogger("smc")
 
 sample_factor_final_stage = 1
 
@@ -53,7 +49,7 @@ class SMC(Metropolis):
     proposal_dist :
         :class:`pymc3.metropolis.Proposal`
         Type of proposal distribution, see
-        :module:`pymc3.step_methods.metropolis` for options
+        :mod:`pymc3.step_methods.metropolis` for options
     tune : boolean
         Flag for adaptive scaling based on the acceptance rate
     coef_variation : scalar, float
@@ -63,7 +59,7 @@ class SMC(Metropolis):
         results in many stages and vice verca (default: 1.)
     check_bound : boolean
         Check if current sample lies outside of variable definition
-        speeds up computation as the forward model wont be executed
+        speeds up computation as the forward model won't be executed
         default: True
     model : :class:`pymc3.Model`
         Optional model for sampling step.
@@ -84,18 +80,39 @@ class SMC(Metropolis):
 
     default_blocked = True
 
-    def __init__(self, vars=None, out_vars=None, covariance=None, scale=1.,
-                 n_chains=100, tune=True, tune_interval=100, model=None,
-                 check_bound=True, likelihood_name='like',
-                 proposal_name='MultivariateNormal', backend='csv',
-                 coef_variation=1., **kwargs):
+    def __init__(
+        self,
+        vars=None,
+        out_vars=None,
+        covariance=None,
+        scale=1.0,
+        n_chains=100,
+        tune=True,
+        tune_interval=100,
+        model=None,
+        check_bound=True,
+        likelihood_name="like",
+        proposal_name="MultivariateNormal",
+        backend="csv",
+        coef_variation=1.0,
+        **kwargs
+    ):
 
         super(SMC, self).__init__(
-            vars=vars, out_vars=out_vars, covariance=covariance, scale=scale,
-            n_chains=n_chains, tune=tune, tune_interval=tune_interval,
-            model=model, check_bound=check_bound,
-            likelihood_name=likelihood_name, backend=backend,
-            proposal_name=proposal_name, **kwargs)
+            vars=vars,
+            out_vars=out_vars,
+            covariance=covariance,
+            scale=scale,
+            n_chains=n_chains,
+            tune=tune,
+            tune_interval=tune_interval,
+            model=model,
+            check_bound=check_bound,
+            likelihood_name=likelihood_name,
+            backend=backend,
+            proposal_name=proposal_name,
+            **kwargs
+        )
 
         self.beta = 0
 
@@ -106,16 +123,18 @@ class SMC(Metropolis):
         """
         Returns sampler attributes that are not saved.
         """
-        bl = ['likelihoods',
-              'check_bnd',
-              'logp_forw',
-              'bij',
-              'lij',
-              'ordering',
-              'lordering',
-              'proposal_samples_array',
-              'vars',
-              '_BlockedStep__newargs']
+        bl = [
+            "likelihoods",
+            "check_bnd",
+            "logp_forw",
+            "bij",
+            "lij",
+            "ordering",
+            "lordering",
+            "proposal_samples_array",
+            "vars",
+            "_BlockedStep__newargs",
+        ]
         return bl
 
     def calc_beta(self):
@@ -134,14 +153,14 @@ class SMC(Metropolis):
         """
 
         low_beta = self.beta
-        up_beta = 2.
+        up_beta = 2.0
         old_beta = self.beta
 
         while up_beta - low_beta > 1e-6:
-            current_beta = (low_beta + up_beta) / 2.
+            current_beta = (low_beta + up_beta) / 2.0
             temp = np.exp(
-                (current_beta - self.beta) *
-                (self.likelihoods - self.likelihoods.max()))
+                (current_beta - self.beta) * (self.likelihoods - self.likelihoods.max())
+            )
             cov_temp = np.std(temp) / np.mean(temp)
             if cov_temp > self.coef_variation:
                 up_beta = current_beta
@@ -162,15 +181,12 @@ class SMC(Metropolis):
             weighted covariances (NumPy > 1.10. required)
         """
         cov = np.cov(
-            self.array_population,
-            aweights=self.weights.ravel(),
-            bias=False,
-            rowvar=0)
+            self.array_population, aweights=self.weights.ravel(), bias=False, rowvar=0
+        )
 
         cov = utility.ensure_cov_psd(cov)
         if np.isnan(cov).any() or np.isinf(cov).any():
-            raise ValueError(
-                'Sample covariances contains Inf or NaN!')
+            raise ValueError("Sample covariances contains Inf or NaN!")
         return cov
 
     def select_end_points(self, mtrace):
@@ -192,17 +208,15 @@ class SMC(Metropolis):
             Array of likelihoods of the trace end-points
         """
 
-        array_population = np.zeros(
-            (self.n_chains, self.ordering.size))
+        array_population = np.zeros((self.n_chains, self.ordering.size))
 
         n_steps = len(mtrace)
 
         # collect end points of each chain and put into array
         for var, slc, shp, _ in self.ordering.vmap:
             slc_population = mtrace.get_values(
-                varname=var,
-                burn=n_steps - 1,
-                combine=True)
+                varname=var, burn=n_steps - 1, combine=True
+            )
 
             if len(shp) == 0:
                 array_population[:, slc] = np.atleast_2d(slc_population).T
@@ -211,9 +225,8 @@ class SMC(Metropolis):
 
         # get likelihoods
         likelihoods = mtrace.get_values(
-            varname=self.likelihood_name,
-            burn=n_steps - 1,
-            combine=True)
+            varname=self.likelihood_name, burn=n_steps - 1, combine=True
+        )
         population = []
 
         # map end array_endpoints to dict points
@@ -237,17 +250,15 @@ class SMC(Metropolis):
             all unobservedRV values, including dataset likelihoods
         """
 
-        array_population = np.zeros(
-            (self.n_chains, self.lordering.size))
+        array_population = np.zeros((self.n_chains, self.lordering.size))
 
         n_steps = len(mtrace)
 
         for _, slc, shp, _, var in self.lordering.vmap:
 
             slc_population = mtrace.get_values(
-                varname=var,
-                burn=n_steps - 1,
-                combine=True)
+                varname=var, burn=n_steps - 1, combine=True
+            )
 
             if len(shp) == 0:
                 array_population[:, slc] = np.atleast_2d(slc_population).T
@@ -258,8 +269,7 @@ class SMC(Metropolis):
 
         # map end array_endpoints to list lpoints and apply resampling
         for r_idx in self.resampling_indexes:
-            chain_previous_lpoint.append(
-                self.lij.a2l(array_population[r_idx, :]))
+            chain_previous_lpoint.append(self.lij.a2l(array_population[r_idx, :]))
 
         return chain_previous_lpoint
 
@@ -318,10 +328,20 @@ class SMC(Metropolis):
 
 
 def smc_sample(
-        n_steps, step=None, start=None, homepath=None,
-        stage=0, n_jobs=1, progressbar=False, buffer_size=5000,
-        buffer_thinning=1, model=None, update=None, random_seed=None,
-        rm_flag=False):
+    n_steps,
+    step=None,
+    start=None,
+    homepath=None,
+    stage=0,
+    n_jobs=1,
+    progressbar=False,
+    buffer_size=5000,
+    buffer_thinning=1,
+    model=None,
+    update=None,
+    random_seed=None,
+    rm_flag=False,
+):
     """
     Sequential Monte Carlo samlping
 
@@ -391,31 +411,33 @@ def smc_sample(
     step.n_steps = int(n_steps)
 
     if n_steps < 1:
-        raise TypeError('Argument `n_steps` should be above 0.', exc_info=1)
+        raise TypeError("Argument `n_steps` should be above 0.", exc_info=1)
 
     if step is None:
-        raise TypeError('Argument `step` has to be a SMC step object.')
+        raise TypeError("Argument `step` has to be a SMC step object.")
 
     if homepath is None:
-        raise TypeError(
-            'Argument `homepath` should be path to result_directory.')
+        raise TypeError("Argument `homepath` should be path to result_directory.")
 
     if n_jobs > 1:
         if not (step.n_chains / float(n_jobs)).is_integer():
-            raise ValueError('n_chains / n_jobs has to be a whole number!')
+            raise ValueError("n_chains / n_jobs has to be a whole number!")
 
     if start is not None:
         if len(start) != step.n_chains:
-            raise TypeError('Argument `start` should have dicts equal the '
-                            'number of chains (step.N-chains)')
+            raise TypeError(
+                "Argument `start` should have dicts equal the "
+                "number of chains (step.N-chains)"
+            )
         else:
             step.population = start
 
-    if not any(
-            step.likelihood_name in var.name for var in model.deterministics):
-            raise TypeError('Model (deterministic) variables need to contain '
-                            'a variable %s '
-                            'as defined in `step`.' % step.likelihood_name)
+    if not any(step.likelihood_name in var.name for var in model.deterministics):
+        raise TypeError(
+            "Model (deterministic) variables need to contain "
+            "a variable %s "
+            "as defined in `step`." % step.likelihood_name
+        )
 
     stage_handler = backend.SampleStage(homepath, backend=step.backend)
 
@@ -427,52 +449,61 @@ def smc_sample(
         buffer_thinning=buffer_thinning,
         update=update,
         model=model,
-        rm_flag=rm_flag)
+        rm_flag=rm_flag,
+    )
 
     with model:
-        while step.beta < 1.:
+        while step.beta < 1.0:
             if step.stage == 0:
                 # Initial stage
-                logger.info('Sample initial stage: ...')
+                logger.info("Sample initial stage: ...")
                 draws = 1
             else:
                 draws = n_steps
 
-            logger.info('Beta: %f Stage: %i' % (step.beta, step.stage))
+            logger.info("Beta: %f Stage: %i" % (step.beta, step.stage))
 
             # Metropolis sampling intermediate stages
             chains = stage_handler.clean_directory(step.stage, chains, rm_flag)
 
             sample_args = {
-                'draws': draws,
-                'step': step,
-                'stage_path': stage_handler.stage_path(step.stage),
-                'progressbar': progressbar,
-                'model': model,
-                'n_jobs': n_jobs,
-                'chains': chains,
-                'buffer_size': buffer_size,
-                'buffer_thinning': buffer_thinning}
+                "draws": draws,
+                "step": step,
+                "stage_path": stage_handler.stage_path(step.stage),
+                "progressbar": progressbar,
+                "model": model,
+                "n_jobs": n_jobs,
+                "chains": chains,
+                "buffer_size": buffer_size,
+                "buffer_thinning": buffer_thinning,
+            }
 
             mtrace = iter_parallel_chains(**sample_args)
 
-            step.population, step.array_population, step.likelihoods = \
-                step.select_end_points(mtrace)
+            (
+                step.population,
+                step.array_population,
+                step.likelihoods,
+            ) = step.select_end_points(mtrace)
 
             if update is not None:
-                logger.info('Updating Covariances ...')
+                logger.info("Updating Covariances ...")
                 map_pt = step.get_map_end_points()
                 update.update_weights(map_pt, n_jobs=n_jobs)
                 mtrace = update_last_samples(
-                    homepath, step, progressbar, model, n_jobs, rm_flag)
-                step.population, step.array_population, step.likelihoods = \
-                    step.select_end_points(mtrace)
+                    homepath, step, progressbar, model, n_jobs, rm_flag
+                )
+                (
+                    step.population,
+                    step.array_population,
+                    step.likelihoods,
+                ) = step.select_end_points(mtrace)
 
             step.beta, step.old_beta, step.weights = step.calc_beta()
 
-            if step.beta > 1.:
-                logger.info('Beta > 1.: %f' % step.beta)
-                step.beta = 1.
+            if step.beta > 1.0:
+                logger.info("Beta > 1.: %f" % step.beta)
+                step.beta = 1.0
                 save_sampler_state(step, update, stage_handler)
 
                 if stage == -1:
@@ -482,43 +513,41 @@ def smc_sample(
             else:
                 step.covariance = step.calc_covariance()
                 step.proposal_dist = choose_proposal(
-                    step.proposal_name, scale=step.covariance)
+                    step.proposal_name, scale=step.covariance
+                )
                 step.resampling_indexes = step.resample()
-                step.chain_previous_lpoint = \
-                    step.get_chain_previous_lpoint(mtrace)
+                step.chain_previous_lpoint = step.get_chain_previous_lpoint(mtrace)
 
                 save_sampler_state(step, update, stage_handler)
 
                 step.stage += 1
-                del(mtrace)
+                del mtrace
 
         # Metropolis sampling final stage
         draws = n_steps * sample_factor_final_stage
-        logger.info('Sample final stage with n_steps %i ' % draws)
+        logger.info("Sample final stage with n_steps %i " % draws)
         step.stage = -1
 
-        temp = np.exp((1 - step.old_beta) *
-                      (step.likelihoods - step.likelihoods.max()))
+        temp = np.exp((1 - step.old_beta) * (step.likelihoods - step.likelihoods.max()))
         step.weights = temp / np.sum(temp)
         step.covariance = step.calc_covariance()
-        step.proposal_dist = choose_proposal(
-            step.proposal_name, scale=step.covariance)
+        step.proposal_dist = choose_proposal(step.proposal_name, scale=step.covariance)
 
         step.resampling_indexes = step.resample()
         step.chain_previous_lpoint = step.get_chain_previous_lpoint(mtrace)
 
-        sample_args['draws'] = draws
-        sample_args['step'] = step
-        sample_args['stage_path'] = stage_handler.stage_path(step.stage)
-        sample_args['chains'] = chains
+        sample_args["draws"] = draws
+        sample_args["step"] = step
+        sample_args["stage_path"] = stage_handler.stage_path(step.stage)
+        sample_args["chains"] = chains
         iter_parallel_chains(**sample_args)
 
         save_sampler_state(step, update, stage_handler)
-        logger.info('Finished sampling!')
+        logger.info("Finished sampling!")
 
 
 def save_sampler_state(step, update, stage_handler):
-    logger.info('Saving sampler state ...')
+    logger.info("Saving sampler state ...")
     if update is not None:
         weights = update.get_weights()
     else:
@@ -543,6 +572,6 @@ def tune(acc_rate):
     """
 
     # a and b after Muto & Beck 2008 .
-    a = 1. / 9
-    b = 8. / 9
+    a = 1.0 / 9
+    b = 8.0 / 9
     return np.power((a + (b * acc_rate)), 2)

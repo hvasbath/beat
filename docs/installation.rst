@@ -4,18 +4,20 @@
 Detailed Installation instructions
 **********************************
 
-BEAT can be installed on any Unix based system with python>=3.5
+BEAT can be installed on any Unix based system with python>=3.7
 that supports its prerequisites.
 
-For any user who has no user rights on the machine where BEAT is supposed to be installed, please add --user at the end of each sudo command, e.g.::
 
-    sudo python3 setup.py install --user
+Virtual environments
+--------------------
+Please consider to use `virtual environments <https://docs.python.org/3/tutorial/venv.html>`__ to lower the risk of package conflicts.
+
 
 Prerequisites
 -------------
 First of all please download the beat source code::
 
-    cd ~/src  # or whereever you keep the packages
+    cd ~/src  # or wherever you keep the packages
     git clone https://github.com/hvasbath/beat
 
 The package includes scripts that help setting up and testing the following
@@ -28,8 +30,7 @@ Then we will need a fortran compiler and the python developers library::
 BEAT does many intensive calculations, which is why we need to get as much as
 possible out of the available libraries in terms of computational efficiency.
 There are actually significant speedups possible by not using the standard
-distribution packages that are available over tools like `pip` or
-`easy_install`.
+distribution packages that are available over tools like `pip`.
 
 Although, this process is somewhat tedious and not straight forward for
 everybody, it is really worth doing so! If you have done a similar optimization
@@ -41,6 +42,7 @@ For all the heavy details I refer to these links:
 `Numpy configure <https://hunseblog.wordpress.com/2014/09/15/installing-numpy-and-openblas/>`__
 
 `Theano configure <http://www.johnwittenauer.net/configuring-theano-for-high-performance-deep-learning/>`__
+
 
 OpenBlas
 """"""""
@@ -76,6 +78,7 @@ your .bashrc or .cshrc in the homedirectory::
 
     export LD_LIBRARY_PATH=/custom_path/lib:$LD_LIBRARY_PATH
 
+
 Numpy
 """""
 This following step is completely optional and one may decide to use a standard pip numpy package.
@@ -84,7 +87,7 @@ Building numpy from source requires cython::
     pip3 install cython
 
 If you compile numpy locally against the previously installed OpenBlas
-library you can gain significant speedup. For my machine it resulted 
+library you can gain significant speedup. For my machine it resulted
 in a speed-up of the numpy related calculations by a factor of at least 3.::
 
     cd ~/src
@@ -121,7 +124,7 @@ If everything worked ok,i.e. no mention of the ATLAS library, run::
 
 Finally::
 
-    sudo python setup.py install
+    python3 setup.py install
 
 
 Test the performance and if everything works fine::
@@ -154,7 +157,7 @@ For the bleeding edge installation do::
     cd ~/src
     git clone https://github.com/Theano/Theano
     cd Theano
-    sudo python3 setup.py install
+    python3 setup.py install
 
 For any troubleshooting and detailed installation instructions I refer to the
 `Theano <http://deeplearning.net/software/theano/install.html>`__ webpage.
@@ -165,7 +168,7 @@ CPU setup
 Optional: Setup for libamdm
 ___________________________
 Only for 64-bit machines!
-This again speeds up the elemantary operations! Theano will for sure work
+This again speeds up the elementary operations! Theano will for sure work
 without including this, but the performance increase (below)
 will convince you to do so ;) .
 
@@ -261,7 +264,7 @@ as intended::
 
 Using the CPU (amdlibm = False)::
 
-    THEANO_FLAGS=mode=FAST_RUN,device=cpu,floatX=float32 python3 test/gpu_test.py 
+    THEANO_FLAGS=mode=FAST_RUN,device=cpu,floatX=float32 python3 test/gpu_test.py
 
     [Elemwise{exp,no_inplace}(<TensorType(float32, vector)>)]
     Looping 1000 times took 2.717895 seconds
@@ -271,7 +274,7 @@ Using the CPU (amdlibm = False)::
 
 Using the CPU (amdlibm = True)::
 
-    THEANO_FLAGS=mode=FAST_RUN,device=cpu,floatX=float32 python3 test/gpu_test.py 
+    THEANO_FLAGS=mode=FAST_RUN,device=cpu,floatX=float32 python3 test/gpu_test.py
 
     [Elemwise{exp,no_inplace}(<TensorType(float32, vector)>)]
     Looping 1000 times took 0.703979 seconds
@@ -284,7 +287,7 @@ That's a speedup of 3.86! On the ELEMENTARY operations like exp(), log(), cos() 
 
 Using the GPU::
 
-    THEANO_FLAGS=mode=FAST_RUN,device=gpu,floatX=float32 python3 src/test/gpu_test.py 
+    THEANO_FLAGS=mode=FAST_RUN,device=gpu,floatX=float32 python3 src/test/gpu_test.py
 
     Using gpu device 0: Quadro 5000 (CNMeM is disabled, cuDNN not available)
     [GpuElemwise{exp,no_inplace}(<CudaNdarrayType(float32, vector)>),
@@ -306,19 +309,14 @@ can be found on the respective websites:
  - `pymc3 <https://github.com/pymc-devs/pymc3>`__
  - `pyrocko <http://pyrocko.org/>`__
 
+
 pymc3
 """""
 Pymc3 is a framework that provides various optimization algorithms allows and
-allows to build Bayesian models. For the last stable release::
+allows to build Bayesian models. BEAT relies on an older version of pymc3- work into upgrading it::
 
-    pip install pymc3==3.4.1
+    pip3 install pymc3==3.4.1
 
-For the bleeding edge::
-
-    cd ~/src
-    git clone https://github.com/pymc-devs/pymc3
-    cd pymc3
-    sudo python3 setup.py install
 
 Pyrocko
 """""""
@@ -328,11 +326,11 @@ framework to efficiently store and access Greens Functions.::
     cd ~/src
     git clone git://github.com/pyrocko/pyrocko.git pyrocko
     cd pyrocko
-    sudo python3 setup.py install
+    pip3 install .
 
 OpenMPI
 """""""
-For the Parallel Tempering algorithm OpenMPI and the python 
+For the Parallel Tempering algorithm OpenMPI and the python
 bindings are required. If you do not have any MPI library installed, this needs to be installed first.
 For now BEAT only supports MPI versions <3. Available mpi versions can be listed with the command::
 
@@ -346,12 +344,13 @@ Finally, the python wrapper::
 
     sudo pip3 install mpi4py
 
+
 BEAT
 """"
 After these long and heavy installations, you can setup BEAT itself::
 
     cd ~/src/beat
-    sudo python3 setup.py install
+    pip3 install .
 
 Greens Functions
 ----------------
@@ -360,7 +359,7 @@ To calculate the Greens Functions we rely on modeling codes written by
 `Rongjiang Wang <http://www.gfz-potsdam.de/en/section/physics-of-earthquakes-and-volcanoes/staff/profil/rongjiang-wang/>`__.
 If you plan to use the GreensFunction calculation framework,
 these codes are required and need to be compiled manually.
-The original codes are packaged for windows and can be found 
+The original codes are packaged for windows and can be found
 `here <http://www.gfz-potsdam.de/en/section/physics-of-earthquakes-and-volcanoes/data-products-services/downloads-software/>`__.
 
 For Unix systems the codes had to be repackaged.

@@ -1,67 +1,82 @@
-from beat.utility import (
-    list2string, positions2idxs, kmtypes, split_off_list,
-    Counter, mod_i, rotate_coords_plane_normal, split_point, update_source,
-    check_point_keys, dump_objects, load_objects, find_elbow)
-
-from beat.fast_sweeping import fast_sweep
-from beat.heart import velocities_from_pole
-
-from beat.config import ResolutionDiscretizationConfig, \
-    UniformDiscretizationConfig, discretization_dir_name, fault_geometry_name
-from beat.models.laplacian import get_smoothing_operator_correlated, \
-    get_smoothing_operator_nearest_neighbor, distances
-from .base import get_backend, geo_construct_gf_linear_patches
-
-from pyrocko.util import ensuredir
-from pyrocko.gf.seismosizer import Cloneable
-from pyrocko.orthodrome import latlon_to_ne_numpy, ne_to_latlon
-from pyrocko.moment_tensor import moment_to_magnitude
-from pyrocko.guts import Object, List, Float, Int, Dict, dump, load
-from pyrocko.plot import mpl_papersize
-
-import os
 import copy
+import os
+from collections import OrderedDict, namedtuple
 from logging import getLogger
-from collections import namedtuple, OrderedDict
 
 import numpy as num
-
-from scipy.linalg import block_diag, svd
-
-from theano import shared
 from matplotlib import pyplot as plt
+from pyrocko.gf.seismosizer import Cloneable
+from pyrocko.guts import Dict, Float, Int, List, Object, dump, load
+from pyrocko.moment_tensor import moment_to_magnitude
+from pyrocko.orthodrome import latlon_to_ne_numpy, ne_to_latlon
+from pyrocko.plot import mpl_papersize
+from pyrocko.util import ensuredir
+from scipy.linalg import block_diag, svd
+from theano import shared
+
+from beat.config import (
+    ResolutionDiscretizationConfig,
+    UniformDiscretizationConfig,
+    discretization_dir_name,
+    fault_geometry_name,
+)
+from beat.fast_sweeping import fast_sweep
+from beat.heart import velocities_from_pole
+from beat.models.laplacian import (
+    distances,
+    get_smoothing_operator_correlated,
+    get_smoothing_operator_nearest_neighbor,
+)
+from beat.utility import (
+    Counter,
+    check_point_keys,
+    dump_objects,
+    find_elbow,
+    kmtypes,
+    list2string,
+    load_objects,
+    mod_i,
+    positions2idxs,
+    rotate_coords_plane_normal,
+    split_off_list,
+    split_point,
+    update_source,
+)
+
+from .base import geo_construct_gf_linear_patches, get_backend
+
+logger = getLogger("ffi.fault")
 
 
-logger = getLogger('ffi.fault')
-
-
-d2r = num.pi / 180.
-r2d = 180. / num.pi
+d2r = num.pi / 180.0
+r2d = 180.0 / num.pi
 
 
 __all__ = [
-    'FaultGeometry',
-    'FaultOrdering',
-    'discretize_sources',
-    'get_division_mapping',
-    'optimize_discretization',
-    'optimize_damping',
-    'ResolutionDiscretizationResult',
-    'write_fault_to_pscmp',
-    'backslip2coupling']
+    "FaultGeometry",
+    "FaultOrdering",
+    "discretize_sources",
+    "get_division_mapping",
+    "optimize_discretization",
+    "optimize_damping",
+    "ResolutionDiscretizationResult",
+    "write_fault_to_pscmp",
+    "euler_pole2slips",
+    "backslip2coupling",
+]
 
 
 slip_directions = {
-    'uparr': {'slip': 1., 'rake': 0.},
-    'uperp': {'slip': 1., 'rake': -90.},
-    'utens': {'slip': 1., 'rake': 0., 'opening_fraction': 1.}}
+    "uparr": {"slip": 1.0, "rake": 0.0},
+    "uperp": {"slip": 1.0, "rake": -90.0},
+    "utens": {"slip": 1.0, "rake": 0.0, "opening_fraction": 1.0},
+}
 
 
-PatchMap = namedtuple(
-    'PatchMap', 'count, slc, shp, npatches, indexmap')
+PatchMap = namedtuple("PatchMap", "count, slc, shp, npatches, indexmap")
 
 
-km = 1000.
+km = 1000.0
 
 
 class FaultGeometry(Cloneable):
@@ -94,25 +109,26 @@ class FaultGeometry(Cloneable):
         self.config = config
 
     def __str__(self):
-        s = '''
+        s = """
 Complex Fault Geometry
 number of subfaults: %i
-total number of patches: %i ''' % (
-            self.nsubfaults, self.npatches)
+total number of patches: %i """ % (
+            self.nsubfaults,
+            self.npatches,
+        )
         return s
 
     def _check_datatype(self, datatype):
         if datatype not in self.datatypes:
-            raise TypeError(
-                'Datatype "%s" not included in FaultGeometry' % datatype)
+            raise TypeError('Datatype "%s" not included in FaultGeometry' % datatype)
 
     def _check_component(self, component):
         if component not in self.components:
-            raise TypeError('Component not included in FaultGeometry')
+            raise TypeError("Component not included in FaultGeometry")
 
     def _check_index(self, index):
         if index > self.nsubfaults - 1:
-            raise TypeError('Subfault with index %i not defined!' % index)
+            raise TypeError("Subfault with index %i not defined!" % index)
 
     def set_model_resolution(self, model_resolution):
         self._model_resolution = model_resolution
@@ -120,9 +136,10 @@ total number of patches: %i ''' % (
     def get_model_resolution(self):
         if self._model_resolution is None:
             logger.warning(
-                'Model resolution matrix has not been calculated! '
-                'Please run beat.ffi.optimize_discretization on this fault! '
-                'Returning None!')
+                "Model resolution matrix has not been calculated! "
+                "Please run beat.ffi.optimize_discretization on this fault! "
+                "Returning None!"
+            )
         return self._model_resolution
 
     def get_subfault_key(self, index, datatype, component):
@@ -139,12 +156,12 @@ total number of patches: %i ''' % (
 
         self._check_index(index)
 
-        return datatype + '_' + component + '_' + str(index)
+        return datatype + "_" + component + "_" + str(index)
 
     def setup_subfaults(self, datatype, component, ext_sources, replace=False):
 
         if len(ext_sources) != self.nsubfaults:
-            raise FaultGeometryError('Setup does not match fault ordering!')
+            raise FaultGeometryError("Setup does not match fault ordering!")
 
         for i, source in enumerate(ext_sources):
             source_key = self.get_subfault_key(i, datatype, component)
@@ -152,8 +169,7 @@ total number of patches: %i ''' % (
             if source_key not in list(self._ext_sources.keys()) or replace:
                 self._ext_sources[source_key] = copy.deepcopy(source)
             else:
-                raise FaultGeometryError(
-                    'Subfault already specified in geometry!')
+                raise FaultGeometryError("Subfault already specified in geometry!")
 
     def _assign_datatype(self, datatype=None):
         if datatype is None:
@@ -183,8 +199,7 @@ total number of patches: %i ''' % (
             idxs = [0, self.nsubfaults]
 
         for i in range(*idxs):
-            yield self.get_subfault(
-                index=i, datatype=datatype, component=component)
+            yield self.get_subfault(index=i, datatype=datatype, component=component)
 
     def get_subfault(self, index, datatype=None, component=None):
 
@@ -196,7 +211,7 @@ total number of patches: %i ''' % (
         if source_key in list(self._ext_sources.keys()):
             return self._ext_sources[source_key]
         else:
-            raise FaultGeometryError('Requested subfault not defined!')
+            raise FaultGeometryError("Requested subfault not defined!")
 
     def get_all_subfaults(self, datatype=None, component=None):
         """
@@ -205,13 +220,12 @@ total number of patches: %i ''' % (
         subfaults = []
         for i in range(self.nsubfaults):
             subfaults.append(
-                self.get_subfault(
-                    index=i, datatype=datatype, component=component))
+                self.get_subfault(index=i, datatype=datatype, component=component)
+            )
 
         return subfaults
 
-    def set_subfault_patches(
-            self, index, patches, datatype, component, replace=False):
+    def set_subfault_patches(self, index, patches, datatype, component, replace=False):
 
         source_key = self.get_subfault_key(index, datatype, component)
 
@@ -219,10 +233,10 @@ total number of patches: %i ''' % (
             self._discretized_patches[source_key] = copy.deepcopy(patches)
         else:
             raise FaultGeometryError(
-                'Discretized Patches already specified in geometry!')
+                "Discretized Patches already specified in geometry!"
+            )
 
-    def get_subfault_patches(
-            self, index, datatype=None, component=None):
+    def get_subfault_patches(self, index, datatype=None, component=None):
         """
         Get all Patches to a subfault in the geometry.
 
@@ -243,7 +257,7 @@ total number of patches: %i ''' % (
         if source_key in list(self._discretized_patches.keys()):
             return self._discretized_patches[source_key]
         else:
-            raise FaultGeometryError('Requested Patches not defined!')
+            raise FaultGeometryError("Requested Patches not defined!")
 
     def get_all_patches(self, datatype=None, component=None):
         """
@@ -255,7 +269,9 @@ total number of patches: %i ''' % (
             'geodetic' or 'seismic'
         component : str
             slip component to return may be %s
-        """ % list2string(slip_directions.keys())
+        """ % list2string(
+            slip_directions.keys()
+        )
 
         datatype = self._assign_datatype(datatype)
         component = self._assign_component(component)
@@ -263,13 +279,14 @@ total number of patches: %i ''' % (
         patches = []
         for i in range(self.nsubfaults):
             patches += self.get_subfault_patches(
-                i, datatype=datatype, component=component)
+                i, datatype=datatype, component=component
+            )
 
         return patches
 
     def get_subfault_patch_moments(
-            self, index, slips=None, store=None, target=None,
-            datatype='seismic'):
+        self, index, slips=None, store=None, target=None, datatype="seismic"
+    ):
         """
         Get the seismic moments on each Patch of the complex fault
 
@@ -287,8 +304,8 @@ total number of patches: %i ''' % (
 
         moments = []
         for i, rs in enumerate(
-                self.get_subfault_patches(
-                    index=index, datatype=datatype, component='uparr')):
+            self.get_subfault_patches(index=index, datatype=datatype, component="uparr")
+        ):
             if slips is not None:
                 rs.update(slip=slips[i])
 
@@ -297,8 +314,7 @@ total number of patches: %i ''' % (
 
         return moments
 
-    def get_moment(
-            self, point=None, store=None, target=None, datatype='geodetic'):
+    def get_moment(self, point=None, store=None, target=None, datatype="geodetic"):
         """
         Get total moment of the fault.
         """
@@ -307,20 +323,19 @@ total number of patches: %i ''' % (
             slips = self.get_total_slip(index, point)
 
             sf_moments = self.get_subfault_patch_moments(
-                index=index, slips=slips, store=store,
-                target=target, datatype=datatype)
+                index=index, slips=slips, store=store, target=target, datatype=datatype
+            )
             moments.extend(sf_moments)
 
         return num.array(moments).sum()
 
-    def get_magnitude(
-            self, point=None, store=None, target=None, datatype='geodetic'):
+    def get_magnitude(self, point=None, store=None, target=None, datatype="geodetic"):
         """
         Get total moment magnitude after Hanks and Kanamori 1979
         """
         return moment_to_magnitude(
-            self.get_moment(
-                point=point, store=store, target=target, datatype=datatype))
+            self.get_moment(point=point, store=store, target=target, datatype=datatype)
+        )
 
     def get_total_slip(self, index=None, point={}, components=None):
         """
@@ -336,14 +351,13 @@ total number of patches: %i ''' % (
 
         slips = num.zeros(npatches)
         for comp in components:
-            slips += self.var_from_point(
-                index=index, point=point, varname=comp) ** 2
+            slips += self.var_from_point(index=index, point=point, varname=comp) ** 2
 
         return num.sqrt(slips)
 
     def get_subfault_patch_stfs(
-            self, index, durations, starttimes,
-            store=None, target=None, datatype='seismic'):
+        self, index, durations, starttimes, store=None, target=None, datatype="seismic"
+    ):
         """
         Get the seismic moments on each Patch of the complex fault
 
@@ -371,20 +385,20 @@ total number of patches: %i ''' % (
 
         for idx in index:
             for i, rs in enumerate(
-                    self.get_subfault_patches(index=idx, datatype=datatype)):
+                self.get_subfault_patches(index=idx, datatype=datatype)
+            ):
 
                 if starttimes.size != self.subfault_npatches[idx]:
-                    starttimes_idx = self.vector2subfault(
-                        index=idx, vector=starttimes)
-                    durations_idx = self.vector2subfault(
-                        index=idx, vector=durations)
+                    starttimes_idx = self.vector2subfault(index=idx, vector=starttimes)
+                    durations_idx = self.vector2subfault(index=idx, vector=durations)
                 else:
                     starttimes_idx = starttimes
                     durations_idx = durations
 
                 rs.stf.duration = durations_idx[i]
                 times, amplitudes = rs.stf.discretize_t(
-                    store.config.deltat, starttimes_idx[i])
+                    store.config.deltat, starttimes_idx[i]
+                )
 
                 patch_times.append(times)
                 patch_amplitudes.append(amplitudes)
@@ -394,30 +408,35 @@ total number of patches: %i ''' % (
     def get_subfault_moment_rate_function(self, index, point, target, store):
 
         deltat = store.config.deltat
-        slips = self.get_total_slip(
-            index, point, components=['uparr', 'uperp'])
+        slips = self.get_total_slip(index, point, components=["uparr", "uperp"])
         starttimes = self.point2starttimes(point, index=index).ravel()
         tmin = num.floor((starttimes.min() / deltat)) * deltat
-        tmax = (num.ceil(
-            (starttimes.max() + point['durations'].max()) / deltat) + 1) * \
-            deltat
-        durations = self.vector2subfault(index, point['durations'])
+        tmax = (
+            num.ceil((starttimes.max() + point["durations"].max()) / deltat) + 1
+        ) * deltat
+        durations = self.vector2subfault(index, point["durations"])
 
         mrf_times = num.arange(tmin, tmax, deltat)
         mrf_rates = num.zeros_like(mrf_times)
 
         moments = self.get_subfault_patch_moments(
-            index=index, slips=slips,
-            store=store, target=target, datatype='seismic')
+            index=index, slips=slips, store=store, target=target, datatype="seismic"
+        )
 
         patch_times, patch_amplitudes = self.get_subfault_patch_stfs(
-            index=index, durations=durations, starttimes=starttimes,
-            store=store, target=target, datatype='seismic')
+            index=index,
+            durations=durations,
+            starttimes=starttimes,
+            store=store,
+            target=target,
+            datatype="seismic",
+        )
 
         for m, pt, pa in zip(moments, patch_times, patch_amplitudes):
             tmoments = pa * m
-            slc = slice(int((pt.min() - tmin) / deltat),
-                        int((pt.max() - tmin) / deltat + 1))
+            slc = slice(
+                int((pt.min() - tmin) / deltat), int((pt.max() - tmin) / deltat + 1)
+            )
             mrf_rates[slc] += tmoments
 
         return mrf_rates, mrf_times
@@ -433,7 +452,8 @@ total number of patches: %i ''' % (
         sf_times = []
         for idx in index:
             rates, times = self.get_subfault_moment_rate_function(
-                index=idx, point=point, target=target, store=store)
+                index=idx, point=point, target=target, store=store
+            )
             sf_rates.append(rates)
             sf_times.append(times)
 
@@ -445,15 +465,17 @@ total number of patches: %i ''' % (
         mrf_times = num.arange(min_times, max_times + deltat, deltat)
         mrf_rates = num.zeros_like(mrf_times)
         for sf_rate, sf_time in zip(sf_rates, sf_times):
-            slc = slice(int((sf_time.min() - min_times) / deltat),
-                        int((sf_time.max() - min_times) / deltat + 1))
+            slc = slice(
+                int((sf_time.min() - min_times) / deltat),
+                int((sf_time.max() - min_times) / deltat + 1),
+            )
             mrf_rates[slc] += sf_rate
 
         return mrf_rates, mrf_times
 
     def get_rupture_geometry(
-            self, point, target, store=None, event=None, datatype='geodetic'):
-
+        self, point, target, store=None, event=None, datatype="geodetic"
+    ):
         def duplicate_property(array):
             ndims = len(array.shape)
             if ndims == 1:
@@ -461,12 +483,12 @@ total number of patches: %i ''' % (
             elif ndims == 2:
                 return num.vstack((array, array))
             else:
-                raise TypeError('Only 1-2d data supported!')
+                raise TypeError("Only 1-2d data supported!")
 
         def patches2vertices(patches):
             verts = []
             for patch in patches:
-                patch.anchor = 'top'
+                patch.anchor = "top"
                 xyz = patch.outline()
                 latlon = num.ones((5, 2)) * num.array([patch.lat, patch.lon])
                 patchverts = num.hstack((latlon, xyz))
@@ -476,8 +498,8 @@ total number of patches: %i ''' % (
 
         slips = self.get_total_slip(index=None, point=point)
 
-        if datatype == 'seismic':
-            durations = point['durations']
+        if datatype == "seismic":
+            durations = point["durations"]
             deltat = store.config.deltat
 
             sts = []
@@ -486,46 +508,53 @@ total number of patches: %i ''' % (
                 sts.append(self.point2starttimes(point, index=index).ravel())
 
             starttimes = num.hstack(sts)
-            tmax = (num.ceil(
-                (starttimes.max() + durations.max()) / deltat) + 1) * \
-                deltat
+            tmax = (
+                num.ceil((starttimes.max() + durations.max()) / deltat) + 1
+            ) * deltat
             tmin = num.floor(starttimes.min() / deltat) * deltat
 
             srf_times = num.arange(tmin, tmax, deltat)
             srf_slips = num.zeros((slips.size, srf_times.size))
 
             patch_times, patch_amplitudes = self.get_subfault_patch_stfs(
-                index=indexs, durations=durations, starttimes=starttimes,
-                store=store, target=target, datatype=datatype)
+                index=indexs,
+                durations=durations,
+                starttimes=starttimes,
+                store=store,
+                target=target,
+                datatype=datatype,
+            )
 
             assert slips.size == len(patch_times)
 
             for i, (slip, pt, pa) in enumerate(
-                    zip(slips, patch_times, patch_amplitudes)):
+                zip(slips, patch_times, patch_amplitudes)
+            ):
                 tslips = pa * slip
-                slc = slice(int((pt.min() - tmin) / deltat),
-                            int((pt.max() - tmin) / deltat + 1))
+                slc = slice(
+                    int((pt.min() - tmin) / deltat), int((pt.max() - tmin) / deltat + 1)
+                )
                 srf_slips[i, slc] += tslips
 
             sub_headers = tuple([str(i) for i in num.arange(srf_times.size)])
             coupling = None
 
-        elif datatype == 'geodetic':
+        elif datatype == "geodetic":
             srf_slips = slips.ravel()
             srf_times = num.zeros(1)
             sub_headers = []
 
-            has_pole, _ = check_point_keys(point, phrase='*_pole_lat')
+            has_pole, _ = check_point_keys(point, phrase="*_pole_lat")
             if has_pole:
-                logger.info(
-                    'Found Euler pole in point also exporting coupling ...!')
-                coupling = backslip2coupling(
-                    point=point, fault=self, event=event)
+                logger.info("Found Euler pole in point also exporting coupling ...!")
+                euler_slips = euler_pole2slips(point=point, fault=self, event=event)
+                coupling = backslip2coupling(point, euler_slips)
             else:
                 coupling = None
         else:
             logger.warning(
-                'Datatype %s is not supported for rupture geometry!' % datatype)
+                "Datatype %s is not supported for rupture geometry!" % datatype
+            )
             return None
 
         ncorners = 4
@@ -536,20 +565,22 @@ total number of patches: %i ''' % (
         for sf in self.iter_subfaults():
             outlines.append(patches2vertices([sf]))
 
-        faces1 = num.arange(ncorners * self.npatches, dtype='int64').reshape(
-            self.npatches, ncorners)
+        faces1 = num.arange(ncorners * self.npatches, dtype="int64").reshape(
+            self.npatches, ncorners
+        )
         faces2 = num.fliplr(faces1)
         faces = num.vstack((faces1, faces2))
 
         srf_slips = duplicate_property(srf_slips)
 
         from pyrocko.model import Geometry
+
         geom = Geometry(times=srf_times, event=event)
         geom.setup(vertices, faces, outlines=outlines)
-        geom.add_property((('slip', 'float64', sub_headers)), srf_slips)
+        geom.add_property((("slip", "float64", sub_headers)), srf_slips)
         if coupling is not None:
             coupling = duplicate_property(coupling)
-            geom.add_property((('coupling', 'float64', sub_headers)), coupling)
+            geom.add_property((("coupling", "float64", sub_headers)), coupling)
         return geom
 
     def get_patch_indexes(self, index):
@@ -569,30 +600,33 @@ total number of patches: %i ''' % (
             :class:`pymc3.backends.base.MultiTrace`
         """
         self._check_index(index)
-        return slice(self.cum_subfault_npatches[index],
-                     self.cum_subfault_npatches[index + 1])
+        return slice(
+            self.cum_subfault_npatches[index], self.cum_subfault_npatches[index + 1]
+        )
 
     def vector2subfault(self, index, vector):
-        sf_patch_indexs = self.cum_subfault_npatches[index:index + 2]
-        return vector[sf_patch_indexs[0]:sf_patch_indexs[1]]
+        sf_patch_indexs = self.cum_subfault_npatches[index : index + 2]
+        return vector[sf_patch_indexs[0] : sf_patch_indexs[1]]
 
     def point2starttimes(self, point, index=0):
         """
         Calculate starttimes for point in solution space for given subfault.
         """
 
-        nuc_dip = point['nucleation_dip'][index]
-        nuc_strike = point['nucleation_strike'][index]
-        time = point['time'][index]
+        nuc_dip = point["nucleation_dip"][index]
+        nuc_strike = point["nucleation_strike"][index]
+        time = point["time"][index]
 
-        velocities = self.vector2subfault(index, point['velocities'])
+        velocities = self.vector2subfault(index, point["velocities"])
 
         nuc_dip_idx, nuc_strike_idx = self.fault_locations2idxs(
-            index, positions_dip=nuc_dip,
-            positions_strike=nuc_strike, backend='numpy')
+            index, positions_dip=nuc_dip, positions_strike=nuc_strike, backend="numpy"
+        )
 
-        return self.get_subfault_starttimes(
-            index, velocities, nuc_dip_idx, nuc_strike_idx) + time
+        return (
+            self.get_subfault_starttimes(index, velocities, nuc_dip_idx, nuc_strike_idx)
+            + time
+        )
 
     def var_from_point(self, index=None, point={}, varname=None):
 
@@ -601,8 +635,8 @@ total number of patches: %i ''' % (
         except KeyError:
             rv = num.zeros(self.npatches)
             logger.debug(
-                'Variable %s is not contained in point returning'
-                ' zeros!' % varname)
+                "Variable %s is not contained in point returning" " zeros!" % varname
+            )
 
         if index is not None:
             return self.vector2subfault(index, rv)
@@ -626,48 +660,47 @@ total number of patches: %i ''' % (
         if nevents:
             assert nevents == 1 or nevents == self.nsubfaults
 
-        if 'durations' in point:
-            datatype = 'seismic'
+        if "durations" in point:
+            datatype = "seismic"
         else:
-            datatype = 'geodetic'
+            datatype = "geodetic"
 
         sources = []
         for index in range(self.nsubfaults):
             try:
-                sf = self.get_subfault(
-                    index, datatype=datatype, component='uparr')
-                component = 'uparr'
+                sf = self.get_subfault(index, datatype=datatype, component="uparr")
+                component = "uparr"
             except TypeError:
-                sf = self.get_subfault(
-                    index, datatype=datatype, component='utens')
-                component = 'utens'
+                sf = self.get_subfault(index, datatype=datatype, component="utens")
+                component = "utens"
 
             sf_patches = self.get_subfault_patches(
-                index, datatype=datatype, component=component)
+                index, datatype=datatype, component=component
+            )
 
             ucomps = {}
             for comp in slip_directions.keys():
                 ucomps[comp] = self.var_from_point(index, point, comp)
 
             slips = self.get_total_slip(index, point)
-            rakes = num.arctan2(
-                -ucomps['uperp'], ucomps['uparr']) * r2d + sf.rake
-            opening_fractions = ucomps['utens'] / slips
+            rakes = num.arctan2(-ucomps["uperp"], ucomps["uparr"]) * r2d + sf.rake
+            opening_fractions = ucomps["utens"] / slips
 
             sf_point = {
-                'slip': slips,
-                'rake': rakes,
-                'opening_fraction': opening_fractions}
+                "slip": slips,
+                "rake": rakes,
+                "opening_fraction": opening_fractions,
+            }
 
             try:
-                durations = point['durations']
+                durations = point["durations"]
                 starttimes = self.point2starttimes(point, index=index).ravel()
                 if nevents > 1:
                     starttimes += events[index].time
                 else:
                     starttimes += events[0].time
 
-                sf_point.update({'time': starttimes, 'duration': durations})
+                sf_point.update({"time": starttimes, "duration": durations})
             except KeyError:
                 pass
 
@@ -682,7 +715,8 @@ total number of patches: %i ''' % (
         return sources
 
     def get_subfault_starttimes(
-            self, index, rupture_velocities, nuc_dip_idx, nuc_strike_idx):
+        self, index, rupture_velocities, nuc_dip_idx, nuc_strike_idx
+    ):
         """
         Get maximum bound of start times of extending rupture along
         the sub-fault.
@@ -700,16 +734,19 @@ total number of patches: %i ''' % (
         """
         self._check_index(index)
         npw, npl = self.ordering.get_subfault_discretization(index)
-        slownesses = 1. / rupture_velocities.reshape((npw, npl))
+        slownesses = 1.0 / rupture_velocities.reshape((npw, npl))
 
         start_times = fast_sweep.get_rupture_times_numpy(
-            slownesses, self.ordering.patch_sizes_dip[index],
-            n_patch_strike=npl, n_patch_dip=npw,
-            nuc_x=nuc_strike_idx, nuc_y=nuc_dip_idx)
+            slownesses,
+            self.ordering.patch_sizes_dip[index],
+            n_patch_strike=npl,
+            n_patch_dip=npw,
+            nuc_x=nuc_strike_idx,
+            nuc_y=nuc_dip_idx,
+        )
         return start_times
 
-    def get_event_relative_patch_centers(
-            self, event, index=None, datatype=None):
+    def get_event_relative_patch_centers(self, event, index=None, datatype=None):
         """
         Returns list of arrays of requested attributes.
         If attributes have several fields they are concatenated to 2d arrays
@@ -730,24 +767,26 @@ total number of patches: %i ''' % (
             subfault_idxs = list(range(self.nsubfaults))
 
         centers = self.get_subfault_patch_attributes(
-            subfault_idxs, datatype, attributes=['center'])
+            subfault_idxs, datatype, attributes=["center"]
+        )
 
         lats, lons = self.get_subfault_patch_attributes(
-            subfault_idxs, datatype, attributes=['lat', 'lon'])
+            subfault_idxs, datatype, attributes=["lat", "lon"]
+        )
 
         north_shifts_wrt_event, east_shifts_wrt_event = latlon_to_ne_numpy(
-            event.lat, event.lon, lats, lons)
+            event.lat, event.lon, lats, lons
+        )
 
         centers[:, 0] += east_shifts_wrt_event / km
         centers[:, 1] += north_shifts_wrt_event / km
         return centers
 
-    def get_smoothing_operator(
-            self, event, correlation_function='nearest_neighbor'):
+    def get_smoothing_operator(self, event, correlation_function="nearest_neighbor"):
         """
         Get second order Laplacian smoothing operator.
 
-        This is beeing used to smooth the slip-distribution
+        This is being used to smooth the slip-distribution
         in the optimization.
 
 
@@ -757,33 +796,35 @@ total number of patches: %i ''' % (
             (n_patch_strike + n_patch_dip) x (n_patch_strike + n_patch_dip)
         """
 
-        if correlation_function == 'nearest_neighbor':
+        if correlation_function == "nearest_neighbor":
             if isinstance(self.config, UniformDiscretizationConfig):
                 Ls = []
                 for ns in range(self.nsubfaults):
                     self._check_index(ns)
                     npw, npl = self.ordering.get_subfault_discretization(ns)
-                    # no smoothing accross sub-faults!
+                    # no smoothing across sub-faults!
                     L = get_smoothing_operator_nearest_neighbor(
                         n_patch_strike=npl,
                         n_patch_dip=npw,
                         patch_size_strike=self.ordering.patch_sizes_strike[ns],
-                        patch_size_dip=self.ordering.patch_sizes_dip[ns])
+                        patch_size_dip=self.ordering.patch_sizes_dip[ns],
+                    )
                     Ls.append(L)
                 return block_diag(*Ls)
             else:
                 raise InvalidDiscretizationError(
-                    'Nearest neighbor correlation Laplacian is only '
+                    "Nearest neighbor correlation Laplacian is only "
                     'available for "uniform" discretization! Please change'
-                    ' either correlation_function or the discretization.')
+                    " either correlation_function or the discretization."
+                )
 
         else:
             centers = self.get_event_relative_patch_centers(event)
-            return get_smoothing_operator_correlated(
-                centers, correlation_function)
+            return get_smoothing_operator_correlated(centers, correlation_function)
 
     def get_subfault_patch_attributes(
-            self, index, datatype=None, component=None, attributes=['']):
+        self, index, datatype=None, component=None, attributes=[""]
+    ):
         """
         Returns list of arrays of requested attributes.
         If attributes have several fields they are concatenated to 2d arrays
@@ -818,7 +859,8 @@ total number of patches: %i ''' % (
             return ats_wanted[0]
 
     def fault_locations2idxs(
-            self, index, positions_dip, positions_strike, backend='numpy'):
+        self, index, positions_dip, positions_strike, backend="numpy"
+    ):
         """
         Return patch indexes for given location on the fault.
 
@@ -837,11 +879,13 @@ total number of patches: %i ''' % (
         dipidx = positions2idxs(
             positions=positions_dip,
             cell_size=self.ordering.patch_sizes_dip[index],
-            backend=backend)
+            backend=backend,
+        )
         strikeidx = positions2idxs(
             positions=positions_strike,
             cell_size=self.ordering.patch_sizes_strike[index],
-            backend=backend)
+            backend=backend,
+        )
         return dipidx, strikeidx
 
     def patchmap(self, index, dipidx, strikeidx):
@@ -865,13 +909,12 @@ total number of patches: %i ''' % (
         if len(self._discretized_patches) > 0:
             npatches = []
             for index in range(self.nsubfaults):
-                key = self.get_subfault_key(
-                    index, datatype=None, component=None)
+                key = self.get_subfault_key(index, datatype=None, component=None)
                 try:
                     patches = self._discretized_patches[key]
                     npatches.append(len(patches))
                 except KeyError:
-                    logger.debug('Sub-fault %i not discretized yet' % index)
+                    logger.debug("Sub-fault %i not discretized yet" % index)
                     npatches.append(0)
 
             return npatches
@@ -896,7 +939,8 @@ total number of patches: %i ''' % (
 
 
 def write_fault_to_pscmp(
-        filename, fault, point=None, force=False, export_patch_idxs=False):
+    filename, fault, point=None, force=False, export_patch_idxs=False
+):
     """
     Dump the fault geometry to ascii file according to the pscmp format.
     """
@@ -904,21 +948,32 @@ def write_fault_to_pscmp(
 
     if fault.needs_optimization and not export_patch_idxs:
         raise TypeError(
-            'PSCMP only supports uniform discretized rectangular sources, '
-            'cannot dump irregularly discretized sources')
+            "PSCMP only supports uniform discretized rectangular sources, "
+            "cannot dump irregularly discretized sources"
+        )
 
     if not fault.is_discretized:
-        raise TypeError('Fault needs to be discretized for export!')
+        raise TypeError("Fault needs to be discretized for export!")
 
-    def sf_to_string(index, subfault, np_strike, np_dip, time_days=0.):
-        ul_lat, ul_lon = sf.outline('latlon')[0, :]
-        return '{}    {} {} {} {} {} {} {} {} {} {}\n'.format(
+    def sf_to_string(index, subfault, np_strike, np_dip, time_days=0.0):
+        ul_lat, ul_lon = sf.outline("latlon")[0, :]
+        return "{}    {} {} {} {} {} {} {} {} {} {}\n".format(
             index + 1,
-            ul_lat, ul_lon, sf.depth / km, sf.length / km, sf.width / km,
-            sf.strike, sf.dip, np_strike, np_dip, time_days)
+            ul_lat,
+            ul_lon,
+            sf.depth / km,
+            sf.length / km,
+            sf.width / km,
+            sf.strike,
+            sf.dip,
+            np_strike,
+            np_dip,
+            time_days,
+        )
 
     def get_template(nsubfaults):
-        return """
+        return (
+            """
 #===============================================================================
 # RECTANGULAR SUBFAULTS
 # =====================
@@ -958,13 +1013,13 @@ def write_fault_to_pscmp(
 #                Z      -------------------------
 #                              L e n g t h
 #
-#    Note that a point inflation can be simulated by three point openning
+#    Note that a point inflation can be simulated by three point opening
 #    faults (each causes a third part of the volume of the point inflation)
 #    with orientation orthogonal to each other. the results obtained should
 #    be multiplied by a scaling factor 3(1-nu)/(1+nu), where nu is the Poisson
 #    ratio at the source. The scaling factor is the ratio of the seismic
 #    moment (energy) of an inflation source to that of a tensile source inducing
-#    a plate openning with the same volume change.
+#    a plate opening with the same volume change.
 #===============================================================================
 # n_faults
 #-------------------------------------------------------------------------------
@@ -975,32 +1030,34 @@ def write_fault_to_pscmp(
 #     pos_s   pos_d    slp_stk slp_dip open
 #     [km]    [km]     [m]     [m]     [m]
 #-------------------------------------------------------------------------------
-""" % nsubfaults
+"""
+            % nsubfaults
+        )
 
     # get slip components from result point
-    uparr = point['uparr']
+    uparr = point["uparr"]
     try:
-        uperp = point['uperp']
+        uperp = point["uperp"]
     except KeyError:
-        logger.info('No uperp component in solution setting to zero!')
+        logger.info("No uperp component in solution setting to zero!")
         uperp = num.zeros_like(uparr)
 
     # open file and write header
     if not os.path.exists(filename) or force:
         logger.info(
-            'Writing fault geometry to pscmp formatted text'
-            ' under: \n %s' % filename)
-        with open(filename, 'wb') as fh:
+            "Writing fault geometry to pscmp formatted text" " under: \n %s" % filename
+        )
+        with open(filename, "wb") as fh:
             header = (
-                '# BEAT version %s complex fault geometry \n'
-                '# for use with PSCMP from Wang et al. 2008\n'
-                '#-----------------------------------------\n' % info.version)
-            fh.write(header.encode('ascii'))
-            fh.write(get_template(fault.nsubfaults).encode('ascii'))
+                "# BEAT version %s complex fault geometry \n"
+                "# for use with PSCMP from Wang et al. 2008\n"
+                "#-----------------------------------------\n" % info.version
+            )
+            fh.write(header.encode("ascii"))
+            fh.write(get_template(fault.nsubfaults).encode("ascii"))
 
     else:
-        raise IOError(
-            'File %s exists! Please use --force to overwrite!' % filename)
+        raise IOError("File %s exists! Please use --force to overwrite!" % filename)
 
     # assemble fault geometry
     for index, sf in enumerate(fault.iter_subfaults()):
@@ -1011,34 +1068,33 @@ def write_fault_to_pscmp(
         with open(filename, mode="a+") as fh:
             fh.write(subfault_string)
 
-        centers = fault.get_subfault_patch_attributes(
-            index, attributes=['center'])
+        centers = fault.get_subfault_patch_attributes(index, attributes=["center"])
         rot_centers = rotate_coords_plane_normal(centers, sf)[:, 1::-1]
         rot_centers[:, 1] -= sf.width / km
-        rot_centers[:, 1] *= -1.
+        rot_centers[:, 1] *= -1.0
 
         uparr_sf = fault.vector2subfault(index, uparr)
         uperp_sf = fault.vector2subfault(index, uperp)
 
         angles = num.arctan2(-uperp_sf, uparr_sf) * r2d + sf.rake
-        slips = num.sqrt(uparr_sf ** 2 + uperp_sf ** 2)
+        slips = num.sqrt(uparr_sf**2 + uperp_sf**2)
 
         strike_slips = num.atleast_2d(num.cos(angles * d2r)) * slips
         dip_slips = num.atleast_2d(num.sin(angles * d2r)) * slips
         opening = num.zeros_like(dip_slips)
 
-        outarray = num.hstack(
-            [rot_centers, strike_slips.T, dip_slips.T, opening.T])
+        outarray = num.hstack([rot_centers, strike_slips.T, dip_slips.T, opening.T])
 
         if export_patch_idxs:
-            patch_idxs = num.atleast_2d(num.arange(
-                *fault.cum_subfault_npatches[index:index + 2])).T
+            patch_idxs = num.atleast_2d(
+                num.arange(*fault.cum_subfault_npatches[index : index + 2])
+            ).T
             print(patch_idxs, outarray)
             outarray = num.hstack([patch_idxs, outarray])
 
         # write patch info
         with open(filename, mode="a+") as fh:
-            num.savetxt(fh, outarray, fmt='%g')
+            num.savetxt(fh, outarray, fmt="%g")
 
 
 class FaultOrdering(object):
@@ -1071,12 +1127,13 @@ class FaultOrdering(object):
             npatches = npl * npw
             slc = slice(dim, dim + npatches)
             shp = (npw, npl)
-            indexes = num.arange(npatches, dtype='int16').reshape(shp)
+            indexes = num.arange(npatches, dtype="int16").reshape(shp)
             self.vmap.append(PatchMap(count, slc, shp, npatches, indexes))
-            self.smap.append(shared(
-                indexes,
-                name='patchidx_array_%i' % count,
-                borrow=True).astype('int16'))
+            self.smap.append(
+                shared(indexes, name="patchidx_array_%i" % count, borrow=True).astype(
+                    "int16"
+                )
+            )
             dim += npatches
             count += 1
 
@@ -1104,9 +1161,15 @@ class FaultGeometryError(Exception):
 
 
 def initialise_fault_geometry(
-        config, sources=None, extension_widths=[0.1], extension_lengths=[0.1],
-        patch_widths=[5.], patch_lengths=[5.], datatypes=['geodetic'],
-        varnames=['']):
+    config,
+    sources=None,
+    extension_widths=[0.1],
+    extension_lengths=[0.1],
+    patch_widths=[5.0],
+    patch_lengths=[5.0],
+    datatypes=["geodetic"],
+    varnames=[""],
+):
     """
     Build complex discretized fault.
 
@@ -1139,78 +1202,82 @@ def initialise_fault_geometry(
         if na != nsources:
             raise ValueError(
                 '"%s" have to be specified for each subfault! Only %i set,'
-                ' but %i subfaults are configured!' % (parameter, na, nsources))
+                " but %i subfaults are configured!" % (parameter, na, nsources)
+            )
 
     for i, (pl, pw) in enumerate(zip(patch_lengths, patch_widths)):
-        if pl != pw and 'seismic' in datatypes:
+        if pl != pw and "seismic" in datatypes:
             raise ValueError(
-                'Finite fault optimization including seismic data does only'
-                ' support square patches (yet)! Please adjust the'
-                ' discretization for subfault %i: patch-length: %f'
-                ' != patch-width %f!' %
-                (i, pl, pw))
+                "Finite fault optimization including seismic data does only"
+                " support square patches (yet)! Please adjust the"
+                " discretization for subfault %i: patch-length: %f"
+                " != patch-width %f!" % (i, pl, pw)
+            )
 
     nsources = len(sources)
-    if 'seismic' in datatypes and nsources > 1:
+    if "seismic" in datatypes and nsources > 1:
         logger.warning(
-            'Seismic kinematic finite fault optimization does'
-            ' not support rupture propagation across sub-faults yet!')
+            "Seismic kinematic finite fault optimization does"
+            " not support rupture propagation across sub-faults yet!"
+        )
 
-    check_subfault_consistency(patch_lengths, nsources, 'patch_lengths')
-    check_subfault_consistency(patch_widths, nsources, 'patch_widths')
-    check_subfault_consistency(extension_lengths, nsources, 'extension_lengths')
-    check_subfault_consistency(extension_widths, nsources, 'extension_widths')
+    check_subfault_consistency(patch_lengths, nsources, "patch_lengths")
+    check_subfault_consistency(patch_widths, nsources, "patch_widths")
+    check_subfault_consistency(extension_lengths, nsources, "extension_lengths")
+    check_subfault_consistency(extension_widths, nsources, "extension_widths")
 
     npls = []
     npws = []
-    for i, source, in enumerate(sources):
+    for i, source in enumerate(sources):
         s = copy.deepcopy(source)
         patch_length_m = patch_lengths[i] * km
         patch_width_m = patch_widths[i] * km
         ext_source = s.extent_source(
-            extension_widths[i], extension_lengths[i],
-            patch_width_m, patch_length_m)
+            extension_widths[i], extension_lengths[i], patch_width_m, patch_length_m
+        )
 
-        npls.append(
-            ext_source.get_n_patches(patch_length_m, 'length'))
+        npls.append(ext_source.get_n_patches(patch_length_m, "length"))
 
-        if extension_lengths[i] == 0. and 'seismic' in datatypes:
+        if extension_lengths[i] == 0.0 and "seismic" in datatypes:
             patch_length = ext_source.length / npls[i] / km
             patch_widths[i] = patch_length
             patch_lengths[i] = patch_length
             logger.warning(
-                'Subfault %i length was fixed! Assuring square patches, '
-                'widths are changed from %f to %f!' % (
-                    i, patch_width_m / km, patch_length))
+                "Subfault %i length was fixed! Assuring square patches, "
+                "widths are changed from %f to %f!"
+                % (i, patch_width_m / km, patch_length)
+            )
 
-        npws.append(
-            ext_source.get_n_patches(patch_widths[i] * km, 'width'))
+        npws.append(ext_source.get_n_patches(patch_widths[i] * km, "width"))
 
     ordering = FaultOrdering(
-        npls, npws,
-        patch_sizes_strike=patch_lengths, patch_sizes_dip=patch_widths)
+        npls, npws, patch_sizes_strike=patch_lengths, patch_sizes_dip=patch_widths
+    )
 
     fault = FaultGeometry(datatypes, varnames, ordering, config=config)
 
     for datatype in datatypes:
-        logger.info('Discretizing %s source(s)' % datatype)
+        logger.info("Discretizing %s source(s)" % datatype)
 
         for var in varnames:
-            logger.info('%s slip component' % var)
+            logger.info("%s slip component" % var)
             ext_sources = []
             for i, source in enumerate(sources):
                 param_mod = copy.deepcopy(slip_directions[var])
                 s = copy.deepcopy(source)
-                param_mod['rake'] += s.rake
+                param_mod["rake"] += s.rake
                 s.update(**param_mod)
                 patch_length_m = patch_lengths[i] * km
                 patch_width_m = patch_widths[i] * km
                 ext_source = s.extent_source(
-                    extension_widths[i], extension_lengths[i],
-                    patch_width_m, patch_length_m)
+                    extension_widths[i],
+                    extension_lengths[i],
+                    patch_width_m,
+                    patch_length_m,
+                )
 
                 ext_sources.append(ext_source)
-                logger.info('Extended fault(s): \n %s' % ext_source.__str__())
+                logger.info("Extended fault(s): \n %s" % ext_source.__str__())
 
             fault.setup_subfaults(datatype, var, ext_sources)
 
@@ -1219,19 +1286,20 @@ def initialise_fault_geometry(
 
 class InvalidDiscretizationError(Exception):
 
-    context = 'Resolution based discretizeation' + \
-              ' is available for geodetic data only! \n'
+    context = (
+        "Resolution based discretizeation" + " is available for geodetic data only! \n"
+    )
 
-    def __init__(self, errmess=''):
+    def __init__(self, errmess=""):
         self.errmess = errmess
 
     def __str__(self):
-        return '\n%s\n%s' % (self.errmess, self.context)
+        return "\n%s\n%s" % (self.errmess, self.context)
 
 
 def discretize_sources(
-        config, sources=None, datatypes=['geodetic'], varnames=[''],
-        tolerance=0.5):
+    config, sources=None, datatypes=["geodetic"], varnames=[""], tolerance=0.5
+):
     """
     Create Fault Geometry and do uniform discretization
 
@@ -1261,43 +1329,44 @@ def discretize_sources(
         patch_widths=patch_widths,
         patch_lengths=patch_lengths,
         datatypes=datatypes,
-        varnames=varnames)
+        varnames=varnames,
+    )
 
     if fault.needs_optimization:
-        if 'seismic' in datatypes:
-            raise InvalidDiscretizationError('Seismic dataset!')
+        if "seismic" in datatypes:
+            raise InvalidDiscretizationError("Seismic dataset!")
 
-        logger.info(
-            'Fault discretization selected to be resolution based.')
+        logger.info("Fault discretization selected to be resolution based.")
     else:
-        logger.info('Discretization of Fault uniformly (initial)')
+        logger.info("Discretization of Fault uniformly (initial)")
         # uniform discretization
         for component in varnames:
             for datatype in datatypes:
                 for index, sf in enumerate(
-                        fault.iter_subfaults(
-                            datatype=datatype, component=component)):
+                    fault.iter_subfaults(datatype=datatype, component=component)
+                ):
                     npw, npl = fault.ordering.get_subfault_discretization(index)
-                    patches = sf.patches(
-                        nl=npl, nw=npw, datatype=datatype)
-                    fault.set_subfault_patches(
-                        index, patches, datatype, component)
+                    patches = sf.patches(nl=npl, nw=npw, datatype=datatype)
+                    fault.set_subfault_patches(index, patches, datatype, component)
 
                     patch = patches[0]
-                    if patch.length - patch.width > tolerance and \
-                            config.extension_lengths[index] == 0.:
+                    if (
+                        patch.length - patch.width > tolerance
+                        and config.extension_lengths[index] == 0.0
+                    ):
                         logger.warning(
-                            'Patch width %f and patch length %f are not equal '
-                            'for subfault %i because extension in length was '
-                            'fixed. Please ensure square patches if you want'
-                            'to do full kinematic FFI! Static only is fine!'
-                            'patch_length = fault_length / n_patches' % (
-                                patch.width, patch.length, index))
+                            "Patch width %f and patch length %f are not equal "
+                            "for subfault %i because extension in length was "
+                            "fixed. Please ensure square patches if you want"
+                            "to do full kinematic FFI! Static only is fine!"
+                            "patch_length = fault_length / n_patches"
+                            % (patch.width, patch.length, index)
+                        )
                     else:
                         logger.info(
-                            'Subfault %i, patch lengths %f [m] and'
-                            'patch widths %f [m].' % (
-                                index, patch.length, patch.width))
+                            "Subfault %i, patch lengths %f [m] and"
+                            "patch widths %f [m]." % (index, patch.length, patch.width)
+                        )
 
     return fault
 
@@ -1330,32 +1399,32 @@ def get_division_mapping(patch_idxs, div_idxs, subfault_npatches):
     old2new = OrderedDict()
     div2new = OrderedDict()
     new_subfault_npatches = num.zeros_like(subfault_npatches)
-    count('sf_idx')
-    count('npatches_old')
-    count('npatches_new')
+    count("sf_idx")
+    count("npatches_old")
+    count("npatches_new")
     for patch_idx in patch_idxs:
 
         if patch_idx in div_idxs:
-            div2new[count('new')] = count('tot')
-            div2new[count('new')] = count('tot')
-            count('old')  # count old once for patch removal
-            count('npatches_new', 2)
+            div2new[count("new")] = count("tot")
+            div2new[count("new")] = count("tot")
+            count("old")  # count old once for patch removal
+            count("npatches_new", 2)
         else:
-            old2new[count('old')] = count('tot')
-            count('npatches_new')
+            old2new[count("old")] = count("tot")
+            count("npatches_new")
 
-        if count('npatches_old') == subfault_npatches[count['sf_idx']]:
-            new_subfault_npatches[count['sf_idx']] = count['npatches_new']
-            count('sf_idx')
-            count.reset('npatches_old')
-            count.reset('npatches_new')
+        if count("npatches_old") == subfault_npatches[count["sf_idx"]]:
+            new_subfault_npatches[count["sf_idx"]] = count["npatches_new"]
+            count("sf_idx")
+            count.reset("npatches_old")
+            count.reset("npatches_new")
 
     return old2new, div2new, new_subfault_npatches
 
 
-def backslip2coupling(point, fault, event):
+def euler_pole2slips(point, fault, event):
     """
-    Transform backslips and Euler pole rotation to coupling coefficients.
+    Get Euler pole rotation imposed slip component in strike-direction of fault.
 
     Parameters
     ----------
@@ -1370,58 +1439,87 @@ def backslip2coupling(point, fault, event):
         of number of slip patches with coupling between 0 and 1,
         0 - no coupling, 1 - full coupling
     """
-    datatype = 'geodetic'
-    try:
-        backslips = point['uparr']
-    except KeyError:
-        raise ValueError('Parallel slip component not in result point!')
+    datatype = "geodetic"
 
-    has_pole, pole_lat_keys = check_point_keys(point, phrase='*_pole_lat')
-    has_pole, pole_lon_keys = check_point_keys(point, phrase='*_pole_lon')
-    has_pole, omega_keys = check_point_keys(point, phrase='*_omega')
+    has_pole, pole_lat_keys = check_point_keys(point, phrase="*_pole_lat")
+    has_pole, pole_lon_keys = check_point_keys(point, phrase="*_pole_lon")
+    has_pole, omega_keys = check_point_keys(point, phrase="*_omega")
 
     npoles = len(pole_lon_keys)
     if has_pole:
         if npoles > 1:
             logger.warning(
-                'Found %i poles in result point! '
-                'Returning coupling only for first pole!' % npoles)
+                "Found %i poles in result point! "
+                "Returning coupling only for first pole!" % npoles
+            )
 
         plat = point[pole_lat_keys[0]]
         plon = point[pole_lon_keys[0]]
         omega = point[omega_keys[0]]
     else:
-        raise ValueError('Euler Pole not in result point!')
+        raise ValueError("Euler Pole not in result point!")
 
     subfault_idxs = list(range(fault.nsubfaults))
-    strikevectors = fault.get_subfault_patch_attributes(
-        subfault_idxs, datatype=datatype,
-        component='uparr', attributes=['strikevector'])
+    strikevectors_enu = fault.get_subfault_patch_attributes(
+        subfault_idxs, datatype=datatype, component="uparr", attributes=["strikevector"]
+    )
 
-    east_shifts, north_shifts = fault.get_subfault_patch_attributes(
-        subfault_idxs, datatype,
-        attributes=['east_shift', 'north_shift'])
+    strikevectors_neu = num.zeros_like(strikevectors_enu)
+    strikevectors_neu[:, 0] = strikevectors_enu[:, 1]
+    strikevectors_neu[:, 1] = strikevectors_enu[:, 0]
+
+    centers = fault.get_event_relative_patch_centers(event=event)[:, 0:2] * km
 
     lats, lons = ne_to_latlon(
-        lat0=event.lat, lon0=event.lon,
-        north_m=north_shifts, east_m=east_shifts)
+        lat0=event.lat, lon0=event.lon, north_m=centers[:, 1], east_m=centers[:, 0]
+    )
 
-    euler_velocities_xyz = velocities_from_pole(
-        lats=lats, lons=lons,
-        pole_lat=plat, pole_lon=plon, omega=omega, earth_shape='ellipsoid')
-    vels_along_strike = num.abs(
-        (euler_velocities_xyz * strikevectors).sum(axis=1))
+    euler_velocities_neu = velocities_from_pole(
+        lats=lats,
+        lons=lons,
+        pole_lat=plat,
+        pole_lon=plon,
+        omega=omega,
+        earth_shape="ellipsoid",
+    )
 
-    coupling = backslips / vels_along_strike
-    coupling[coupling < 0.] = 0.  # negative slip values mean no coupling
-    coupling[coupling > 1.] = 1.  # backslip higher than long term rate full coupling
-    return coupling
+    return num.abs((euler_velocities_neu * strikevectors_neu).sum(axis=1))
+
+
+def backslip2coupling(point, euler_slips):
+    """
+    Transform backslips and Euler pole rotation slips on fault to coupling coefficients.
+
+    Parameters
+    ----------
+    point : dict
+        of numpy arrays of random variables
+    """
+    try:
+        backslips = point["uparr"]
+    except KeyError:
+        raise ValueError("Parallel slip component not in result point!")
+
+    coupling = backslips / euler_slips
+    coupling[coupling < 0.0] = 0.0  # negative slip values mean no coupling
+    coupling[coupling > 1.0] = 1.0  # backslip higher than long term rate full coupling
+    return coupling * 100  # to percent
 
 
 def optimize_discretization(
-        config, fault, datasets, varnames, crust_ind,
-        engine, targets, event, force, nworkers, method='laplacian',
-        debug=False):
+    config,
+    fault,
+    datasets,
+    varnames,
+    crust_ind,
+    engine,
+    targets,
+    event,
+    force,
+    nworkers,
+    method="laplacian",
+    debug=False,
+):
     """
     Resolution based discretization of the fault surfaces
 
@@ -1433,7 +1531,7 @@ def optimize_discretization(
     ----------
     .. [Atzori2011] Atzori, S. and Antonioli, A. (2011).
         Optimal fault resolution in geodetic inversion of coseismic data
-        Geophys. J. Int. (2011) 185, 529–538, 
+        Geophys. J. Int. (2011) 185, 529–538,
         `link <http://ascelibrary.org/doi: 10.1111/j.1365-246X.2011.04955.x>`__
     .. [Atzori2019] Atzori, S.; Antonioli, A.; Tolomei, C.; De Novellis, V.;
         De Luca, C. and Monterroso, F.
@@ -1441,15 +1539,17 @@ def optimize_discretization(
         Mexico
         Remote Sensing of Environment, 234, 111461,
     """
-    from beat.plotting import source_geometry
     from numpy.testing import assert_array_equal
 
-    _available_methods = ('laplacian', 'svd')
+    from beat.plotting import source_geometry
+
+    _available_methods = ("laplacian", "svd")
 
     if method not in _available_methods:
         raise NotImplementedError(
-            'Supported methods: %s, specified: %s' % (
-                list2string(_available_methods), method))
+            "Supported methods: %s, specified: %s"
+            % (list2string(_available_methods), method)
+        )
 
     logger.info('Using "%s" for calculation of Resolution', method)
 
@@ -1473,9 +1573,9 @@ def optimize_discretization(
         Lmat[:n_sv, :n_sv] = num.diag(sv_vec)
         return Lmat
 
-    logger.debug('Optimizing fault discretization based on resolution: ... \n')
+    logger.debug("Optimizing fault discretization based on resolution: ... \n")
 
-    datatype = 'geodetic'
+    datatype = "geodetic"
 
     data_east_shifts = []
     data_north_shifts = []
@@ -1485,27 +1585,33 @@ def optimize_discretization(
         data_east_shifts.append(es / km)
 
     data_coords = num.vstack(
-        [num.hstack(data_east_shifts), num.hstack(data_north_shifts)]).T
+        [num.hstack(data_east_shifts), num.hstack(data_north_shifts)]
+    ).T
 
     patch_widths, patch_lengths = config.get_patch_dimensions()
     gfs_comp = []
     for component in varnames:
         for index, sf in enumerate(
-                fault.iter_subfaults(datatype=datatype, component=component)):
-            npw = sf.get_n_patches(2 * patch_widths[index] * km, 'width')
-            npl = sf.get_n_patches(2 * patch_lengths[index] * km, 'length')
-            patches = sf.patches(
-                nl=npl, nw=npw, datatype=datatype)
+            fault.iter_subfaults(datatype=datatype, component=component)
+        ):
+            npw = sf.get_n_patches(2 * patch_widths[index] * km, "width")
+            npl = sf.get_n_patches(2 * patch_lengths[index] * km, "length")
+            patches = sf.patches(nl=npl, nw=npw, datatype=datatype)
             fault.set_subfault_patches(index, patches, datatype, component)
 
-        logger.debug("Calculating Green's Functions for %i "
-                    "initial patches for %s slip-component." % (
-            fault.npatches, component))
+        logger.debug(
+            "Calculating Green's Functions for %i "
+            "initial patches for %s slip-component." % (fault.npatches, component)
+        )
 
         gfs = geo_construct_gf_linear_patches(
-            engine=engine, datasets=datasets, targets=targets,
-            patches=fault.get_all_patches('geodetic', component=component),
-            nworkers=nworkers, return_mapping=True)
+            engine=engine,
+            datasets=datasets,
+            targets=targets,
+            patches=fault.get_all_patches("geodetic", component=component),
+            nworkers=nworkers,
+            return_mapping=True,
+        )
 
         gfs_comp.append(gfs)
 
@@ -1513,64 +1619,82 @@ def optimize_discretization(
 
     sf_div_idxs = []
     for i, sf in enumerate(fault.iter_subfaults()):
-        if sf.width /km <= config.patch_widths_min[i] or \
-                sf.length / km <= config.patch_lengths_min[i]:
+        if (
+            sf.width / km <= config.patch_widths_min[i]
+            or sf.length / km <= config.patch_lengths_min[i]
+        ):
             pass
         else:
             sf_div_idxs.extend(
-                (num.arange(fault.subfault_npatches[i]) +
-                fault.cum_subfault_npatches[i]).tolist())
+                (
+                    num.arange(fault.subfault_npatches[i])
+                    + fault.cum_subfault_npatches[i]
+                ).tolist()
+            )
 
     generation = 0
     R = None
-    patch_data_distance_mins = None    # dummy for first plotting
+    patch_data_distance_mins = None  # dummy for first plotting
     fixed_idxs = set()
     while tobedivided:
-        logger.info('Discretizing %ith generation \n' % generation)
+        logger.info("Discretizing %ith generation \n" % generation)
         gfs_array = []
         subfault_npatches = copy.deepcopy(fault.subfault_npatches)
         if debug:
             source_geometry(
-                fault, list(fault.iter_subfaults()),
-                event=event, datasets=datasets, values=R, title='Resolution')
+                fault,
+                list(fault.iter_subfaults()),
+                event=event,
+                datasets=datasets,
+                values=R,
+                title="Resolution",
+            )
             source_geometry(
-                fault, list(fault.iter_subfaults()),
-                event=event, datasets=datasets,
-                values=patch_data_distance_mins, title='min distance')
+                fault,
+                list(fault.iter_subfaults()),
+                event=event,
+                datasets=datasets,
+                values=patch_data_distance_mins,
+                title="min distance",
+            )
 
         for gfs_i, component in enumerate(varnames):
-            logger.debug('Component %s' % component)
+            logger.debug("Component %s" % component)
 
             # iterate over subfaults and divide patches
             old2new, div2new, new_subfault_npatches = get_division_mapping(
                 patch_idxs=range(sum(subfault_npatches)),
                 div_idxs=sf_div_idxs,
-                subfault_npatches=subfault_npatches)
+                subfault_npatches=subfault_npatches,
+            )
 
-            old_patches = fault.get_all_patches(
-                datatype=datatype, component=component)
+            old_patches = fault.get_all_patches(datatype=datatype, component=component)
             all_divided_patches = []
-            logger.debug('Division indexes %s' % (list2string(sf_div_idxs)))
+            logger.debug("Division indexes %s" % (list2string(sf_div_idxs)))
             for div_idx in sf_div_idxs:
                 # pull out patch to be divided
                 patch = old_patches[div_idx]
                 if patch.length >= patch.width:
-                    div_patches = patch.patches(
-                        nl=2, nw=1, datatype=datatype)
+                    div_patches = patch.patches(nl=2, nw=1, datatype=datatype)
                 else:
-                    div_patches = patch.patches(
-                        nl=1, nw=2, datatype=datatype)
+                    div_patches = patch.patches(nl=1, nw=2, datatype=datatype)
 
                 # add to all patches that need recalculation
                 all_divided_patches.extend(div_patches)
 
-            logger.debug("Calculating Green's Functions for %i divided "
-                        "patches." % len(all_divided_patches))
+            logger.debug(
+                "Calculating Green's Functions for %i divided "
+                "patches." % len(all_divided_patches)
+            )
 
             # calculate GFs for fault is [npatches, nobservations]
             gfs = geo_construct_gf_linear_patches(
-                engine=engine, datasets=datasets, targets=targets,
-                patches=all_divided_patches, nworkers=nworkers)
+                engine=engine,
+                datasets=datasets,
+                targets=targets,
+                patches=all_divided_patches,
+                nworkers=nworkers,
+            )
             old_gfs = gfs_comp[gfs_i]
 
             # assemble new generation of discretization
@@ -1578,31 +1702,36 @@ def optimize_discretization(
             new_gfs = num.zeros((new_npatches_total, gfs.shape[1]))
 
             new_patches = [None] * new_npatches_total
-            logger.info('Next generation npatches %i' % new_npatches_total)
+            logger.info("Next generation npatches %i" % new_npatches_total)
             for idx_mapping, tpatches, tgfs in [
                 (old2new, old_patches, old_gfs),
-                (div2new, all_divided_patches, gfs)]:
-                #print('gfs', tgfs[:, 0:5])
+                (div2new, all_divided_patches, gfs),
+            ]:
+                # print('gfs', tgfs[:, 0:5])
                 for patch_idx, new_idx in idx_mapping.items():
                     new_patches[new_idx] = tpatches[patch_idx]
                     new_gfs[new_idx] = tgfs[patch_idx]
 
             if False:
-                logger.debug('Cross checking gfs ...')
+                logger.debug("Cross checking gfs ...")
                 check_gfs = geo_construct_gf_linear_patches(
-                    engine=engine, datasets=datasets, targets=targets,
-                    patches=new_patches, nworkers=nworkers)
+                    engine=engine,
+                    datasets=datasets,
+                    targets=targets,
+                    patches=new_patches,
+                    nworkers=nworkers,
+                )
 
                 assert (new_gfs - check_gfs).sum() == 0
 
-            gfs_array.append(new_gfs.T)     # G(nobs, npatches)
+            gfs_array.append(new_gfs.T)  # G(nobs, npatches)
 
             # register new generation of patches with fault
-            for sf_idx, sf_npatches in enumerate(
-                    new_subfault_npatches.tolist()):
+            for sf_idx, sf_npatches in enumerate(new_subfault_npatches.tolist()):
                 sf_patches = split_off_list(new_patches, sf_npatches)
                 fault.set_subfault_patches(
-                    sf_idx, sf_patches, datatype, component, replace=True)
+                    sf_idx, sf_patches, datatype, component, replace=True
+                )
 
             # new generation of GFs
             gfs_comp[gfs_i] = new_gfs
@@ -1610,29 +1739,32 @@ def optimize_discretization(
         # update fixed indexes
         fixed_idxs = set([old2new[idx] for idx in fixed_idxs])
 
-        assert_array_equal(
-            num.array(fault.subfault_npatches), new_subfault_npatches)
+        assert_array_equal(num.array(fault.subfault_npatches), new_subfault_npatches)
 
         if False:
             fig, axs = plt.subplots(2, 3)
             for i, gfidx in enumerate(
-                    num.linspace(
-                        0, fault.npatches, 6, dtype='int', endpoint=False)):
+                num.linspace(0, fault.npatches, 6, dtype="int", endpoint=False)
+            ):
                 ridx, cidx = mod_i(i, 3)
                 if ridx < 2:
                     ax = axs[ridx, cidx]
                     im = ax.scatter(
-                        datasets[0].lons, datasets[0].lats,
-                        10, num.vstack(gfs_array)[:, gfidx],
-                        edgecolors='none', cmap=plt.cm.get_cmap('jet'))
-                    ax.set_title('Patch idx %i' % gfidx)
+                        datasets[0].lons,
+                        datasets[0].lats,
+                        10,
+                        num.vstack(gfs_array)[:, gfidx],
+                        edgecolors="none",
+                        cmap=plt.cm.get_cmap("jet"),
+                    )
+                    ax.set_title("Patch idx %i" % gfidx)
 
         resolution_matrices = []
         R_diags = []
         for gfs_i, component in enumerate(varnames):
             comp_gfs = gfs_array[gfs_i]
 
-            if method == 'svd':
+            if method == "svd":
                 # Atzori & Antonioli 2011
                 # U data-space, L singular values, V model space
 
@@ -1640,30 +1772,29 @@ def optimize_discretization(
                 U, l, V = svd(comp_gfs, full_matrices=True)
 
                 # apply singular value damping
-                ldamped_inv = 1. / (l + config.epsilon ** 2)
+                ldamped_inv = 1.0 / (l + config.epsilon**2)
                 Linv = sv_vec2matrix(ldamped_inv, ndata=ndata, nparams=nparams)
                 L = sv_vec2matrix(l, ndata=ndata, nparams=nparams)
 
                 # calculate resolution matrix and take trace
-                if(0):
+                if 0:
                     # for debugging
-                    print('full_GFs', full_GFs.shape)
-                    print('V', V.shape)
-                    print('l', l.shape)
-                    print('L', L.shape)
-                    print('Linnv', Linv.shape)
-                    print('U', U.shape)
+                    print("full_GFs", comp_gfs.shape)
+                    print("V", V.shape)
+                    print("l", l.shape)
+                    print("L", L.shape)
+                    print("Linnv", Linv.shape)
+                    print("U", U.shape)
 
-                R = num.diag(num.dot(
-                    V.dot(Linv.T).dot(U.T),
-                    U.dot(L).dot(V.T)))
+                R = num.diag(num.dot(V.dot(Linv.T).dot(U.T), U.dot(L).dot(V.T)))
 
-            elif method == 'laplacian':
+            elif method == "laplacian":
                 # Atzori et al. 2019 Full Resolution Analysis
                 # G(nobs, npatches)
-                smoothing_op = fault.get_smoothing_operator(
-                    event,
-                    correlation_function='gaussian') * config.epsilon ** 2
+                smoothing_op = (
+                    fault.get_smoothing_operator(event, correlation_function="gaussian")
+                    * config.epsilon**2
+                )
 
                 # weighting makes it not work! dont weight for now
                 GG = comp_gfs.T.dot(comp_gfs)
@@ -1673,18 +1804,19 @@ def optimize_discretization(
                 R = num.diag(resolution_matrix)
                 R_diags.append(R)
             else:
-                raise NotImplementedError(
-                    'Method "%s" not supported !' % method)
+                raise NotImplementedError('Method "%s" not supported !' % method)
 
             resolution_matrices.append(resolution_matrix)
 
-            R_idxs = num.argwhere(
-                R > config.resolution_thresh).ravel().tolist()
+            R_idxs = num.argwhere(R > config.resolution_thresh).ravel().tolist()
             tmp_fixed_idxs = set(
-                num.argwhere(R <= config.resolution_thresh).ravel().tolist())
+                num.argwhere(R <= config.resolution_thresh).ravel().tolist()
+            )
             logger.debug(
-                'Patches fixed %s component: %s', component,
-                list2string(list(tmp_fixed_idxs)))
+                "Patches fixed %s component: %s",
+                component,
+                list2string(list(tmp_fixed_idxs)),
+            )
             fixed_idxs.update(tmp_fixed_idxs)
 
         # print('R > thresh', R_idxs, R[R_idxs])
@@ -1697,21 +1829,26 @@ def optimize_discretization(
         length_idxs_min = []
         for i, sf in enumerate(fault.iter_subfaults()):
             widths, lengths = fault.get_subfault_patch_attributes(
-                i, datatype, attributes=['width', 'length'])
+                i, datatype, attributes=["width", "length"]
+            )
 
             # select patches that fulfill size requirements
-            width_idxs_max += (num.argwhere(
-                widths > config.patch_widths_max[i]).ravel()
-                               + fault.cum_subfault_npatches[i]).tolist()
-            length_idxs_max += (num.argwhere(
-                lengths > config.patch_lengths_max[i]).ravel()
-                                + fault.cum_subfault_npatches[i]).tolist()
-            width_idxs_min += (num.argwhere(
-                widths <= config.patch_widths_min[i]).ravel()
-                               + fault.cum_subfault_npatches[i]).tolist()
-            length_idxs_min += (num.argwhere(
-                lengths <= config.patch_lengths_min[i]).ravel()
-                                + fault.cum_subfault_npatches[i]).tolist()
+            width_idxs_max += (
+                num.argwhere(widths > config.patch_widths_max[i]).ravel()
+                + fault.cum_subfault_npatches[i]
+            ).tolist()
+            length_idxs_max += (
+                num.argwhere(lengths > config.patch_lengths_max[i]).ravel()
+                + fault.cum_subfault_npatches[i]
+            ).tolist()
+            width_idxs_min += (
+                num.argwhere(widths <= config.patch_widths_min[i]).ravel()
+                + fault.cum_subfault_npatches[i]
+            ).tolist()
+            length_idxs_min += (
+                num.argwhere(lengths <= config.patch_lengths_min[i]).ravel()
+                + fault.cum_subfault_npatches[i]
+            ).tolist()
 
         # patches that fulfill either size thresholds
         patch_size_ids = set(width_idxs_min + length_idxs_min)
@@ -1722,20 +1859,23 @@ def optimize_discretization(
 
         # patches above R but below size thresholds & remove fixed patches
         # put in patches that violate max size threshold
-        unique_ids = set(R_idxs).difference(
-            patch_size_ids, fixed_idxs).union(above_size_thresh)
+        unique_ids = (
+            set(R_idxs).difference(patch_size_ids, fixed_idxs).union(above_size_thresh)
+        )
 
         ncandidates = len(unique_ids)
 
         logger.debug(
-            'Found %i candidate(s) for division for '
-            ' %i subfault(s)' % (ncandidates, fault.nsubfaults))
+            "Found %i candidate(s) for division for "
+            " %i subfault(s)" % (ncandidates, fault.nsubfaults)
+        )
 
         mean_R = num.vstack(R_diags).mean(0).ravel()
         if ncandidates:
             subfault_idxs = list(range(fault.nsubfaults))
             widths, lengths = fault.get_subfault_patch_attributes(
-                subfault_idxs, datatype, attributes=['width', 'length'])
+                subfault_idxs, datatype, attributes=["width", "length"]
+            )
 
             # calculate division penalties
             uids = num.array(list(unique_ids))
@@ -1744,13 +1884,16 @@ def optimize_discretization(
             # depth penalty
             c1 = []
             for i, sf in enumerate(fault.iter_subfaults()):
-                #bdepths = fault.get_subfault_patch_attributes(
+                # bdepths = fault.get_subfault_patch_attributes(
                 #    i, datatype, attributes=['depth'])
                 bdepths = fault.get_subfault_patch_attributes(
-                        i, datatype, attributes=['center'])[:, 2]
-                c1.extend(num.exp(
-                    -config.depth_penalty * bdepths * km /
-                    sf.bottom_depth).tolist())
+                    i, datatype, attributes=["center"]
+                )[:, 2]
+                c1.extend(
+                    num.exp(
+                        -config.depth_penalty * bdepths * km / sf.bottom_depth
+                    ).tolist()
+                )
 
             c_one_pen = num.array(c1)
 
@@ -1759,51 +1902,51 @@ def optimize_discretization(
             cand_centers = centers
 
             patch_data_distances = distances(
-                points=data_coords, ref_points=cand_centers)
+                points=data_coords, ref_points=cand_centers
+            )
             patch_data_distance_mins = patch_data_distances.min(axis=0)
 
-            c_two_pen = patch_data_distance_mins.min() / \
-                        patch_data_distance_mins
+            c_two_pen = patch_data_distance_mins.min() / patch_data_distance_mins
 
             # patch- patch penalty
-            inter_patch_distances = distances(
-                points=centers, ref_points=cand_centers)
+            inter_patch_distances = distances(points=centers, ref_points=cand_centers)
 
-            res_w = (mean_R * inter_patch_distances)
+            res_w = mean_R * inter_patch_distances
 
             c_three_pen = res_w.sum(axis=1) / inter_patch_distances.sum(0)
 
             rating = area_pen * c_one_pen * c_two_pen * c_three_pen
             rating_idxs = num.array(rating.argsort()[::-1])
-            rated_sel = num.array(
-                [ridx for ridx in rating_idxs if ridx in uids])
+            rated_sel = num.array([ridx for ridx in rating_idxs if ridx in uids])
 
             n_sel = len(rated_sel)
             idxs = rated_sel[range(int(num.ceil(config.alpha * n_sel)))]
 
             if debug:
-                print('above size thresh', above_size_thresh)
-                print('---------')
-                print('min patch data distances', patch_data_distance_mins)
-                print('---------')
-                print('R', R)
-                print('---------')
-                print('depth pen C1', c_one_pen)
-                print('distance C2', c_two_pen)
-                print('resolution neighbor C3', c_three_pen)
-                print('area A', area_pen)
-                print('rating', rating)
-                print('---------')
-                print('rating argsorted', rating_idxs)
-                print('unique patches uids', uids)
-                print('R select rated', rated_sel)
+                print("above size thresh", above_size_thresh)
+                print("---------")
+                print("min patch data distances", patch_data_distance_mins)
+                print("---------")
+                print("R", R)
+                print("---------")
+                print("depth pen C1", c_one_pen)
+                print("distance C2", c_two_pen)
+                print("resolution neighbor C3", c_three_pen)
+                print("area A", area_pen)
+                print("rating", rating)
+                print("---------")
+                print("rating argsorted", rating_idxs)
+                print("unique patches uids", uids)
+                print("R select rated", rated_sel)
 
             logger.debug(
-                'Patches: %s of %i subfault(s) are fixed.' % (
-                    list2string(list(fixed_idxs)), fault.nsubfaults))
+                "Patches: %s of %i subfault(s) are fixed."
+                % (list2string(list(fixed_idxs)), fault.nsubfaults)
+            )
             logger.debug(
-                'Patches: %s of %i subfault(s) are further divided.' % (
-                    list2string(idxs.tolist()), fault.nsubfaults))
+                "Patches: %s of %i subfault(s) are further divided."
+                % (list2string(idxs.tolist()), fault.nsubfaults)
+            )
             tobedivided = len(idxs)
             sf_div_idxs = copy.deepcopy(idxs)
             sf_div_idxs.sort()
@@ -1812,14 +1955,15 @@ def optimize_discretization(
             tobedivided = 0
 
     if debug:
-        patches = fault.get_all_patches(datatype, component='uparr')
+        patches = fault.get_all_patches(datatype, component="uparr")
         minidx, maxidx = mean_R.argmin(), mean_R.argmax()
         print(mean_R.max(), mean_R.min(), maxidx, minidx)
-        print('min', patches[minidx])
-        print('max', patches[maxidx])
+        print("min", patches[minidx])
+        print("max", patches[maxidx])
 
         from matplotlib import pyplot as plt
-        print('Smoothing Op', smoothing_op)
+
+        print("Smoothing Op", smoothing_op)
         im = plt.matshow(smoothing_op)
         plt.colorbar(im)
         plt.show()
@@ -1827,69 +1971,69 @@ def optimize_discretization(
     R_matrix = num.dstack(resolution_matrices).mean(2)
     fault.set_model_resolution(R_matrix)
 
-    logger.info('Finished resolution based fault discretization.')
-    logger.info('Quality index for this discretization: %f' % mean_R.mean())
+    logger.info("Finished resolution based fault discretization.")
+    logger.info("Quality index for this discretization: %f" % mean_R.mean())
     return fault, mean_R
 
 
 class ResolutionDiscretizationResult(Object):
 
     epsilons = List.T(Float.T(), default=[0])
-    normalized_rspreads = List.T(Float.T(), default=[1.])
+    normalized_rspreads = List.T(Float.T(), default=[1.0])
     faults_npatches = List.T(Int.T(), default=[1])
-    optimum = Dict.T(
-        default=dict(),
-        help='Optimum fault discretization parameters')
+    optimum = Dict.T(default=dict(), help="Optimum fault discretization parameters")
 
     def plot(self):
 
-        fig, ax = plt.subplots(1, 1, figsize=mpl_papersize('a6', 'landscape'))
+        fig, ax = plt.subplots(1, 1, figsize=mpl_papersize("a6", "landscape"))
         ax.plot(
             num.array(self.epsilons),
-            num.array(self.normalized_rspreads), '+b', markersize=6)
+            num.array(self.normalized_rspreads),
+            "+b",
+            markersize=6,
+        )
 
         for epsilon, rspread, npatches in zip(
-                self.epsilons, self.normalized_rspreads, self.faults_npatches):
+            self.epsilons, self.normalized_rspreads, self.faults_npatches
+        ):
             ax.text(epsilon, rspread, npatches, fontsize=9)
         try:
             ax.plot(
-                num.array(self.optimum['epsilon']),
-                num.array(self.optimum['normalized_rspread']),
-                '*r', markersize=8)
+                num.array(self.optimum["epsilon"]),
+                num.array(self.optimum["normalized_rspread"]),
+                "*r",
+                markersize=8,
+            )
         except KeyError:
-            logger.warning(
-                'Discretization result does not contain the optimum')
+            logger.warning("Discretization result does not contain the optimum")
 
-        ax.set_ylabel('Normalized resolution spread')
-        ax.set_xlabel('Epsilon (damping)')
-        ax.set_title('Fault resolution based discretization')
+        ax.set_ylabel("Normalized resolution spread")
+        ax.set_xlabel("Epsilon (damping)")
+        ax.set_title("Fault resolution based discretization")
         return fig, ax
 
     def derive_optimum_fault_geometry(self, debug=False):
 
         data = num.vstack(
-            (num.array(self.epsilons),
-             num.array(self.normalized_rspreads))).T
+            (num.array(self.epsilons), num.array(self.normalized_rspreads))
+        ).T
 
         best_idx, rotated_data = find_elbow(data, rotate_left=True)
 
         if debug:
-            fig, ax = plt.subplots(
-                1, 1, figsize=mpl_papersize('a6', 'landscape'))
+            fig, ax = plt.subplots(1, 1, figsize=mpl_papersize("a6", "landscape"))
+            ax.plot(rotated_data[:, 0], rotated_data[:, 1], "+b", markersize=6)
             ax.plot(
-                rotated_data[:, 0],
-                rotated_data[:, 1], '+b', markersize=6)
-            ax.plot(
-                rotated_data[best_idx, 0],
-                rotated_data[best_idx, 1],
-                    '*r', markersize=8)
+                rotated_data[best_idx, 0], rotated_data[best_idx, 1], "*r", markersize=8
+            )
             plt.show()
 
         self.optimum = {
-            'epsilon': self.epsilons[best_idx],
-            'normalized_rspread': self.normalized_rspreads[best_idx],
-            'npatches': self.faults_npatches[best_idx],
-            'idx': best_idx}
+            "epsilon": self.epsilons[best_idx],
+            "normalized_rspread": self.normalized_rspreads[best_idx],
+            "npatches": self.faults_npatches[best_idx],
+            "idx": best_idx,
+        }
 
 
 def normalized_resolution_spread(resolution, nparams):
@@ -1903,10 +2047,22 @@ def normalized_resolution_spread(resolution, nparams):
 
 
 def optimize_damping(
-        outdir,
-        config, fault, datasets, varnames, crust_ind,
-        engine, targets, event, force, nworkers, method='laplacian',
-        plot=False, figuredir=None, debug=False):
+    outdir,
+    config,
+    fault,
+    datasets,
+    varnames,
+    crust_ind,
+    engine,
+    targets,
+    event,
+    force,
+    nworkers,
+    method="laplacian",
+    plot=False,
+    figuredir=None,
+    debug=False,
+):
     """
     Resolution based discretization of the fault surfaces epsilon optimization.
 
@@ -1918,7 +2074,7 @@ def optimize_damping(
     ----------
     .. [Atzori2011] Atzori, S. and Antonioli, A. (2011).
         Optimal fault resolution in geodetic inversion of coseismic data
-        Geophys. J. Int. (2011) 185, 529–538, 
+        Geophys. J. Int. (2011) 185, 529–538,
         `link <http://ascelibrary.org/doi: 10.1111/j.1365-246X.2011.04955.x>`__
     .. [Atzori2019] Atzori, S.; Antonioli, A.; Tolomei, C.; De Novellis, V.;
         De Luca, C. and Monterroso, F.
@@ -1931,24 +2087,25 @@ def optimize_damping(
     ensuredir(discr_dir)
     fault_basename, extension = os.path.splitext(fault_geometry_name)
 
-    epsilons = num.logspace(
-        0, 2, config.epsilon_search_runs, endpoint=True) * config.epsilon
+    epsilons = (
+        num.logspace(0, 2, config.epsilon_search_runs, endpoint=True) * config.epsilon
+    )
     discretization_results_path = os.path.join(
-        discr_dir, 'resolution_result_%g_%i.yaml' % (
-            config.epsilon, config.epsilon_search_runs))
+        discr_dir,
+        "resolution_result_%g_%i.yaml" % (config.epsilon, config.epsilon_search_runs),
+    )
 
-    logger.info(
-        'Calculating discretizations for %s', list2string(epsilons.tolist()))
+    logger.info("Calculating discretizations for %s", list2string(epsilons.tolist()))
 
     model_resolutions = []
     dfaults = []
     for epsilon in epsilons:
 
-        logger.info('Epsilon: %g', epsilon)
-        logger.info('--------------')
+        logger.info("Epsilon: %g", epsilon)
+        logger.info("--------------")
         fault_discr_path = os.path.join(
-            discr_dir, '{}_{}{}'.format(
-                fault_basename, epsilon, extension))
+            discr_dir, "{}_{}{}".format(fault_basename, epsilon, extension)
+        )
 
         if not os.path.exists(fault_discr_path) or force:
             config.epsilon = epsilon
@@ -1963,12 +2120,13 @@ def optimize_damping(
                 event=event,
                 force=force,
                 nworkers=nworkers,
-                method='laplacian',
-                debug=False)
+                method="laplacian",
+                debug=False,
+            )
 
             logger.info(
-                'Storing discretized fault geometry to: '
-                '%s' % fault_discr_path)
+                "Storing discretized fault geometry to: " "%s" % fault_discr_path
+            )
             dump_objects(fault_discr_path, [dfault])
 
             # overwrite again with original value
@@ -1976,63 +2134,66 @@ def optimize_damping(
 
         elif os.path.exists(fault_discr_path):
             logger.info(
-                'Discretized fault geometry for epsilon %s exists! '
-                'Use --force to overwrite!' % epsilon)
-            logger.info('Loading existing discretized fault')
+                "Discretized fault geometry for epsilon %s exists! "
+                "Use --force to overwrite!" % epsilon
+            )
+            logger.info("Loading existing discretized fault")
             dfault = load_objects(fault_discr_path)[0]
 
         dfaults.append(dfault)
         model_resolutions.append(dfault.get_model_resolution())
 
-    logger.info('Calculating normalized resolution spreads ...')
+    logger.info("Calculating normalized resolution spreads ...")
     normalized_rspreads = []
     faults_npatches = []
     for dfault, resolution in zip(dfaults, model_resolutions):
-        rspread = normalized_resolution_spread(
-            resolution, nparams=dfault.npatches)
+        rspread = normalized_resolution_spread(resolution, nparams=dfault.npatches)
         normalized_rspreads.append(rspread)
         faults_npatches.append(dfault.npatches)
 
     result = ResolutionDiscretizationResult(
         epsilons=epsilons.tolist(),
         normalized_rspreads=normalized_rspreads,
-        faults_npatches=faults_npatches)
+        faults_npatches=faults_npatches,
+    )
     result.derive_optimum_fault_geometry()
 
-    logger.info('Dumping discretization result to: %s',
-                discretization_results_path)
+    logger.info("Dumping discretization result to: %s", discretization_results_path)
     dump(result, filename=discretization_results_path)
     print(result)
 
-    best_idx = result.optimum['idx']
+    best_idx = result.optimum["idx"]
     if figuredir is not None:
-        logger.info('Plotting tradeoff and discretizations ...')
+        logger.info("Plotting tradeoff and discretizations ...")
         from beat.plotting import source_geometry
-        outformat = 'png'
+
+        outformat = "png"
 
         # tradeoff
         fig, ax = result.plot()
         outpath = os.path.join(
-            figuredir, 'discretization_tradeoff_%g.%s' % (
-                epsilons[best_idx], outformat))
-        logger.info(
-            'Plotting discretization_tradeoff to %s' % outpath)
+            figuredir, "discretization_tradeoff_%g.%s" % (epsilons[best_idx], outformat)
+        )
+        logger.info("Plotting discretization_tradeoff to %s" % outpath)
         fig.savefig(outpath, format=outformat, dpi=300)
 
         # discretizations
         for i, dfault in enumerate(dfaults):
             fig, ax = source_geometry(
-                dfault, list(fault.iter_subfaults()),
-                event=event, values=num.diag(dfault.get_model_resolution()),
+                dfault,
+                list(fault.iter_subfaults()),
+                event=event,
+                values=num.diag(dfault.get_model_resolution()),
                 cbounds=(0.5, 1),
-                clabel='Resolution',
-                datasets=datasets, show=False)
+                clabel="Resolution",
+                datasets=datasets,
+                show=False,
+            )
 
             outpath = os.path.join(
-                figuredir, 'patch_resolutions_%i.%s' % (
-                    dfault.npatches, outformat))
-            logger.info(
-                'Plotting patch resolution to %s' % outpath)
+                figuredir, "patch_resolutions_%i.%s" % (dfault.npatches, outformat)
+            )
+            logger.info("Plotting patch resolution to %s" % outpath)
             fig.savefig(outpath, format=outformat, dpi=300)
 
     return dfaults[best_idx]

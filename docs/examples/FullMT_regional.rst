@@ -23,7 +23,7 @@ This path needs to be replaced with the path to where the GFs are supposed to be
     beat build_gfs FullMT --datatypes='seismic'
 
 This will create an empty Greens Function store named AqabaMT_ak135_1.000Hz_0 in the $GF_path. Under $GF_path/AqabaMT_ak135_1.000Hz_0/config it is recommended to cross-check again the velocity model and the specifications of the store (open with any texteditor).
-Dependend on the case study there are crucial parameters that often need to be changed from the default values: the spatial grid dimensions, the sample rate and the wave phases (body waves and/or surface waves) to be calculated.
+Dependent on the case study there are crucial parameters that often need to be changed from the default values: the spatial grid dimensions, the sample rate and the wave phases (body waves and/or surface waves) to be calculated.
 
 In the $project_path/config_geometry.yaml under seismic config we find the gf_config, which holds the major parameters for GF calculation::
 
@@ -220,7 +220,7 @@ We may inspect the raw data together with the processed data that is going to be
     beat check FullMT --what='traces'
 
 This should open again the **snuffler** window and you can interactively scroll through the traces zoom in and out, filter the traces and much more.
-A detailed tutorial about handeling the browser is given `here <https://pyrocko.org/docs/current/apps/snuffler/tutorial.html>`__.
+A detailed tutorial about handling the browser is given `here <https://pyrocko.org/docs/current/apps/snuffler/tutorial.html>`__.
 
   .. image:: ../_static/example1/FullMT_data.png
 
@@ -318,7 +318,7 @@ Finally, we sample the solution space with::
 
 Summarize the results
 ^^^^^^^^^^^^^^^^^^^^^
-The sampled chain results of the PT sampler are stored in seperate files and have to be summarized.
+The sampled chain results of the PT sampler are stored in separate files and have to be summarized.
 
 .. note::
     Only for MomentTensor MTSource: The moment tensor components have to be normalized again with respect to the magnitude.
@@ -390,7 +390,7 @@ This will show an image like that.
 This shows 2d kernel density estimates (kde) and histograms of the specified model parameters. The darker the 2d kde the higher the probability of the model parameter.
 The red dot and the vertical red lines show the true values of the target source in the kde plots and histograms, respectively.
 
-The *varnames* option may take any parameter that has been optimized for. For example one might als want to try --varnames='duration, time, magnitude, north_shift, east_shift'.
+The *varnames* option may take any parameter that has been optimized for. For example one might also want to try --varnames='duration, time, magnitude, north_shift, east_shift'.
 If it is not specified all sampled parameters are taken into account.
 
 

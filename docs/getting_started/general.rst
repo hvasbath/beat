@@ -47,4 +47,3 @@ Will display::
                             individually for each station!
       --loglevel=LOGLEVEL   set logger level to "critical", "error", "warning",
                             "info", or "debug". Default is "info".
-

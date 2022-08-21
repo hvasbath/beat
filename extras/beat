@@ -54,4 +54,3 @@ _beat_options()
 }
 
 complete -o nospace -o filenames -F _beat_options beat
-

@@ -1,16 +1,16 @@
 import logging
 import unittest
-from beat.sampler import choose_proposal, available_proposals
+
+import numpy as num
+from pyrocko import util
+
+from beat.sampler import available_proposals, choose_proposal
 from beat.sampler.base import multivariate_proposals
 
-from pyrocko import util
-import numpy as num
-
-logger = logging.getLogger('test_proposals')
+logger = logging.getLogger("test_proposals")
 
 
 class TestProposals(unittest.TestCase):
-
     def __init__(self, *args, **kwargs):
         unittest.TestCase.__init__(self, *args, **kwargs)
         self.draws = 10
@@ -27,7 +27,7 @@ class TestProposals(unittest.TestCase):
             print((proposal, draw(self.draws)))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
 
-    util.setup_logging('test_proposals', 'info')
+    util.setup_logging("test_proposals", "info")
     unittest.main()

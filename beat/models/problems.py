@@ -1,66 +1,61 @@
+import copy
 import os
 import time
-import copy
-
-from pymc3 import Uniform, Model, Deterministic, Potential
-
-from pyrocko import util
+from logging import getLogger
 
 import numpy as num
-
 import theano.tensor as tt
+from pymc3 import Deterministic, Model, Potential, Uniform
+from pyrocko import util
 from theano import config as tconfig
-
-from beat.utility import list2string, transform_sources, weed_input_rvs
-from beat import sampler
-from beat.models import geodetic, seismic, laplacian
 
 from beat import config as bconfig
 from beat.backend import ListArrayOrdering, ListToArrayBijection
-
-from logging import getLogger
+from beat.models import geodetic, laplacian, polarity, seismic
+from beat.utility import list2string, transform_sources, weed_input_rvs
 
 # disable theano rounding warning
 tconfig.warn.round = False
 
-km = 1000.
+km = 1000.0
 
-logger = getLogger('models')
+logger = getLogger("models")
 
 
-__all__ = [
-    'GeometryOptimizer',
-    'DistributionOptimizer',
-    'load_model']
+__all__ = ["GeometryOptimizer", "DistributionOptimizer", "load_model"]
 
 
 class InconsistentNumberHyperparametersError(Exception):
 
-    context = 'Configuration file has to be updated!' + \
-              ' Hyperparameters have to be re-estimated. \n' + \
-              ' Please run "beat update <project_dir>' + \
-              ' --parameters=hypers,hierarchicals"'
+    context = (
+        "Configuration file has to be updated!"
+        + " Hyperparameters have to be re-estimated. \n"
+        + ' Please run "beat update <project_dir>'
+        + ' --parameters=hypers,hierarchicals"'
+    )
 
-    def __init__(self, errmess=''):
+    def __init__(self, errmess=""):
         self.errmess = errmess
 
     def __str__(self):
-        return '\n%s\n%s' % (self.errmess, self.context)
+        return "\n%s\n%s" % (self.errmess, self.context)
 
 
 geometry_composite_catalog = {
-    'seismic': seismic.SeismicGeometryComposite,
-    'geodetic': geodetic.GeodeticGeometryComposite}
+    "polarity": polarity.PolarityComposite,
+    "seismic": seismic.SeismicGeometryComposite,
+    "geodetic": geodetic.GeodeticGeometryComposite,
+}
 
 
 distributer_composite_catalog = {
-    'seismic': seismic.SeismicDistributerComposite,
-    'geodetic': geodetic.GeodeticDistributerComposite,
-    'laplacian': laplacian.LaplacianDistributerComposite}
+    "seismic": seismic.SeismicDistributerComposite,
+    "geodetic": geodetic.GeodeticDistributerComposite,
+    "laplacian": laplacian.LaplacianDistributerComposite,
+}
 
 
-interseismic_composite_catalog = {
-    'geodetic': geodetic.GeodeticInterseismicComposite}
+interseismic_composite_catalog = {"geodetic": geodetic.GeodeticInterseismicComposite}
 
 
 class Problem(object):
@@ -72,6 +67,7 @@ class Problem(object):
     config : :class:`beat.BEATConfig`
         Configuration object that contains the problem definition.
     """
+
     _varnames = None
     _hypernames = None
     _hierarchicalnames = None
@@ -80,26 +76,26 @@ class Problem(object):
 
         self.model = None
 
-        self._like_name = 'like'
+        self._like_name = "like"
 
         self.fixed_params = {}
         self.composites = {}
         self.hyperparams = {}
 
-        logger.info('Analysing problem ...')
-        logger.info('---------------------\n')
+        logger.info("Analysing problem ...")
+        logger.info("---------------------\n")
 
         # Load events
         if config.event is None:
-            logger.warning('Found no event information!')
-            raise AttributeError('Problem config has no event information!')
+            logger.warning("Found no event information!")
+            raise AttributeError("Problem config has no event information!")
         else:
             self.event = config.event
             nsubevents = len(config.subevents)
             self.subevents = config.subevents
 
             if nsubevents > 0:
-                logger.info('Found %i subevents.' % nsubevents)
+                logger.info("Found %i subevents." % nsubevents)
 
         self.config = config
 
@@ -108,7 +104,7 @@ class Problem(object):
         outfolder = os.path.join(self.config.project_dir, mode)
 
         if hypers:
-            outfolder = os.path.join(outfolder, 'hypers')
+            outfolder = os.path.join(outfolder, "hypers")
 
         self.outfolder = outfolder
         util.ensuredir(self.outfolder)
@@ -125,6 +121,7 @@ class Problem(object):
         """
         Initialise the Sampling algorithm as defined in the configuration file.
         """
+        from beat import sampler
 
         if hypers:
             sc = self.config.hyper_sampler_config
@@ -134,18 +131,20 @@ class Problem(object):
         logger.info('Using "%s" backend to store samples!' % sc.backend)
 
         if self.model is None:
-            raise Exception(
-                'Model has to be built before initialising the sampler.')
+            raise Exception("Model has to be built before initialising the sampler.")
 
         with self.model:
-            if sc.name == 'Metropolis':
+            if sc.name == "Metropolis":
                 logger.info(
-                    '... Initiate Metropolis ... \n'
-                    ' proposal_distribution: %s, tune_interval=%i,'
-                    ' n_jobs=%i \n' % (
+                    "... Initiate Metropolis ... \n"
+                    " proposal_distribution: %s, tune_interval=%i,"
+                    " n_jobs=%i \n"
+                    % (
                         sc.parameters.proposal_dist,
                         sc.parameters.tune_interval,
-                        sc.parameters.n_jobs))
+                        sc.parameters.n_jobs,
+                    )
+                )
 
                 t1 = time.time()
                 step = sampler.Metropolis(
@@ -153,19 +152,23 @@ class Problem(object):
                     likelihood_name=self._like_name,
                     tune_interval=sc.parameters.tune_interval,
                     proposal_name=sc.parameters.proposal_dist,
-                    backend=sc.backend)
+                    backend=sc.backend,
+                )
                 t2 = time.time()
-                logger.info('Compilation time: %f' % (t2 - t1))
+                logger.info("Compilation time: %f" % (t2 - t1))
 
-            elif sc.name == 'SMC':
+            elif sc.name == "SMC":
                 logger.info(
-                    '... Initiate Sequential Monte Carlo ... \n'
-                    ' n_chains=%i, tune_interval=%i, n_jobs=%i,'
-                    ' proposal_distribution: %s, \n' % (
+                    "... Initiate Sequential Monte Carlo ... \n"
+                    " n_chains=%i, tune_interval=%i, n_jobs=%i,"
+                    " proposal_distribution: %s, \n"
+                    % (
                         sc.parameters.n_chains,
                         sc.parameters.tune_interval,
                         sc.parameters.n_jobs,
-                        sc.parameters.proposal_dist))
+                        sc.parameters.proposal_dist,
+                    )
+                )
 
                 t1 = time.time()
                 step = sampler.SMC(
@@ -174,29 +177,34 @@ class Problem(object):
                     coef_variation=sc.parameters.coef_variation,
                     proposal_dist=sc.parameters.proposal_dist,
                     likelihood_name=self._like_name,
-                    backend=sc.backend)
+                    backend=sc.backend,
+                )
                 t2 = time.time()
-                logger.info('Compilation time: %f' % (t2 - t1))
+                logger.info("Compilation time: %f" % (t2 - t1))
 
-            elif sc.name == 'PT':
+            elif sc.name == "PT":
                 logger.info(
-                    '... Initiate Metropolis for Parallel Tempering... \n'
-                    ' proposal_distribution: %s, tune_interval=%i,'
-                    ' n_chains=%i \n' % (
+                    "... Initiate Metropolis for Parallel Tempering... \n"
+                    " proposal_distribution: %s, tune_interval=%i,"
+                    " n_chains=%i \n"
+                    % (
                         sc.parameters.proposal_dist,
                         sc.parameters.tune_interval,
-                        sc.parameters.n_chains))
+                        sc.parameters.n_chains,
+                    )
+                )
                 step = sampler.Metropolis(
                     n_chains=sc.parameters.n_chains + 1,  # plus master
                     likelihood_name=self._like_name,
                     tune_interval=sc.parameters.tune_interval,
                     proposal_name=sc.parameters.proposal_dist,
-                    backend=sc.backend)
+                    backend=sc.backend,
+                )
 
             else:
                 raise ValueError(
-                    'Sampler "%s" not supported! '
-                    ' Typo in config file?' % sc.name)
+                    'Sampler "%s" not supported! ' " Typo in config file?" % sc.name
+                )
 
         return step
 
@@ -207,7 +215,7 @@ class Problem(object):
         the problem to be solved.
         """
 
-        logger.info('... Building model ...\n')
+        logger.info("... Building model ...\n")
 
         pc = self.config.problem_config
 
@@ -221,36 +229,36 @@ class Problem(object):
 
             for datatype, composite in self.composites.items():
                 if datatype in bconfig.modes_catalog[pc.mode].keys():
-                    input_rvs = weed_input_rvs(
-                        self.rvs, pc.mode, datatype=datatype)
+                    input_rvs = weed_input_rvs(self.rvs, pc.mode, datatype=datatype)
                     fixed_rvs = weed_input_rvs(
-                        self.fixed_params, pc.mode, datatype=datatype)
+                        self.fixed_params, pc.mode, datatype=datatype
+                    )
 
                 else:
                     input_rvs = self.rvs
                     fixed_rvs = self.fixed_params
 
                 total_llk += composite.get_formula(
-                    input_rvs, fixed_rvs, self.hyperparams, pc)
+                    input_rvs, fixed_rvs, self.hyperparams, pc
+                )
 
             # deterministic RV to write out llks to file
-            like = Deterministic('tmp', total_llk)
+            like = Deterministic("tmp", total_llk)
 
             # will overwrite deterministic name ...
             llk = Potential(self._like_name, like)
-            logger.info('Model building was successful! \n')
+            logger.info("Model building was successful! \n")
 
     def plant_lijection(self):
         """
         Add list to array bijection to model object by monkey-patching.
         """
         if self.model is not None:
-            lordering = ListArrayOrdering(
-                self.model.unobserved_RVs, intype='tensor')
+            lordering = ListArrayOrdering(self.model.unobserved_RVs, intype="tensor")
             lpoint = [var.tag.test_value for var in self.model.unobserved_RVs]
             self.model.lijection = ListToArrayBijection(lordering, lpoint)
         else:
-            raise AttributeError('Model needs to be built!')
+            raise AttributeError("Model needs to be built!")
 
     def built_hyper_model(self):
         """
@@ -259,14 +267,14 @@ class Problem(object):
         bounds for hyperparameters.
         """
 
-        logger.info('... Building Hyper model ...\n')
+        logger.info("... Building Hyper model ...\n")
 
         pc = self.config.problem_config
 
         if len(self.hierarchicals) == 0:
             self.init_hierarchicals()
 
-        point = self.get_random_point(include=['hierarchicals', 'priors'])
+        point = self.get_random_point(include=["hierarchicals", "priors"])
 
         if self.config.problem_config.mode == bconfig.geometry_mode_str:
             for param in pc.priors.values():
@@ -279,7 +287,7 @@ class Problem(object):
             total_llk = tt.zeros((1), tconfig.floatX)
 
             for composite in self.composites.values():
-                if hasattr(composite, 'analyse_noise'):
+                if hasattr(composite, "analyse_noise"):
                     composite.analyse_noise(point)
                     composite.init_weights()
 
@@ -287,34 +295,36 @@ class Problem(object):
 
                 total_llk += composite.get_hyper_formula(self.hyperparams)
 
-            like = Deterministic('tmp', total_llk)
+            like = Deterministic("tmp", total_llk)
             llk = Potential(self._like_name, like)
-            logger.info('Hyper model building was successful!')
+            logger.info("Hyper model building was successful!")
 
-    def get_random_point(self, include=['priors', 'hierarchicals', 'hypers']):
+    def get_random_point(self, include=["priors", "hierarchicals", "hypers"]):
         """
         Get random point in solution space.
         """
         pc = self.config.problem_config
 
         point = {}
-        if 'hierarchicals' in include:
+        if "hierarchicals" in include:
             for name, param in self.hierarchicals.items():
                 if not isinstance(param, num.ndarray):
                     point[name] = param.random()
 
-        if 'priors' in include:
+        if "priors" in include:
             for param in pc.priors.values():
                 shape = pc.get_parameter_shape(param)
                 point[param.name] = param.random(shape)
 
-        if 'hypers' in include:
+        if "hypers" in include:
             if len(self.hyperparams) == 0:
                 self.init_hyperparams()
 
-            hps = {hp_name: param.random()
-                   for hp_name, param in self.hyperparams.items()
-                   if not isinstance(param, num.ndarray)}
+            hps = {
+                hp_name: param.random()
+                for hp_name, param in self.hyperparams.items()
+                if not isinstance(param, num.ndarray)
+            }
 
             point.update(hps)
 
@@ -331,7 +341,8 @@ class Problem(object):
         """
         if self._varnames is None:
             self._varnames = list(
-                self.config.problem_config.get_random_variables()[0].keys())
+                self.config.problem_config.get_random_variables()[0].keys()
+            )
         return self._varnames
 
     @property
@@ -380,8 +391,9 @@ class Problem(object):
                     ndata = composite.get_hypersize(hp_name)
                 else:
                     raise InconsistentNumberHyperparametersError(
-                        'Datasets and -types require additional '
-                        ' hyperparameter(s): %s!' % hp_name)
+                        "Datasets and -types require additional "
+                        " hyperparameter(s): %s!" % hp_name
+                    )
 
                 if not num.array_equal(hyperpar.lower, hyperpar.upper):
                     dimension = hyperpar.dimension * ndata
@@ -393,35 +405,38 @@ class Problem(object):
                         upper=num.repeat(hyperpar.upper, ndata),
                         testval=num.repeat(hyperpar.testvalue, ndata),
                         dtype=tconfig.floatX,
-                        transform=None)
+                        transform=None,
+                    )
 
                     try:
                         hyperparams[hp_name] = Uniform(**kwargs)
 
                     except TypeError:
-                        kwargs.pop('name')
+                        kwargs.pop("name")
                         hyperparams[hp_name] = Uniform.dist(**kwargs)
                         modelinit = False
 
                     n_hyp += dimension
                     self._hypernames.append(hyperpar.name)
                     logger.info(
-                        'Initialised hyperparameter %s with '
-                        'size %i ' % (hp_name, ndata))
+                        "Initialised hyperparameter %s with "
+                        "size %i " % (hp_name, ndata)
+                    )
                 else:
                     logger.info(
-                        'not solving for %s, got fixed at %s' % (
-                            hyperpar.name,
-                            list2string(hyperpar.lower.flatten())))
+                        "not solving for %s, got fixed at %s"
+                        % (hyperpar.name, list2string(hyperpar.lower.flatten()))
+                    )
                     hyperparams[hyperpar.name] = hyperpar.lower
 
         if len(hyperparameters) > 0:
             raise InconsistentNumberHyperparametersError(
-                'There are hyperparameters in config file, which are not'
-                ' covered by datasets/datatypes.')
+                "There are hyperparameters in config file, which are not"
+                " covered by datasets/datatypes."
+            )
 
         if modelinit:
-            logger.info('Optimization for %i hyperparameters in total!', n_hyp)
+            logger.info("Optimization for %i hyperparameters in total!", n_hyp)
 
         self.hyperparams = hyperparams
 
@@ -458,18 +473,16 @@ class Problem(object):
         vrs = {}
         pconfig = self.config.problem_config
         for composite in self.composites.values():
-            logger.info(
-                'Calculating variance reductions for %s' % composite.name)
+            logger.info("Calculating variance reductions for %s" % composite.name)
             kwargs = {}
-            if composite.name == 'seismic':
+            if composite.name == "seismic":
                 if pconfig.mode == bconfig.ffi_mode_str:
-                    chop_bounds = ['b', 'c']
+                    chop_bounds = ["b", "c"]
                 elif pconfig.mode == bconfig.geometry_mode_str:
-                    chop_bounds = ['a', 'd']
+                    chop_bounds = ["a", "d"]
                 else:
-                    raise ValueError(
-                        'Invalid problem_config mode! %s' % pconfig.mode)
-                kwargs['chop_bounds'] = chop_bounds
+                    raise ValueError("Invalid problem_config mode! %s" % pconfig.mode)
+                kwargs["chop_bounds"] = chop_bounds
 
             vr = composite.get_variance_reductions(point, **kwargs)
             vrs.update(vr)
@@ -505,7 +518,7 @@ class Problem(object):
             Flag for opening the seismic waveforms in the snuffler
         """
         for composite in self.composites.values():
-            if hasattr(composite, 'update_weights'):
+            if hasattr(composite, "update_weights"):
                 composite.update_weights(point, n_jobs=n_jobs)
 
     def get_weights(self):
@@ -539,7 +552,7 @@ class Problem(object):
         d = dict()
 
         for composite in self.composites.values():
-            d[composite.name] = composite.get_synthetics(point, outmode='data')
+            d[composite.name] = composite.get_synthetics(point, outmode="data")
 
         return d
 
@@ -587,9 +600,10 @@ class SourceOptimizer(Problem):
 
         if self.nevents != pc.n_sources and self.nevents != 1:
             raise ValueError(
-                'Number of events and sources have to be equal or only one '
-                'event has to be used! Number if events %i and number of '
-                'sources: %i!' % (self.nevents, pc.n_sources))
+                "Number of events and sources have to be equal or only one "
+                "event has to be used! Number if events %i and number of "
+                "sources: %i!" % (self.nevents, pc.n_sources)
+            )
 
         # Init sources
         self.sources = []
@@ -599,14 +613,12 @@ class SourceOptimizer(Problem):
             else:
                 event = self.event
 
-            source = \
-                bconfig.source_catalog[pc.source_type].from_pyrocko_event(event)
-            source.stf = bconfig.stf_catalog[pc.stf_type](
-                duration=event.duration)
+            source = bconfig.source_catalog[pc.source_type].from_pyrocko_event(event)
+            source.stf = bconfig.stf_catalog[pc.stf_type](duration=event.duration)
 
             # hardcoded inversion for hypocentral time
             if source.stf is not None:
-                source.stf.anchor = -1.
+                source.stf.anchor = -1.0
 
             self.sources.append(source)
 
@@ -623,24 +635,22 @@ class GeometryOptimizer(SourceOptimizer):
     """
 
     def __init__(self, config, hypers=False):
-        logger.info('... Initialising Geometry Optimizer ... \n')
+        logger.info("... Initialising Geometry Optimizer ... \n")
 
         super(GeometryOptimizer, self).__init__(config, hypers)
 
         pc = config.problem_config
 
-        dsources = transform_sources(
-            self.sources,
-            pc.datatypes,
-            pc.decimation_factors)
+        dsources = transform_sources(self.sources, pc.datatypes, pc.decimation_factors)
 
         for datatype in pc.datatypes:
             self.composites[datatype] = geometry_composite_catalog[datatype](
-                config[datatype + '_config'],
+                config[datatype + "_config"],
                 config.project_dir,
                 dsources[datatype],
                 self.events,
-                hypers)
+                hypers,
+            )
 
         self.config = config
 
@@ -662,28 +672,27 @@ class InterseismicOptimizer(SourceOptimizer):
     """
 
     def __init__(self, config, hypers=False):
-        logger.info('... Initialising Interseismic Optimizer ... \n')
+        logger.info("... Initialising Interseismic Optimizer ... \n")
 
         super(InterseismicOptimizer, self).__init__(config, hypers)
 
         pc = config.problem_config
 
-        if pc.source_type == 'RectangularSource':
-            dsources = transform_sources(
-                self.sources,
-                pc.datatypes)
+        if pc.source_type == "RectangularSource":
+            dsources = transform_sources(self.sources, pc.datatypes)
         else:
-            raise TypeError('Interseismic Optimizer has to be used with'
-                            ' RectangularSources!')
+            raise TypeError(
+                "Interseismic Optimizer has to be used with" " RectangularSources!"
+            )
 
         for datatype in pc.datatypes:
-            self.composites[datatype] = \
-                interseismic_composite_catalog[datatype](
-                    config[datatype + '_config'],
-                    config.project_dir,
-                    dsources[datatype],
-                    self.events,
-                    hypers)
+            self.composites[datatype] = interseismic_composite_catalog[datatype](
+                config[datatype + "_config"],
+                config.project_dir,
+                dsources[datatype],
+                self.events,
+                hypers,
+            )
 
         self.config = config
 
@@ -705,31 +714,28 @@ class DistributionOptimizer(Problem):
     """
 
     def __init__(self, config, hypers=False):
-        logger.info('... Initialising Distribution Optimizer ... \n')
+        logger.info("... Initialising Distribution Optimizer ... \n")
 
         super(DistributionOptimizer, self).__init__(config, hypers)
 
         for datatype in config.problem_config.datatypes:
-            data_config = config[datatype + '_config']
+            data_config = config[datatype + "_config"]
 
-            composite = distributer_composite_catalog[
-                datatype](
-                    data_config,
-                    config.project_dir,
-                    self.events,
-                    hypers)
+            composite = distributer_composite_catalog[datatype](
+                data_config, config.project_dir, self.events, hypers
+            )
 
             composite.set_slip_varnames(self.varnames)
             self.composites[datatype] = composite
 
         regularization = config.problem_config.mode_config.regularization
         try:
-            composite = distributer_composite_catalog[
-                regularization](
+            composite = distributer_composite_catalog[regularization](
                 config.problem_config.mode_config.regularization_config,
                 config.project_dir,
                 self.events,
-                hypers)
+                hypers,
+            )
 
             composite.set_slip_varnames(self.varnames)
             self.composites[regularization] = composite
@@ -753,31 +759,32 @@ class DistributionOptimizer(Problem):
         """
         from scipy.optimize import nnls
 
-        if self.config.problem_config.mode_config.regularization != \
-                'laplacian':
+        if self.config.problem_config.mode_config.regularization != "laplacian":
             raise ValueError(
-                'Least-squares- solution for distributed slip is only '
-                'available with laplacian regularization!')
+                "Least-squares- solution for distributed slip is only "
+                "available with laplacian regularization!"
+            )
 
-        lc = self.composites['laplacian']
-        slip_varnames_candidates = ['uparr', 'utens']
+        lc = self.composites["laplacian"]
+        slip_varnames_candidates = ["uparr", "utens"]
 
         slip_varnames = []
         for var in slip_varnames_candidates:
             if var in self.varnames:
                 slip_varnames.append(var)
 
-        if len(slip_varnames) == 0.:
+        if len(slip_varnames) == 0.0:
             raise ValueError(
-                'LSQ distributed slip solution is only available for %s,'
-                ' which were fixed in the setup!' % list2string(
-                    slip_varnames_candidates))
+                "LSQ distributed slip solution is only available for %s,"
+                " which were fixed in the setup!"
+                % list2string(slip_varnames_candidates)
+            )
 
         npatches = point[slip_varnames[0]].size
         dzero = num.zeros(npatches, dtype=tconfig.floatX)
         # set perp slip variables to zero
-        if 'uperp' in self.varnames:
-            point['uperp'] = dzero
+        if "uperp" in self.varnames:
+            point["uperp"] = dzero
 
         # set slip variables that are inverted for to one
         for inv_var in slip_varnames:
@@ -786,11 +793,14 @@ class DistributionOptimizer(Problem):
         Gs = []
         ds = []
         for datatype, composite in self.composites.items():
-            if datatype == 'geodetic':
+            if datatype == "geodetic":
                 crust_ind = composite.config.gf_config.reference_model_idx
-                keys = [composite.get_gflibrary_key(
-                    crust_ind=crust_ind, wavename='static', component=var)
-                    for var in slip_varnames]
+                keys = [
+                    composite.get_gflibrary_key(
+                        crust_ind=crust_ind, wavename="static", component=var
+                    )
+                    for var in slip_varnames
+                ]
                 Gs.extend([composite.gfs[key]._gfmatrix.T for key in keys])
 
                 # removing hierarchicals from data
@@ -799,16 +809,17 @@ class DistributionOptimizer(Problem):
                     displacements.append(copy.deepcopy(dataset.displacement))
 
                 displacements = composite.apply_corrections(
-                    displacements, point=point, operation='-')
+                    displacements, point=point, operation="-"
+                )
                 ds.extend(displacements)
 
-            elif datatype == 'seismic':
+            elif datatype == "seismic":
 
                 targets_gfs = [[] for i in range(composite.n_t)]
                 for pidx in range(npatches):
                     Gseis, dseis = composite.get_synthetics(
-                        point, outmode='array',
-                        patchidxs=num.array([pidx], dtype='int'))
+                        point, outmode="array", patchidxs=num.array([pidx], dtype="int")
+                    )
 
                     for i, gseis in enumerate(Gseis):
                         targets_gfs[i].append(num.atleast_2d(gseis).T)
@@ -822,12 +833,14 @@ class DistributionOptimizer(Problem):
 
         if len(Gs) == 0:
             raise ValueError(
-                'No Greens Function matrix available!'
-                ' (needs geodetic datatype!)')
+                "No Greens Function matrix available!" " (needs geodetic datatype!)"
+            )
 
         G = num.vstack(Gs)
-        D = num.vstack([lc.smoothing_op for sv in slip_varnames]) * \
-            point[bconfig.hyper_name_laplacian] ** 2.
+        D = (
+            num.vstack([lc.smoothing_op for sv in slip_varnames])
+            * point[bconfig.hyper_name_laplacian] ** 2.0
+        )
 
         A = num.vstack([G, D])
         d = num.hstack(ds + [dzero for var in slip_varnames])
@@ -836,17 +849,21 @@ class DistributionOptimizer(Problem):
         m, res = nnls(A, d)
         npatches = self.config.problem_config.mode_config.npatches
         for i, var in enumerate(slip_varnames):
-            point[var] = m[i * npatches: (i + 1) * npatches]
+            point[var] = m[i * npatches : (i + 1) * npatches]
 
         if plot:
             from beat.plotting import source_geometry
+
             datatype = self.config.problem_config.datatypes[0]
             gc = self.composites[datatype]
             fault = gc.load_fault_geometry()
             source_geometry(
-                fault, list(fault.iter_subfaults()), event=gc.event,
+                fault,
+                list(fault.iter_subfaults()),
+                event=gc.event,
                 values=point[slip_varnames[0]],
-                title='slip [m]')  # datasets=gc.datasets
+                title="slip [m]",
+            )  # datasets=gc.datasets
 
         return point
 
@@ -855,7 +872,8 @@ problem_modes = list(bconfig.modes_catalog.keys())
 problem_catalog = {
     problem_modes[0]: GeometryOptimizer,
     problem_modes[1]: DistributionOptimizer,
-    problem_modes[2]: InterseismicOptimizer}
+    problem_modes[2]: InterseismicOptimizer,
+}
 
 
 def load_model(project_dir, mode, hypers=False, build=True):
@@ -884,14 +902,14 @@ def load_model(project_dir, mode, hypers=False, build=True):
 
     if hypers and len(pc.hyperparameters) == 0:
         raise ValueError(
-            'No hyperparameters specified!'
-            ' option --hypers not applicable')
+            "No hyperparameters specified!" " option --hypers not applicable"
+        )
 
     if pc.mode in problem_catalog.keys():
         problem = problem_catalog[pc.mode](config, hypers)
     else:
-        logger.error('Modeling problem %s not supported' % pc.mode)
-        raise ValueError('Model not supported')
+        logger.error("Modeling problem %s not supported" % pc.mode)
+        raise ValueError("Model not supported")
 
     if build:
         if hypers:

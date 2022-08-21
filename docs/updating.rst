@@ -4,12 +4,13 @@
 Updating beat
 *************
 
-For installations into system
------------------------------
+For installations into venv
+---------------------------
 In the beat main directory run::
 
   git pull origin master
-  sudo python setup.py install
+  python install .
+
 
 For anaconda installations
 --------------------------
@@ -21,7 +22,8 @@ Activate your environment that you created for the beat installation::
 In the beat main directory run::
 
   git pull origin master
-  python setup.py install
+  pip3 install .
+
 
 Testing development features
 ----------------------------
@@ -34,7 +36,7 @@ with following commands in the beat main directory ::
   # switch to branch "feature_branch_name" locally
   git checkout feature_branch_name
   git pull origin feature_branch_name
-  sudo python setup.py install
+  pip3 install .
 
 Please be aware that compatibility between development versions and released versions is not always given.
 Accordingly, some project configurations will only run on the particular branch and it is the responsibility
@@ -43,4 +45,4 @@ of the user to keep track of these versions and modeling projects.
 The master branch can then be recovered with::
 
   git checkout master
-  sudo python setup.py install
+  pip3 install .

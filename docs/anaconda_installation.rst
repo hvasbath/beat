@@ -14,7 +14,7 @@ Create and activate a new conda environment e.g. called "beat" using python3.6 (
 
   conda create -n beat python=3.6
   conda activate beat
-  cd ~/src  # or whereever you keep the packages
+  cd ~/src  # or wherever you keep the packages
 
 Download the beat source package from github (requires git to be installed on your machine)::
 
@@ -23,6 +23,10 @@ Download the beat source package from github (requires git to be installed on yo
 Download and install several required packages::
 
   conda install -n beat libgfortran openblas theano pygpu openmpi pandas numpy openmpi
+
+Install mpi4py through conda-forge::
+
+  conda install -c conda-forge mpi4py
 
 Configure theano to find your libraries by creating a file ".theanorc" in your home directory containing::
 
@@ -50,7 +54,7 @@ Install pymc3 and pyrocko packages::
 Once all the requirements are installed we install BEAT with::
 
   cd ~/src/beat
-  python3 setup.py install
+  pip3 install .
 
 Then for a fast check if beat is running one can start it calling the help::
 
@@ -86,4 +90,3 @@ Seismic synthetics
 Geodetic synthetics
 """""""""""""""""""
 * `PSGRN_PSCMP <https://git.pyrocko.org/pyrocko/fomosto-psgrn-pscmp>`__
-

@@ -92,20 +92,6 @@ The :mod:`models` Module
    :members:
 
 
-The :mod:`psgrn` Module
------------------------
-
-.. automodule:: psgrn
-   :members:
-
-
-The :mod:`pscmp` Module
------------------------
-
-.. automodule:: pscmp
-   :members:
-
-
 The :mod:`interseismic` Module
 ------------------------------
 
@@ -138,6 +124,34 @@ The :mod:`plotting` Module
 --------------------------
 
 .. automodule:: plotting
+   :members:
+
+
+:mod:`common`
+=============
+
+.. automodule:: plotting.common
+   :members:
+
+
+:mod:`seismic`
+==============
+
+.. automodule:: plotting.seismic
+   :members:
+
+
+:mod:`geodetic`
+===============
+
+.. automodule:: plotting.geodetic
+   :members:
+
+
+:mod:`marginals`
+================
+
+.. automodule:: plotting.marginals
    :members:
 
 

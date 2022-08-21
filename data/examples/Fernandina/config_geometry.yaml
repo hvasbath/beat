@@ -6,7 +6,7 @@ event: !pf.Event
   duration: 1.0
   lat: -0.37
   lon: -91.55
-  depth: 5000.  
+  depth: 5000.
 project_dir: /home/vasyurhm/BEATS/Fernandina
 problem_config: !beat.ProblemConfig
   mode: geometry

@@ -44,7 +44,7 @@ You will need to install the respective executables if not done yet! Please foll
 Please open $project_directory/config_geometry.yaml with any text editor (e.g. vi) and search for: store_superdir.
 The path specified here needs to be replaced with the path to where the GFs are supposed to be stored on your computer.
 This directory is referred to as the $GF_path in the rest of the text. It is strongly recommended to use a separate directory
-apart from the beat source directory. The statics Green's function stores are not very large, but could be re-used by several projects in the
+apart from the beat source directory. The statistics Green's function stores are not very large, but could be re-used by several projects in the
 future.
 
 In the $project_path/config_geometry.yaml under geodetic_config we find the gf_config, which holds the major parameters for GF calculation::
@@ -104,7 +104,7 @@ Please open $project_directory/config_geometry.yaml with any text editor (e.g. v
 This path needs to be replaced with the path to where the GFs are supposed to be stored on your computer. This directory is referred to as the $GF_path in the rest of the text. It is strongly recommended to use a separate directory apart from the beat source directory and the $project_directory as the GF databases can become very large, depending on the problem! For real examples, the GF databases may require up to several Gigabyte of free disc space. For our example the databases that we are going to create for each station are only few Megabytes ( 16 each and 586 MB in total for the higher resolution for kinematic FFO).
 
 
-Dependend on the case study there are crucial parameters that often need to be changed from the default values: the spatial grid dimensions, the sample rate and the wave phases (body waves and/or surface waves) to be calculated.
+Dependent on the case study there are crucial parameters that often need to be changed from the default values: the spatial grid dimensions, the sample rate and the wave phases (body waves and/or surface waves) to be calculated.
 
 In the $project_path/config_geometry.yaml under seismic config we find the gf_config, which holds the major parameters for GF calculation::
 
@@ -117,9 +117,9 @@ In the $project_path/config_geometry.yaml under seismic config we find the gf_co
     use_crust2: false
     replace_water: false
     source_depth_min: 0.0
-    source_depth_max: 30.0
+    source_depth_max: 32.0
     source_depth_spacing: 4.0
-    source_distance_radius: 30.0
+    source_distance_radius: 60.0
     source_distance_spacing: 4.0
     error_depth: 0.1
     error_velocities: 0.1
@@ -135,7 +135,7 @@ The respective distance grid of GFs is relative to each station-event distance.
 
 .. note:: **Example**: The event-station distance is 1000 km and source_distance_radius is set to 60 km, the resulting distance grid will be from 940 to 1060 km.
 
-How to adjust the other parameters such as the grid spacing and the sample_rate are very problem dependend.
+How to adjust the other parameters such as the grid spacing and the sample_rate are very problem dependent.
 Rule of thumbs for setting these parameters for other individual studies are discussed `here <https://pyrocko.org/docs/current/apps/fomosto/tutorial.html#considerations-for-real-world-applications>`__.
 
 .. note:: Please keep the extent of the expected finite rectangular fault in mind! The source grid has to cover **always** the **complete** fault!. **Example**: For a fault with expected width between 10 - 15 km with, a dip of 70-90 degrees and an upper edge depth of 0-2. km; the depth grid of the GF store (including safety buffer) has to range from: 0. km to 17.5 km
@@ -156,13 +156,13 @@ The seismic phases for which the GFs are going to be calculated are defined unde
           lower_corner: 0.01
           upper_corner: 0.1
           order: 3
-        distances: [0.0, 9.0]
+        distances: [30.0, 90.0]
         interpolation: multilinear
         arrival_taper: !beat.heart.ArrivalTaper
-          a: -20.0
+          a: -15.0
           b: -10.0
-          c: 250.0
-          d: 270.0
+          c: 40.0
+          d: 55.0
 
 In this case the GFs are going to be calculated for the P body waves as can be seen by the "name" parameter "any_P". How to calculate GFs also for S or surface waves is discussed in `Example 1 <https://pyrocko.org/beat/docs/current/examples/FullMT_regional.html#calculate-greens-functions>`__.
 
@@ -304,7 +304,7 @@ The sampler can effectively exploit the parallel architecture of nowadays comput
 
 .. note:: 'n_chains' divided by 'n_jobs' MUST yield a whole number! An error is going to be thrown if this is not the case!
 
-Dependend on the hardware, sampler specifications and number of jobs that have been defined, this calculation is going to take few hours.
+Dependent on the hardware, sampler specifications and number of jobs that have been defined, this calculation is going to take few hours.
 Therefore, in order to avoid crashes or in the case of remote connection via ssh it is very much recommended to use something like 'screen'
 to detach the terminal where the process is running. For now we do not do that, simply run::
 
@@ -362,7 +362,7 @@ To summarize only a specific stage please add the 'stage_number' option, e.g. th
     Only for SMC:
     All the chain_*.csv files under the $project_directory/geometry/stage_* directories can be problematic for
     the operation system, e.g. on Clusters. Once a stage finished sampling these can be also deleted by setting the 'rm_flag'
-    under the 'SamplerConfig.parameters'. The program will ask again once for safety reasons if the files are really supposed to be deleted. Once they are gone, they are gone! Restarting the sampling from that stage (see above) wont be possible anymore.
+    under the 'SamplerConfig.parameters'. The program will ask again once for safety reasons if the files are really supposed to be deleted. Once they are gone, they are gone! Restarting the sampling from that stage (see above) won't be possible anymore.
 
 After that, several figures illustrating the results can be created. To do so the **kite** software needs to be installed and the original displacement data needs to be downloaded `here <https://github.com/braunfuss/laquila_kite_container>`__. They need to be put into the specified data path given under "datadir" in the geodetic_config section of the configuration file.
 For a comparison between data, synthetic displacements and residuals for the two InSAR tracks in a local coordinate system please run::

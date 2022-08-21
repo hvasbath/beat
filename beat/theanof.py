@@ -6,22 +6,21 @@ Far future:
     include a 'def grad:' -method to each Op in order to enable the use of
     gradient based optimization algorithms
 """
+import copy
 import logging
-
 from collections import OrderedDict
 
-from beat import heart, utility, interseismic
+import numpy as num
+import theano
+import theano.tensor as tt
+from pymc3.model import FreeRV
+from pyrocko.trace import nextpow2
+
+from beat import heart, interseismic, utility
 from beat.fast_sweeping import fast_sweep
 
-from pymc3.model import FreeRV
-
-import theano.tensor as tt
-import theano
-
-import numpy as num
-
-km = 1000.
-logger = logging.getLogger('theanof')
+km = 1000.0
+logger = logging.getLogger("theanof")
 
 
 class GeoSynthesizer(theano.Op):
@@ -39,7 +38,7 @@ class GeoSynthesizer(theano.Op):
         containing :class:`pyrocko.gf.targets.StaticTarget` Objects
     """
 
-    __props__ = ('engine', 'sources', 'targets')
+    __props__ = ("engine", "sources", "targets")
 
     def __init__(self, engine, sources, targets):
         self.engine = engine
@@ -102,13 +101,14 @@ class GeoSynthesizer(theano.Op):
         for i, source in enumerate(self.sources):
             utility.update_source(source, **source_points[i])
             # reset source time may result in store error otherwise
-            source.time = 0.
+            source.time = 0.0
 
         synths[0] = heart.geo_synthetics(
             engine=self.engine,
             targets=self.targets,
             sources=self.sources,
-            outmode='stacked_array')
+            outmode="stacked_array",
+        )
 
     def infer_shape(self, node, input_shapes):
         return [(self.nobs, 3)]
@@ -134,7 +134,7 @@ class GeoLayerSynthesizerPsCmp(theano.Op):
         to be used in generating the synthetic displacements
     """
 
-    __props__ = ('lats', 'lons', 'store_superdir', 'crust_ind', 'sources')
+    __props__ = ("lats", "lons", "store_superdir", "crust_ind", "sources")
 
     def __init__(self, lats, lons, store_superdir, crust_ind, sources):
         self.lats = tuple(lats)
@@ -198,7 +198,8 @@ class GeoLayerSynthesizerPsCmp(theano.Op):
             crust_ind=self.crust_ind,
             lons=self.lons,
             lats=self.lats,
-            sources=self.sources)
+            sources=self.sources,
+        )
 
     def infer_shape(self, node, input_shapes):
         return [(len(self.lats), 3)]
@@ -209,11 +210,10 @@ class GeoInterseismicSynthesizer(theano.Op):
     Theano wrapper to transform the parameters of block model to
     parameters of a fault.
     """
-    __props__ = (
-        'lats', 'lons', 'engine', 'targets', 'sources', 'reference')
 
-    def __init__(
-            self, lats, lons, engine, targets, sources, reference):
+    __props__ = ("lats", "lons", "engine", "targets", "sources", "reference")
+
+    def __init__(self, lats, lons, engine, targets, sources, reference):
         self.lats = tuple(lats)
         self.lons = tuple(lons)
         self.engine = engine
@@ -286,7 +286,8 @@ class GeoInterseismicSynthesizer(theano.Op):
             lons=num.array(self.lons),
             lats=num.array(self.lats),
             reference=self.reference,
-            **bpoint)
+            **bpoint
+        )
 
         def infer_shape(self, node, input_shapes):
             return [(len(self.lats), 3)]
@@ -311,13 +312,34 @@ class SeisSynthesizer(theano.Op):
     filterer : :class:`heart.Filterer`
     """
 
-    __props__ = ('engine', 'sources', 'targets', 'event',
-                 'arrival_taper', 'arrival_times', 'wavename', 'filterer',
-                 'pre_stack_cut', 'station_corrections')
+    __props__ = (
+        "engine",
+        "sources",
+        "targets",
+        "event",
+        "arrival_taper",
+        "arrival_times",
+        "wavename",
+        "filterer",
+        "pre_stack_cut",
+        "station_corrections",
+        "domain",
+    )
 
-    def __init__(self, engine, sources, targets, event, arrival_taper,
-                 arrival_times, wavename, filterer, pre_stack_cut,
-                 station_corrections):
+    def __init__(
+        self,
+        engine,
+        sources,
+        targets,
+        event,
+        arrival_taper,
+        arrival_times,
+        wavename,
+        filterer,
+        pre_stack_cut,
+        station_corrections,
+        domain,
+    ):
         self.engine = engine
         self.sources = tuple(sources)
         self.targets = tuple(targets)
@@ -328,6 +350,19 @@ class SeisSynthesizer(theano.Op):
         self.filterer = tuple(filterer)
         self.pre_stack_cut = pre_stack_cut
         self.station_corrections = station_corrections
+        self.domain = domain
+        self.sample_rate = self.engine.get_store(
+            self.targets[0].store_id
+        ).config.sample_rate
+
+        if self.domain == "spectrum":
+            nsamples = nextpow2(self.arrival_taper.nsamples(self.sample_rate))
+            taper_frequencies = heart.filterer_minmax(filterer)
+            deltaf = self.sample_rate / nsamples
+
+            self.valid_spectrum_indices = utility.get_valid_spectrum_data(
+                deltaf, taper_frequencies
+            )
 
     def __getstate__(self):
         self.engine.close_cashed_stores()
@@ -382,7 +417,7 @@ class SeisSynthesizer(theano.Op):
         mpoint = utility.adjust_point_units(point)
 
         if self.station_corrections:
-            time_shifts = mpoint.pop('time_shift').ravel()
+            time_shifts = mpoint.pop("time_shift").ravel()
             arrival_times = num.array(self.arrival_times) + time_shifts
         else:
             arrival_times = num.array(self.arrival_times)
@@ -393,7 +428,7 @@ class SeisSynthesizer(theano.Op):
             utility.update_source(source, **source_points[i])
             source.time += self.event.time
 
-        synths[0], tmins[0] = heart.seis_synthetics(
+        synthetics, tmins[0] = heart.seis_synthetics(
             engine=self.engine,
             sources=self.sources,
             targets=self.targets,
@@ -401,21 +436,91 @@ class SeisSynthesizer(theano.Op):
             wavename=self.wavename,
             filterer=self.filterer,
             pre_stack_cut=self.pre_stack_cut,
-            arrival_times=arrival_times)
+            arrival_times=arrival_times,
+        )
+
+        if self.domain == "time":
+            synths[0] = synthetics
+
+        elif self.domain == "spectrum":
+            synths[0] = heart.fft_transforms(
+                time_domain_signals=synthetics,
+                valid_spectrum_indices=self.valid_spectrum_indices,
+                outmode="array",
+                pad_to_pow2=True,
+            )
+        else:
+            ValueError('Domain "%" not supported!' % self.domain)
 
     def infer_shape(self, node, input_shapes):
         nrow = len(self.targets)
-        store = self.engine.get_store(self.targets[0].store_id)
-        ncol = int(num.ceil(
-            store.config.sample_rate * self.arrival_taper.duration()))
+
+        if self.domain == "time":
+            ncol = self.arrival_taper.nsamples(self.sample_rate)
+        elif self.domain == "spectrum":
+            ncol = self.valid_spectrum_indices[1] - self.valid_spectrum_indices[0]
         return [(nrow, ncol), (nrow,)]
+
+
+class PolaritySynthesizer(theano.Op):
+
+    __props__ = ("engine", "source", "pmap", "is_location_fixed", "always_raytrace")
+
+    def __init__(self, engine, source, pmap, is_location_fixed, always_raytrace):
+        self.engine = engine
+        self.source = source
+        self.pmap = pmap
+        self.is_location_fixed = is_location_fixed
+        self.always_raytrace = always_raytrace
+
+    def __getstate__(self):
+        self.engine.close_cashed_stores()
+        return self.__dict__
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+
+    def make_node(self, inputs):
+        inlist = []
+        self.varnames = list(inputs.keys())
+        for i in inputs.values():
+            inlist.append(tt.as_tensor_variable(i))
+
+        out = tt.as_tensor_variable(num.zeros((2)))
+        outlist = [out.type()]
+        return theano.Apply(self, inlist, outlist)
+
+    def perform(self, node, inputs, output):
+        synths = output[0]
+        point = {vname: i for vname, i in zip(self.varnames, inputs)}
+        mpoint = utility.adjust_point_units(point)
+        source_points = utility.split_point(mpoint)
+
+        utility.update_source(self.source, **source_points[self.pmap.config.event_idx])
+
+        if not self.is_location_fixed:
+            self.pmap.update_targets(
+                self.engine,
+                self.source,
+                always_raytrace=self.always_raytrace,
+                check=False,
+            )
+            self.pmap.update_radiation_weights()
+
+        synths[0] = heart.pol_synthetics(
+            self.source, radiation_weights=self.pmap.get_radiation_weights()
+        )
+
+    def infer_shape(self, node, input_shapes):
+        return [(self.pmap.n_t,)]
 
 
 class SeisDataChopper(theano.Op):
     """
     Deprecated!
     """
-    __props__ = ('sample_rate', 'traces', 'arrival_taper', 'filterer')
+
+    __props__ = ("sample_rate", "traces", "arrival_taper", "filterer")
 
     def __init__(self, sample_rate, traces, arrival_taper, filterer):
         self.sample_rate = sample_rate
@@ -438,8 +543,8 @@ class SeisDataChopper(theano.Op):
         z = output[0]
 
         z[0] = heart.taper_filter_traces(
-            self.traces, self.arrival_taper,
-            self.filterer, tmins, outmode='array')
+            self.traces, self.arrival_taper, self.filterer, tmins, outmode="array"
+        )
 
     def infer_shape(self, node, input_shapes):
         nrow = len(self.traces)
@@ -461,11 +566,9 @@ class Sweeper(theano.Op):
         number of patches in dip-direction
     """
 
-    __props__ = ('patch_size', 'n_patch_dip', 'n_patch_strike',
-                 'implementation')
+    __props__ = ("patch_size", "n_patch_dip", "n_patch_strike", "implementation")
 
-    def __init__(
-            self, patch_size, n_patch_dip, n_patch_strike, implementation):
+    def __init__(self, patch_size, n_patch_dip, n_patch_strike, implementation):
 
         self.patch_size = num.float64(patch_size)
         self.n_patch_dip = n_patch_dip
@@ -510,28 +613,38 @@ class Sweeper(theano.Op):
         """
         slownesses, nuc_dip, nuc_strike = inputs
         z = output[0]
-        logger.debug('Fast sweeping ..%s.' % self.implementation)
-        if self.implementation == 'c':
+        logger.debug("Fast sweeping ..%s." % self.implementation)
+        if self.implementation == "c":
             #
             z[0] = fast_sweep.fast_sweep_ext.fast_sweep(
-                slownesses, self.patch_size, int(nuc_dip), int(nuc_strike),
-                self.n_patch_dip, self.n_patch_strike)
+                slownesses,
+                self.patch_size,
+                int(nuc_dip),
+                int(nuc_strike),
+                self.n_patch_dip,
+                self.n_patch_strike,
+            )
 
-        elif self.implementation == 'numpy':
+        elif self.implementation == "numpy":
             z[0] = fast_sweep.get_rupture_times_numpy(
                 slownesses.reshape((self.n_patch_dip, self.n_patch_strike)),
-                self.patch_size, self.n_patch_strike,
-                self.n_patch_dip, nuc_strike, nuc_dip).flatten()
+                self.patch_size,
+                self.n_patch_strike,
+                self.n_patch_dip,
+                nuc_strike,
+                nuc_dip,
+            ).flatten()
 
         else:
             raise NotImplementedError(
-                'Fast sweeping for implementation %s not'
-                ' implemented!' % self.implementation)
+                "Fast sweeping for implementation %s not"
+                " implemented!" % self.implementation
+            )
 
-        logger.debug('Done sweeping!')
+        logger.debug("Done sweeping!")
 
     def infer_shape(self, node, input_shapes):
-        return [(self.n_patch_dip * self.n_patch_strike, )]
+        return [(self.n_patch_dip * self.n_patch_strike,)]
 
 
 class EulerPole(theano.Op):
@@ -548,10 +661,9 @@ class EulerPole(theano.Op):
         of indexes to points to be masked
     """
 
-    __props__ = ('lats', 'lons', 'data_mask')
+    __props__ = ("lats", "lons", "data_mask")
 
-    def __init__(
-            self, lats, lons, data_mask):
+    def __init__(self, lats, lons, data_mask):
 
         self.lats = tuple(lats)
         self.lons = tuple(lons)
@@ -564,7 +676,7 @@ class EulerPole(theano.Op):
         self.varnames = []
 
         for k, v in inputs.items():
-            varname = k.split('_')[-1]   # split of dataset naming
+            varname = k.split("_")[-1]  # split of dataset naming
             if isinstance(v, FreeRV):
                 self.varnames.append(varname)
                 inlist.append(tt.as_tensor_variable(v))
@@ -581,16 +693,16 @@ class EulerPole(theano.Op):
         point = {vname: i for vname, i in zip(self.varnames, inputs)}
         point.update(self.fixed_values)
 
-        pole_lat = point['lat']    # pole parameters
-        pole_lon = point['lon']
-        omega = point['omega']
+        pole_lat = point["lat"]  # pole parameters
+        pole_lon = point["lon"]
+        omega = point["omega"]
 
         velocities = heart.velocities_from_pole(
-            num.array(self.lats), num.array(self.lons),
-            pole_lat, pole_lon, omega)
+            num.array(self.lats), num.array(self.lons), pole_lat, pole_lon, omega
+        )
 
         if self.data_mask:
-            velocities[num.array(self.data_mask), :] = 0.
+            velocities[num.array(self.data_mask), :] = 0.0
 
         z[0] = velocities
 
@@ -612,10 +724,9 @@ class StrainRateTensor(theano.Op):
         of indexes to points to be masked
     """
 
-    __props__ = ('lats', 'lons', 'data_mask')
+    __props__ = ("lats", "lons", "data_mask")
 
-    def __init__(
-            self, lats, lons, data_mask):
+    def __init__(self, lats, lons, data_mask):
 
         self.lats = tuple(lats)
         self.lons = tuple(lons)
@@ -623,8 +734,10 @@ class StrainRateTensor(theano.Op):
         self.ndata = len(self.lats)
 
         station_idxs = [
-            station_idx for station_idx in range(
-                self.ndata) if station_idx not in data_mask]
+            station_idx
+            for station_idx in range(self.ndata)
+            if station_idx not in data_mask
+        ]
 
         self.station_idxs = tuple(station_idxs)
 
@@ -635,7 +748,7 @@ class StrainRateTensor(theano.Op):
         self.varnames = []
 
         for k, v in inputs.items():
-            varname = k.split('_')[-1]   # split of dataset naming
+            varname = k.split("_")[-1]  # split of dataset naming
             if isinstance(v, FreeRV):
                 self.varnames.append(varname)
                 inlist.append(tt.as_tensor_variable(v))
@@ -653,10 +766,10 @@ class StrainRateTensor(theano.Op):
         point = {vname: i for vname, i in zip(self.varnames, inputs)}
         point.update(self.fixed_values)
 
-        exx = point['exx']    # tensor params
-        eyy = point['eyy']
-        exy = point['exy']
-        rotation = point['rotation']
+        exx = point["exx"]  # tensor params
+        eyy = point["eyy"]
+        exy = point["exy"]
+        rotation = point["rotation"]
 
         valid = num.array(self.station_idxs)
 
@@ -666,7 +779,8 @@ class StrainRateTensor(theano.Op):
             exx=exx,
             eyy=eyy,
             exy=exy,
-            rotation=rotation)
+            rotation=rotation,
+        )
 
         v_xyz_all = num.zeros((self.ndata, 3))
         v_xyz_all[valid, :] = v_xyz

@@ -2,7 +2,7 @@ How to setup a Custom Greens Function Store
 -------------------------------------------
 This section covers how to generate a custom Greens Function store for seismic data at a location of choice.
 First a new model project has to be created to generate the configuration file. As we have no specific event in mind
-we skip the catalog search by not specifiying the date.::
+we skip the catalog search by not specifying the date.::
 
     beat init Cascadia --datatypes='seismic' --mode='geometry' --use_custom
 
