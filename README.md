@@ -11,6 +11,7 @@ Based on pyrocko, theano and pymc3
 Version 1.2.0 is released introducing waveform polarity inversion and inversion in spectral domain for seismic data.
 Checkout the [changelog](https://github.com/hvasbath/beat/blob/master/CHANGELOG.md) for all the details.
 New [tutorial](https://pyrocko.org/beat/docs/current/examples/MTQT_polarity.html) on moment tensor inversion with P wave polarity picks.
+Now PyPI packages are provided and the installation via pip is recommended.
 
 6 January 2022
 A new version 1.1.1 is released vastly improving resolution based fault discretization. Minor changes.
