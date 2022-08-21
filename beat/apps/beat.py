@@ -163,7 +163,6 @@ def get_project_directory(args, options, nargs=1, popflag=False):
 
 
 def process_common_options(options, project_dir):
-    util.ensuredir(project_dir)
     utility.setup_logging(project_dir, options.loglevel, logfilename="BEAT_log.txt")
 
 
@@ -195,7 +194,9 @@ def cl_parse(command, args, setup=None, details=None):
     add_common_options(parser)
     (options, args) = parser.parse_args(args)
     project_dir = get_project_directory(args, options, nargs_dict[command])
-    process_common_options(options, project_dir)
+
+    if command != "init":
+        process_common_options(options, project_dir)
     return parser, options, args
 
 
@@ -215,6 +216,9 @@ def get_sampled_slip_variables(config):
 
 
 def command_init(args):
+
+    command_str = "init"
+
     def setup(parser):
 
         parser.add_option(
@@ -331,6 +335,10 @@ def command_init(args):
         name = args[0]
         date = None
 
+    project_dir = pjoin(os.path.abspath(options.main_path), name)
+
+    util.ensuredir(project_dir)
+    process_common_options(options, project_dir)
     return bconfig.init_config(
         name,
         date,
@@ -1476,9 +1484,6 @@ def command_build_gfs(args):
                     "%s GF store configs successfully created! "
                     "To start calculations set --execute!" % datatype
                 )
-
-            if options.execute:
-                logger.info("%s GF calculations successful!" % datatype)
 
     elif options.mode == ffi_mode_str:
         from beat import ffi

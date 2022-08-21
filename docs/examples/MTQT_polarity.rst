@@ -198,13 +198,13 @@ Optimization setup
 For this setup we use the moment tensor parameterisation of the MTQTSource after [TapeTape2015]_.
 This is defined in the *problem_config* (source specification)::
 
-problem_config: !beat.ProblemConfig
-  mode: geometry
-  source_type: MTQTSource
-  stf_type: Triangular
-  n_sources: 1
-  datatypes:
-  - polarity
+  problem_config: !beat.ProblemConfig
+    mode: geometry
+    source_type: MTQTSource
+    stf_type: Triangular
+    n_sources: 1
+    datatypes:
+    - polarity
 
 Finally, we need to configure *priors* and *hyperparameters*::
 

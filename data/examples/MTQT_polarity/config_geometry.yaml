@@ -124,12 +124,12 @@ polarity_config: !beat.PolarityConfig
   - !beat.PolarityFitConfig
     name: any_P
     include: true
-    polarities_marker_path: ./Polarity_tutorial/polarity_markers_P.pf
+    polarities_marker_path: ./MTQT_polarity/polarity_markers_P.pf
     blacklist:
     - EO.KSM02
     - PQ.NBC7
   gf_config: !beat.PolarityGFConfig
-    store_superdir: /home/vasyurhm/BEATS/GF
+    store_superdir: ./MTQT_polarity
     reference_model_idx: 0
     n_variations:
     - 0
