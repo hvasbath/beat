@@ -353,7 +353,11 @@ def traceplot(
                         # axs[rowi, coli].set_ylim([0, e.max()])
                         xticker = MaxNLocator(nbins=5)
                         xax.set_major_locator(xticker)
-                    elif plot_style == "hist":
+                    elif plot_style in ["pdf", "cdf"]:
+
+                        if plot_style == "cdf":
+                            kwargs["cumulative"] = True
+
                         histplot_op(
                             axs[rowi, coli],
                             e,
@@ -759,8 +763,23 @@ def draw_posteriors(problem, plot_options):
     Identify which stage is the last complete stage and plot posteriors.
     """
 
+    plot_style_choices = ["pdf", "cdf", "kde", "local"]
+
     hypers = utility.check_hyper_flag(problem)
     po = plot_options
+
+    if po.plot_projection in plot_style_choices:
+        if po.plot_projection == "local":
+            plot_style = "pdf"
+            nbins = 40
+        else:
+            plot_style = po.plot_projection
+            nbins = 200
+    else:
+        raise ValueError(
+            "Supported plot-projections are: %s"
+            % utility.list2string(plot_style_choices)
+        )
 
     stage = Stage(
         homepath=problem.outfolder, backend=problem.config.sampler_config.backend
@@ -792,7 +811,7 @@ def draw_posteriors(problem, plot_options):
         outpath = os.path.join(
             problem.outfolder,
             po.figure_dir,
-            "stage_%i_%s_%s.%s" % (s, sidxs, po.post_llk, po.outformat),
+            "stage_%i_%s_%s_%s.%s" % (s, sidxs, po.post_llk, plot_style, po.outformat),
         )
 
         if not os.path.exists(outpath) or po.force:
@@ -816,10 +835,11 @@ def draw_posteriors(problem, plot_options):
                 chains=None,
                 combined=True,
                 source_idxs=po.source_idxs,
-                plot_style="hist",
+                plot_style=plot_style,
                 lines=po.reference,
                 posterior=po.post_llk,
                 prior_bounds=prior_bounds,
+                nbins=nbins,
             )
 
             if not po.outformat == "display":

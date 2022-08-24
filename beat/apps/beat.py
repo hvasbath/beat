@@ -1782,8 +1782,8 @@ def command_plot(args):
             dest="plot_projection",
             # choices=['latlon', 'local', 'individual'],
             default="local",
-            help='Output projection of the plot; "latlon" or "local"'
-            'Default: "local"',
+            help='Output projection of the plot; "latlon" or "local" for maps - Default: "local";'
+            ' "pdf", "cdf" or "kde" for stage_posterior plot - Default: "pdf"',
         )
 
         parser.add_option(
