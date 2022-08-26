@@ -308,6 +308,7 @@ def histplot_op(
     """
 
     cumulative = kwargs.pop("cumulative", "False")
+    labels = kwargs.pop("label", None)
 
     if color is not None and cmap is not None:
         logger.debug("Using color for histogram edgecolor ...")
@@ -355,6 +356,8 @@ def histplot_op(
         else:
             kwargs["density"] = True
 
+        label = labels[i]
+
         n, outbins, patches = ax.hist(
             d,
             bins=bins,
@@ -365,6 +368,7 @@ def histplot_op(
             color=color,
             edgecolor=color,
             cumulative=cumulative,
+            label=label,
             **kwargs
         )
 
@@ -399,8 +403,10 @@ def histplot_op(
 
                 ax.plot(x, y, "--k", linewidth=0.5)
                 fontsize = 6
+                xval = (value - num.abs(leftb)) / 2 + leftb
+
                 ax.text(
-                    (value - num.abs(leftb)) / 2,
+                    xval,
                     quantile,
                     "{}%".format(int(quantile * 100)),
                     fontsize=fontsize,
@@ -411,7 +417,7 @@ def histplot_op(
                 ax.text(
                     value,
                     quantile / 2,
-                    "%.2f" % value,
+                    "%.3f" % value,
                     fontsize=fontsize,
                     horizontalalignment="left",
                     verticalalignment="bottom",

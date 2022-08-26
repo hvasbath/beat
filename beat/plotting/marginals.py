@@ -5,6 +5,8 @@ import os
 import numpy as num
 from matplotlib import pyplot as plt
 from matplotlib.ticker import MaxNLocator
+from matplotlib.backends.backend_pdf import PdfPages
+
 from pymc3 import plots as pmp
 from pymc3 import quantiles
 from pyrocko.cake_plot import str_to_mpl_color as scolor
@@ -81,6 +83,13 @@ def unify_tick_intervals(axs, varnames, ntickmarks_max=5, axis="x"):
 def apply_unified_axis(
     axs, varnames, unities, axis="x", ntickmarks_max=3, scale_factor=2 / 3
 ):
+    naxs = axs.size
+    nvars = len(varnames)
+    if naxs != nvars:
+        logger.debug(
+            "Inconsistenet number of Axes: %i and variables: %i!" % (naxs, nvars)
+        )
+
     for ax, v in zip(axs.ravel("F"), varnames):
         if v in utility.grouped_vars:
             for setname, varrange in unities.items():
@@ -125,7 +134,6 @@ def traceplot(
     trace,
     varnames=None,
     transform=lambda x: x,
-    figsize=None,
     lines={},
     chains=None,
     combined=False,
@@ -138,9 +146,7 @@ def traceplot(
     priors=None,
     prior_alpha=1,
     prior_style="--",
-    axs=None,
     posterior=None,
-    fig=None,
     plot_style="kde",
     prior_bounds={},
     unify=True,
@@ -162,8 +168,6 @@ def traceplot(
         Function to transform data (defaults to identity)
     posterior : str
         To mark posterior value in distribution 'max', 'min', 'mean', 'all'
-    figsize : figure size tuple
-        If None, size is (12, num of variables * 2) inch
     lines : dict
         Dictionary of variable name / value  to be overplotted as vertical
         lines to the posteriors and horizontal lines on sample values
@@ -186,10 +190,6 @@ def traceplot(
         mpl color tuple
     alpha : float
         Alpha value for plot line. Defaults to 0.35.
-    axs : axes
-        Matplotlib axes. Defaults to None.
-    fig : figure
-        Matplotlib figure. Defaults to None.
     unify : bool
         If true axis units that belong to one group e.g. [km] will
         have common axis increments
@@ -248,24 +248,17 @@ def traceplot(
             "max": scolor("scarletred2"),
         }
 
-    n = len(varnames)
-    nrow = int(num.ceil(n / 2.0))
-    ncol = 2
-
-    n_fig = nrow * ncol
-    if figsize is None:
-        if n < 5:
-            figsize = mpl_papersize("a6", "landscape")
-        elif n < 7:
-            figsize = mpl_papersize("a5", "portrait")
-        else:
-            figsize = mpl_papersize("a4", "portrait")
-
-    if axs is None:
-        fig, axs = plt.subplots(nrow, ncol, figsize=figsize)
-        axs = num.atleast_2d(axs)
-    elif axs.shape != (nrow, ncol):
-        raise TypeError("traceplot requires n*2 subplots %i, %i" % (nrow, ncol))
+    n = nvar = len(varnames)
+    if n == 1 and len(source_idxs) > 1:
+        n = len(source_idxs)
+        logger.info("Plotting of patches in panels ...")
+        varnames = varnames * n
+    elif n == 1 and source_idxs is None:
+        raise IOError(
+            "If only single variable is selected source_idxs need to be specified!"
+        )
+    else:
+        logger.info("Plotting variables in panels ...")
 
     if varbins is None:
         make_bins_flag = True
@@ -274,166 +267,218 @@ def traceplot(
         make_bins_flag = False
 
     input_color = copy.deepcopy(color)
-    for i in range(n_fig):
-        coli, rowi = utility.mod_i(i, nrow)
+    backup_source_idxs = copy.deepcopy(source_idxs)
 
-        if i > len(varnames) - 1:
-            try:
-                fig.delaxes(axs[rowi, coli])
-            except KeyError:
-                pass
-        else:
-            v = varnames[i]
-            color = copy.deepcopy(input_color)
+    # subfigure handling
+    nrowtotal = int(num.ceil(n / 2.0))
+    ncol = 2
+    nrow_max = 4
+    nplots_page_max = nrow_max * ncol
 
-            for d in trace.get_values(
-                v, combine=combined, chains=chains, squeeze=False
-            ):
-                d = transform(d)
-                # iterate over columns in case varsize > 1
+    n_subplots_total = nrowtotal * ncol
 
-                if v in dist_vars:
-                    if source_idxs is None:
-                        logger.info("No patches defined using 1 every 10!")
-                        source_idxs = num.arange(0, d.shape[1], 10).tolist()
+    ntotal_figs, nrest_subplots = utility.mod_i(n_subplots_total, nplots_page_max)
+    nsubplots_page = [nplots_page_max for _ in range(ntotal_figs)]
+    nsubplots_page.append(nrest_subplots)
 
-                    logger.info(
-                        "Plotting patches: %s" % utility.list2string(source_idxs)
-                    )
+    figs = []
+    fig_axs = []
+    for nsubplots in nsubplots_page:
 
-                    try:
-                        selected = d.T[source_idxs]
-                    except IndexError:
-                        raise IndexError(
-                            "One or several patches do not exist! "
-                            "Patch idxs: %s" % utility.list2string(source_idxs)
+        width, height = mpl_papersize("a4", "portrait")
+        height_subplot = height / nrow_max
+        nrow = int(num.ceil(nsubplots / ncol))
+
+        fig, axs = plt.subplots(nrow, ncol, figsize=(width, height_subplot * nrow))
+        axs = num.atleast_2d(axs)
+
+        for i in range(nsubplots):
+
+            coli, rowi = utility.mod_i(i, nrow)
+            ax = axs[rowi, coli]
+
+            if i > n - 1:
+                try:
+                    fig.delaxes(ax)
+                except KeyError:
+                    pass
+            else:
+                if nvar == 1:
+                    source_idxs = [backup_source_idxs[i]]
+
+                v = varnames[i]
+
+                color = copy.deepcopy(input_color)
+
+                for d in trace.get_values(
+                    v, combine=combined, chains=chains, squeeze=False
+                ):
+                    d = transform(d)
+                    # iterate over columns in case varsize > 1
+
+                    if v in dist_vars:
+                        if source_idxs is None:
+                            source_idx_step = int(num.floor(d.shape[1] / 6))
+                            logger.info("No patches defined using 1 every %i!")
+                            source_idxs = num.arange(
+                                0, d.shape[1], source_idx_step
+                            ).tolist()
+
+                        logger.info(
+                            "Plotting patches: %s" % utility.list2string(source_idxs)
                         )
-                else:
-                    selected = d.T
 
-                nsources = selected.shape[0]
-                logger.debug("Number of sources: %i" % nsources)
-                for isource, e in enumerate(selected):
-                    e = pmp.utils.make_2d(e)
-                    if make_bins_flag:
-                        varbin = make_bins(e, nbins=nbins, qlist=qlist)
-                        varbins.append(varbin)
+                        try:
+                            selected = num.atleast_2d(d.T[source_idxs])
+                        except IndexError:
+                            raise IndexError(
+                                "One or several patches do not exist! "
+                                "Patch idxs: %s" % utility.list2string(source_idxs)
+                            )
                     else:
-                        varbin = varbins[i]
+                        selected = d.T
 
-                    if lines:
-                        if v in lines:
-                            reference = lines[v]
+                    nsources = selected.shape[0]
+                    logger.debug("Number of sources: %i" % nsources)
+                    for isource, e in enumerate(selected):
+                        e = pmp.utils.make_2d(e)
+                        if make_bins_flag:
+                            varbin = make_bins(e, nbins=nbins, qlist=qlist)
+                            varbins.append(varbin)
+                        else:
+                            varbin = varbins[i]
+
+                        if lines:
+                            if v in lines:
+                                reference = lines[v]
+                            else:
+                                reference = None
                         else:
                             reference = None
-                    else:
-                        reference = None
 
-                    if color is None:
-                        if nsources == 1:
-                            pcolor = "black"
+                        if color is None:
+                            if nsources == 1:
+                                pcolor = "black"
+                            else:
+                                pcolor = mpl_graph_color(isource)
                         else:
-                            pcolor = mpl_graph_color(isource)
-                    else:
-                        pcolor = color
+                            pcolor = color
 
-                    if plot_style == "kde":
-                        pmp.kdeplot(
-                            e,
-                            shade=alpha,
-                            ax=axs[rowi, coli],
-                            color=color,
-                            linewidth=1.0,
-                            kwargs_shade={"color": pcolor},
-                        )
-                        axs[rowi, coli].relim()
-                        axs[rowi, coli].autoscale(tight=False)
-                        axs[rowi, coli].set_ylim(0)
-                        xax = axs[rowi, coli].get_xaxis()
-                        # axs[rowi, coli].set_ylim([0, e.max()])
-                        xticker = MaxNLocator(nbins=5)
-                        xax.set_major_locator(xticker)
-                    elif plot_style in ["pdf", "cdf"]:
+                        if plot_style == "kde":
+                            pmp.kdeplot(
+                                e,
+                                shade=alpha,
+                                ax=ax,
+                                color=color,
+                                linewidth=1.0,
+                                kwargs_shade={"color": pcolor},
+                            )
+                            ax.relim()
+                            ax.autoscale(tight=False)
+                            ax.set_ylim(0)
+                            xax = ax.get_xaxis()
+                            # axs[rowi, coli].set_ylim([0, e.max()])
+                            xticker = MaxNLocator(nbins=5)
+                            xax.set_major_locator(xticker)
+                        elif plot_style in ["pdf", "cdf"]:
 
-                        if plot_style == "cdf":
-                            kwargs["cumulative"] = True
+                            kwargs["label"] = source_idxs
+                            if plot_style == "cdf":
+                                kwargs["cumulative"] = True
+                            else:
+                                kwargs["cumulative"] = False
 
-                        histplot_op(
-                            axs[rowi, coli],
-                            e,
-                            reference=reference,
-                            bins=varbin,
-                            alpha=alpha,
-                            color=pcolor,
-                            qlist=qlist,
-                            kwargs=kwargs,
-                        )
-                    else:
-                        raise NotImplementedError(
-                            'Plot style "%s" not implemented' % plot_style
-                        )
-
-                    try:
-                        param = prior_bounds[v]
-
-                        if v in dist_vars:
-                            try:  # variable bounds
-                                lower = param.lower[source_idxs]
-                                upper = param.upper[source_idxs]
-                            except IndexError:
-                                lower, upper = param.lower, param.upper
-
-                            title = "{} {}".format(v, plot_units[hypername(v)])
+                            histplot_op(
+                                ax,
+                                e,
+                                reference=reference,
+                                bins=varbin,
+                                alpha=alpha,
+                                color=pcolor,
+                                qlist=qlist,
+                                kwargs=kwargs,
+                            )
                         else:
-                            lower = num.array2string(param.lower, separator=",")[1:-1]
-                            upper = num.array2string(param.upper, separator=",")[1:-1]
-
-                            title = "{} {} priors: ({}; {})".format(
-                                v, plot_units[hypername(v)], lower, upper
+                            raise NotImplementedError(
+                                'Plot style "%s" not implemented' % plot_style
                             )
-                    except KeyError:
+
                         try:
-                            title = "{} {}".format(v, float(lines[v]))
-                        except KeyError:
-                            title = "{} {}".format(v, plot_units[hypername(v)])
+                            param = prior_bounds[v]
 
-                    axs[rowi, coli].set_xlabel(title, fontsize=fontsize)
-                    axs[rowi, coli].grid(grid)
-                    axs[rowi, coli].get_yaxis().set_visible(False)
-                    format_axes(axs[rowi, coli])
-                    axs[rowi, coli].tick_params(axis="x", labelsize=fontsize)
-                    #                axs[rowi, coli].set_ylabel("Frequency")
+                            if v in dist_vars:
+                                try:  # variable bounds
+                                    lower = param.lower[source_idxs]
+                                    upper = param.upper[source_idxs]
+                                except IndexError:
+                                    lower, upper = param.lower, param.upper
 
-                    if lines:
-                        try:
-                            axs[rowi, coli].axvline(x=lines[v], color="white", lw=1.0)
-                            axs[rowi, coli].axvline(
-                                x=lines[v], color="black", linestyle="dashed", lw=1.0
-                            )
-                        except KeyError:
-                            pass
+                                title = "{} {}".format(v, plot_units[hypername(v)])
+                            else:
+                                lower = num.array2string(param.lower, separator=",")[
+                                    1:-1
+                                ]
+                                upper = num.array2string(param.upper, separator=",")[
+                                    1:-1
+                                ]
 
-                    if posterior != "None":
-                        if posterior == "all":
-                            for k, idx in posterior_idxs.items():
-                                axs[rowi, coli].axvline(
-                                    x=e[idx], color=colors[k], lw=1.0
+                                title = "{} {} \npriors: ({}; {})".format(
+                                    v, plot_units[hypername(v)], lower, upper
                                 )
-                        else:
-                            idx = posterior_idxs[posterior]
-                            axs[rowi, coli].axvline(x=e[idx], color=pcolor, lw=1.0)
+                        except KeyError:
+                            try:
+                                title = "{} {}".format(v, float(lines[v]))
+                            except KeyError:
+                                title = "{} {}".format(v, plot_units[hypername(v)])
 
-    if unify:
-        unities = unify_tick_intervals(
-            axs, varnames, ntickmarks_max=ntickmarks_max, axis="x"
-        )
-        apply_unified_axis(axs, varnames, unities, axis="x", scale_factor=scale_factor)
+                        axs[rowi, coli].set_xlabel(title, fontsize=fontsize)
+                        if nvar == 1:
+                            axs[rowi, coli].set_title(
+                                "Patch %s" % utility.list2string(source_idxs),
+                                loc="left",
+                                fontsize=fontsize,
+                            )
+                        ax.grid(grid)
+                        ax.get_yaxis().set_visible(False)
+                        format_axes(axs[rowi, coli])
+                        ax.tick_params(axis="x", labelsize=fontsize)
+                        #                axs[rowi, coli].set_ylabel("Frequency")
 
-    if source_idxs:
-        axs[0, 0].legend(source_idxs)
+                        if lines:
+                            try:
+                                ax.axvline(x=lines[v], color="white", lw=1.0)
+                                ax.axvline(
+                                    x=lines[v],
+                                    color="black",
+                                    linestyle="dashed",
+                                    lw=1.0,
+                                )
+                            except KeyError:
+                                pass
 
-    fig.tight_layout()
-    return fig, axs, varbins
+                        if posterior != "None":
+                            if posterior == "all":
+                                for k, idx in posterior_idxs.items():
+                                    ax.axvline(x=e[idx], color=colors[k], lw=1.0)
+                            else:
+                                idx = posterior_idxs[posterior]
+                                ax.axvline(x=e[idx], color=pcolor, lw=1.0)
+
+        if unify:
+            unities = unify_tick_intervals(
+                axs, varnames, ntickmarks_max=ntickmarks_max, axis="x"
+            )
+            apply_unified_axis(
+                axs, varnames, unities, axis="x", scale_factor=scale_factor
+            )
+
+        fig.subplots_adjust(wspace=0.05, hspace=0.5)
+        fig.tight_layout()
+
+        figs.append(fig)
+        fig_axs.append(axs)
+
+    return figs, fig_axs, varbins
 
 
 def correlation_plot(
@@ -781,6 +826,8 @@ def draw_posteriors(problem, plot_options):
             % utility.list2string(plot_style_choices)
         )
 
+    logger.info('Plotting "%s"' % plot_style)
+
     stage = Stage(
         homepath=problem.outfolder, backend=problem.config.sampler_config.backend
     )
@@ -808,13 +855,13 @@ def draw_posteriors(problem, plot_options):
         else:
             sidxs = ""
 
-        outpath = os.path.join(
+        outpath_tmp = os.path.join(
             problem.outfolder,
             po.figure_dir,
-            "stage_%i_%s_%s_%s.%s" % (s, sidxs, po.post_llk, plot_style, po.outformat),
+            "stage_%i_%s_%s_%s" % (s, sidxs, po.post_llk, plot_style),
         )
 
-        if not os.path.exists(outpath) or po.force:
+        if not os.path.exists(outpath_tmp + ".%s" % po.outformat) or po.force:
             logger.info("plotting stage: %s" % stage.handler.stage_path(s))
             stage.load_results(
                 varnames=problem.varnames,
@@ -829,7 +876,7 @@ def draw_posteriors(problem, plot_options):
             prior_bounds.update(**pc.hierarchicals)
             prior_bounds.update(**pc.priors)
 
-            fig, _, _ = traceplot(
+            figs, _, _ = traceplot(
                 stage.mtrace,
                 varnames=varnames,
                 chains=None,
@@ -842,19 +889,22 @@ def draw_posteriors(problem, plot_options):
                 nbins=nbins,
             )
 
-            if not po.outformat == "display":
-                logger.info("saving figure to %s" % outpath)
-                fig.savefig(outpath, format=po.outformat, dpi=po.dpi)
+            if po.outformat == "display":
+                plt.show()
             else:
-                figs.append(fig)
+                logger.info("saving figures to %s" % outpath_tmp)
+                if po.outformat == "pdf":
+                    with PdfPages(outpath_tmp + ".pdf") as opdf:
+                        for fig in figs:
+                            opdf.savefig(fig)
+                else:
+                    for i, fig in enumerate(figs):
+                        outpath = "%s_%i.%s" % (outpath_tmp, i, po.outformat)
+                        logger.info("saving figure to %s" % outpath)
+                        fig.savefig(outpath, format=po.outformat, dpi=po.dpi)
 
         else:
-            logger.info(
-                "plot for stage %s exists. Use force=True for" " replotting!" % s
-            )
-
-    if po.outformat == "display":
-        plt.show()
+            logger.info("plot for stage %s exists. Use force=True for replotting!" % s)
 
 
 def draw_correlation_hist(problem, plot_options):
