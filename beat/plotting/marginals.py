@@ -369,7 +369,7 @@ def traceplot(
                                 e,
                                 shade=alpha,
                                 ax=ax,
-                                color=color,
+                                color=pcolor,
                                 linewidth=1.0,
                                 kwargs_shade={"color": pcolor},
                             )

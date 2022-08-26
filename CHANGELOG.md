@@ -4,6 +4,19 @@ All notable changes to BEAT will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.2.1] TBD 2022
+Contributors: Hannes Vasyura-Bathke @hvasbath
+
+### Added
+**FFI**
+- add calculation of coupling to derived variables at *Fault* for the summarize method
+
+**plotting**
+- *plot_projection* argument available for *stage_posteriors* plot: cdf, pdf, kde
+
+### Fixed
+- stage_posterior plot supports multipage output, figsize fixed to fractions of A4
+
 
 ## [1.2.0] 21 August 2022
 Contributors: Mahdi Hamidbeygi @mahdihamidbeygi, Hannes Vasyura-Bathke @hvasbath
