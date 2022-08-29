@@ -42,6 +42,8 @@ from beat.heart import (
     _domain_choices,
 )
 from beat.sources import MTQTSource, MTSourceWithMagnitude, RectangularSource
+from beat.utility import check_point_keys, list2string
+
 
 guts_prefix = "beat"
 
@@ -100,6 +102,7 @@ interseismic_vars = [
 ] + block_vars
 
 static_dist_vars = ["uparr", "uperp", "utens"]
+derived_dist_vars = ["coupling"]
 
 hypo_vars = ["nucleation_strike", "nucleation_dip", "time"]
 partial_kinematic_vars = ["durations", "velocities"]
@@ -110,7 +113,7 @@ dc_components = ["strike1", "dip1", "rake1", "strike2", "dip2", "rake2"]
 
 kinematic_dist_vars = static_dist_vars + partial_kinematic_vars + hypo_vars
 transd_vars_dist = partial_kinematic_vars + static_dist_vars + voronoi_locations
-dist_vars = static_dist_vars + partial_kinematic_vars
+dist_vars = static_dist_vars + partial_kinematic_vars + derived_dist_vars
 
 interseismic_catalog = {"geodetic": interseismic_vars}
 
@@ -129,6 +132,14 @@ modes_catalog = OrderedDict(
         ["interseismic", interseismic_catalog],
     ]
 )
+
+derived_variables_mapping = {
+    "MTQTSource": mt_components + dc_components,
+    "MTSource": dc_components,
+    "RectangularSource": ["magnitude"],
+    "RectangularSourcePole": ["magnitude", "coupling"],
+}
+
 
 hyper_name_laplacian = "h_laplacian"
 
@@ -1571,6 +1582,41 @@ class ProblemConfig(Object):
             raise TypeError("Mode not implemented: %s" % self.mode)
 
         return shape
+
+    def get_derived_variables_shapes(self):
+
+        source_type = self.source_type
+
+        tpoint = self.get_test_point()
+        has_pole, _ = check_point_keys(tpoint, phrase="*_pole_lat")
+
+        if has_pole:
+            source_type += "Pole"
+
+        try:
+            varnames = derived_variables_mapping[source_type]
+            shapes = []
+            for varname in varnames:
+                if self.mode == geometry_mode_str:
+                    shape = (self.n_sources,)
+                elif self.mode == ffi_mode_str:
+                    if varname == "magnitude":
+                        shape = (1,)
+                    else:
+                        shape = (self.mode_config.npatches,)
+
+                shapes.append(shape)
+
+            logger.info(
+                "Adding derived variables %s with shapes %s to "
+                "trace." % (list2string(varnames), list2string(shapes))
+            )
+        except KeyError:
+            logger.info("No derived variables for %s" % source_type)
+            varnames = []
+            shapes = []
+
+        return varnames, shapes
 
 
 class SamplerParameters(Object):

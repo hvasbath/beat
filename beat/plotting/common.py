@@ -28,6 +28,7 @@ u_v = "$[m^3]$"
 u_s = "$[s]$"
 u_rad = "$[rad]$"
 u_hyp = ""
+u_percent = "[$\%$]"
 u_nanostrain = "nstrain"
 
 plot_units = {
@@ -60,6 +61,7 @@ plot_units = {
     "nucleation_x": u_hyp,
     "nucleation_y": u_hyp,
     "time_shift": u_s,
+    "coupling": u_percent,
     "uperp": u_m,
     "uparr": u_m,
     "utens": u_m,
@@ -308,7 +310,6 @@ def histplot_op(
     """
 
     cumulative = kwargs.pop("cumulative", "False")
-    labels = kwargs.pop("label", None)
 
     if color is not None and cmap is not None:
         logger.debug("Using color for histogram edgecolor ...")
@@ -356,8 +357,6 @@ def histplot_op(
         else:
             kwargs["density"] = True
 
-        label = labels[i]
-
         n, outbins, patches = ax.hist(
             d,
             bins=bins,
@@ -368,7 +367,6 @@ def histplot_op(
             color=color,
             edgecolor=color,
             cumulative=cumulative,
-            label=label,
             **kwargs
         )
 

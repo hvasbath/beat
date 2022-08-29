@@ -249,14 +249,14 @@ def traceplot(
         }
 
     n = nvar = len(varnames)
-    if n == 1 and len(source_idxs) > 1:
-        n = len(source_idxs)
-        logger.info("Plotting of patches in panels ...")
-        varnames = varnames * n
-    elif n == 1 and source_idxs is None:
+    if n == 1 and source_idxs is None:
         raise IOError(
             "If only single variable is selected source_idxs need to be specified!"
         )
+    elif n == 1 and len(source_idxs) > 1:
+        n = len(source_idxs)
+        logger.info("Plotting of patches in panels ...")
+        varnames = varnames * n
     else:
         logger.info("Plotting variables in panels ...")
 
@@ -279,7 +279,8 @@ def traceplot(
 
     ntotal_figs, nrest_subplots = utility.mod_i(n_subplots_total, nplots_page_max)
     nsubplots_page = [nplots_page_max for _ in range(ntotal_figs)]
-    nsubplots_page.append(nrest_subplots)
+    if nrest_subplots:
+        nsubplots_page.append(nrest_subplots)
 
     figs = []
     fig_axs = []
