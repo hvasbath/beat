@@ -309,7 +309,7 @@ def histplot_op(
     Modified from pymc3. Additional color argument.
     """
 
-    cumulative = kwargs.pop("cumulative", "False")
+    cumulative = kwargs.pop("cumulative", False)
 
     if color is not None and cmap is not None:
         logger.debug("Using color for histogram edgecolor ...")

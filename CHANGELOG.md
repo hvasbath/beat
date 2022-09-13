@@ -16,6 +16,7 @@ Contributors: Hannes Vasyura-Bathke @hvasbath
 
 ### Fixed
 - stage_posterior plot supports multipage output, figsize fixed to fractions of A4
+- multievent waveform_fits plot returns separate figures for each sub-event
 
 
 ## [1.2.0] 21 August 2022
