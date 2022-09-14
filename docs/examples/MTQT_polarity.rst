@@ -394,6 +394,13 @@ It may look like this.
 
 The vertical black lines are the true values and the vertical red lines are the maximum likelihood values.
 
+The posterior marginals can be plotted using different forms, either "kde", "pdf", or "cdf" through the option *--plot_projection*::
+
+    beat plot MTQT_polarity stage_posteriors --stage_number=-1 --format='png' --varnames=strike1,kappa --plot_projection=kde
+
+Repeatedly calling the above commandline and combining the output yields following figure, from top to bottom: with varying *--plot_projection* kde, pdf, cdf.
+
+.. image:: ../_static/example8/pol_stage_posteriors_variations.png
 
 To get an image of parameter correlations (including the maximum aposterior (MAP) value in red) of moment tensor components and posterior likelihood.::
 

@@ -13,6 +13,7 @@ Contributors: Hannes Vasyura-Bathke @hvasbath
 
 **plotting**
 - *plot_projection* argument available for *stage_posteriors* plot: cdf, pdf, kde
+- update Example 8 to showcase the use of this functionality
 
 ### Fixed
 - stage_posterior plot supports multipage output, figsize fixed to fractions of A4
