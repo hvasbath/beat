@@ -838,7 +838,7 @@ class GeodeticDistributerComposite(GeodeticComposite):
             with random variables from solution space
         """
         tpoint = copy.deepcopy(point)
-        tpoint.update(self.fixed_rvs)
+        # tpoint.update(self.fixed_rvs)   if vars are fixed GFS are not calculated
 
         if self.nevents == 1:
             events = [self.event]  # single event

@@ -44,7 +44,7 @@ from pymc3.model import modelcontext
 from pymc3.step_methods.arraystep import BlockedStep
 from pyrocko import util
 
-from beat.config import dc_components, mt_components, sample_p_outname, transd_vars_dist
+from beat.config import sample_p_outname, transd_vars_dist
 from beat.covariance import calc_sample_covariance
 from beat.utility import (
     ListArrayOrdering,
@@ -55,13 +55,6 @@ from beat.utility import (
 )
 
 logger = logging.getLogger("backend")
-
-
-derived_variables_mapping = {
-    "MTQTSource": mt_components + dc_components,
-    "MTSource": dc_components,
-    "RectangularSource": ["magnitude"],
-}
 
 
 def thin_buffer(buffer, buffer_thinning, ensure_last=True):
@@ -297,19 +290,15 @@ class FileChain(BaseChain):
         else:
             return self._df.shape[0] + len(self.buffer)
 
-    def add_derived_variables(self, source_type, n_sources=1):
-
-        try:
-            varnames = derived_variables_mapping[source_type]
-            logger.info(
-                "Adding derived variables %s to " "trace." % list2string(varnames)
+    def add_derived_variables(self, varnames, shapes):
+        nshapes = len(shapes)
+        nvars = len(varnames)
+        if nvars != nshapes:
+            raise ValueError(
+                "Inconsistent number of variables %i and shapes %i!" % (nvars, nshapes)
             )
-        except KeyError:
-            logger.info("No derived variables for %s" % source_type)
-            varnames = []
 
-        for varname in varnames:
-            shape = (n_sources,)
+        for varname, shape in zip(varnames, shapes):
             self.flat_names[varname] = ttab.create_flat_names(varname, shape)
             self.var_shapes[varname] = shape
             self.var_dtypes[varname] = "float64"

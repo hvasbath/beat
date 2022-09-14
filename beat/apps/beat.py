@@ -19,7 +19,7 @@ import sys
 from collections import OrderedDict
 from optparse import OptionParser
 
-from numpy import array, atleast_2d, floor, zeros
+from numpy import array, atleast_2d, floor, zeros, cumsum
 from pyrocko import model, util
 from pyrocko.gf import LocalEngine
 from pyrocko.guts import Dict, dump, load
@@ -1204,10 +1204,14 @@ def command_summarize(args):
                 buffer_size=sc.buffer_size,
                 progressbar=False,
             )
+
             pc = problem.config.problem_config
+            reference = pc.get_test_point()
 
             if options.calc_derived:
-                rtrace.add_derived_variables(pc.source_type, n_sources=pc.n_sources)
+                varnames, shapes = pc.get_derived_variables_shapes()
+                rtrace.add_derived_variables(varnames, shapes)
+                splitinds = cumsum([shape[0] for shape in shapes[:-1]])
 
             rtrace.setup(draws=draws, chain=-1, overwrite=True)
 
@@ -1225,6 +1229,7 @@ def command_summarize(args):
                 store = composite.engine.get_store(target.store_id)
             else:
                 source = composite.load_fault_geometry()
+                sources = [source]
                 engine = LocalEngine(
                     store_superdirs=[composite.config.gf_config.store_superdir]
                 )
@@ -1233,6 +1238,7 @@ def command_summarize(args):
             for chain in tqdm(chains):
                 for idx in idxs:
                     point = stage.mtrace.point(idx=idx, chain=chain)
+                    reference.update(point)
                     # normalize MT source, TODO put into get_derived_params
                     if isinstance(source, MTSourceWithMagnitude):
                         composite.point2sources(point)
@@ -1241,7 +1247,7 @@ def command_summarize(args):
                             ldicts.append(source.scaled_m6_dict)
 
                         jpoint = utility.join_points(ldicts)
-                        point.update(jpoint)
+                        reference.update(jpoint)
                         del jpoint, ldicts
 
                     derived = []
@@ -1250,12 +1256,13 @@ def command_summarize(args):
                         composite.point2sources(point)
                         if hasattr(source, "get_derived_parameters"):
                             for source in sources:
-                                derived.append(
-                                    source.get_derived_parameters(
-                                        store=store, target=target
-                                    )
+                                deri = source.get_derived_parameters(
+                                    point=reference,  # need to pass correction params
+                                    store=store,
+                                    target=target,
+                                    event=problem.config.event,
                                 )
-                                nderived = source.nderived_parameters
+                                derived.append(deri)
 
                         # pyrocko Rectangular source, TODO use BEAT RS ...
                         elif isinstance(source, RectangularSource):
@@ -1265,21 +1272,11 @@ def command_summarize(args):
                                     source.get_magnitude(store=store, target=target)
                                 )
 
-                            nderived = 1
-
-                        # FFI
-                        else:
-                            derived.append(
-                                source.get_magnitude(
-                                    point=point, store=store, target=target
-                                )
-                            )
-                            nderived = 1
-
                     lpoint = problem.model.lijection.d2l(point)
+
                     if derived:
                         lpoint.extend(
-                            map(ravel, split(vstack(derived).T, nderived, axis=0))
+                            map(ravel, split(vstack(derived).T, splitinds, axis=0))
                         )
 
                     # TODO: in PT with large buffer sizes somehow memory leak
@@ -1782,8 +1779,8 @@ def command_plot(args):
             dest="plot_projection",
             # choices=['latlon', 'local', 'individual'],
             default="local",
-            help='Output projection of the plot; "latlon" or "local"'
-            'Default: "local"',
+            help='Output projection of the plot; "latlon" or "local" for maps - Default: "local";'
+            ' "pdf", "cdf" or "kde" for stage_posterior plot - Default: "pdf"',
         )
 
         parser.add_option(

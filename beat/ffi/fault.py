@@ -134,13 +134,16 @@ total number of patches: %i """ % (
         self._model_resolution = model_resolution
 
     def get_model_resolution(self):
-        if self._model_resolution is None:
-            logger.warning(
-                "Model resolution matrix has not been calculated! "
-                "Please run beat.ffi.optimize_discretization on this fault! "
-                "Returning None!"
-            )
-        return self._model_resolution
+        if hasattr(self, "_model_resolution"):
+            if self._model_resolution is None:
+                logger.warning(
+                    "Model resolution matrix has not been calculated! "
+                    "Please run beat.ffi.optimize_discretization on this fault! "
+                    "Returning None!"
+                )
+            return self._model_resolution
+        else:
+            return None
 
     def get_subfault_key(self, index, datatype, component):
 
@@ -936,6 +939,18 @@ total number of patches: %i """ % (
     @property
     def is_discretized(self):
         return True if self.npatches else False
+
+    def get_derived_parameters(self, point=None, store=None, target=None, event=None):
+
+        has_pole, _ = check_point_keys(point, phrase="*_pole_lat")
+        if has_pole:
+            euler_slips = euler_pole2slips(point=point, fault=self, event=event)
+            coupling = backslip2coupling(point, euler_slips)
+        else:
+            coupling = []
+
+        magnitude = self.get_magnitude(point=point, store=store, target=target)
+        return num.hstack([magnitude, coupling])
 
 
 def write_fault_to_pscmp(

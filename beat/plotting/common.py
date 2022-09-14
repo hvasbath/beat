@@ -28,6 +28,7 @@ u_v = "$[m^3]$"
 u_s = "$[s]$"
 u_rad = "$[rad]$"
 u_hyp = ""
+u_percent = "[$\%$]"
 u_nanostrain = "nstrain"
 
 plot_units = {
@@ -60,6 +61,7 @@ plot_units = {
     "nucleation_x": u_hyp,
     "nucleation_y": u_hyp,
     "time_shift": u_s,
+    "coupling": u_percent,
     "uperp": u_m,
     "uparr": u_m,
     "utens": u_m,
@@ -306,6 +308,9 @@ def histplot_op(
     """
     Modified from pymc3. Additional color argument.
     """
+
+    cumulative = kwargs.pop("cumulative", False)
+
     if color is not None and cmap is not None:
         logger.debug("Using color for histogram edgecolor ...")
 
@@ -317,11 +322,15 @@ def histplot_op(
 
         histtype = "bar"
     else:
-        histtype = "stepfilled"
+        if not cumulative:
+            histtype = "stepfilled"
+        else:
+            histtype = "step"
 
     for i in range(data.shape[1]):
         d = data[:, i]
         quants = quantiles(d, qlist=qlist)
+
         mind = quants[qlist[0]]
         maxd = quants[qlist[-1]]
 
@@ -332,15 +341,16 @@ def histplot_op(
         if tstd is None:
             tstd = num.std(d)
 
-        step = ((maxd - mind) / 40.0).astype(tconfig.floatX)
-
-        if step == 0:
-            step = num.finfo(tconfig.floatX).eps
-
         if bins is None:
+            step = ((maxd - mind) / 40).astype(tconfig.floatX)
+
+            if step == 0:
+                step = num.finfo(tconfig.floatX).eps
+
             bins = int(num.ceil((maxd - mind) / step))
             if bins == 0:
                 bins = 10
+
         major, minor = get_matplotlib_version()
         if major < 3:
             kwargs["normed"] = True
@@ -356,6 +366,7 @@ def histplot_op(
             histtype=histtype,
             color=color,
             edgecolor=color,
+            cumulative=cumulative,
             **kwargs
         )
 
@@ -379,6 +390,36 @@ def histplot_op(
             rightb = num.maximum(rightb, right)
 
         ax.set_xlim(leftb, rightb)
+        if cumulative:
+            # need left plot bound, leftb
+            sigma_quants = quantiles(d, [5, 68, 95])
+
+            for quantile, value in sigma_quants.items():
+                quantile /= 100.0
+                x = [leftb, value, value]
+                y = [quantile, quantile, 0.0]
+
+                ax.plot(x, y, "--k", linewidth=0.5)
+                fontsize = 6
+                xval = (value - num.abs(leftb)) / 2 + leftb
+
+                ax.text(
+                    xval,
+                    quantile,
+                    "{}%".format(int(quantile * 100)),
+                    fontsize=fontsize,
+                    horizontalalignment="center",
+                    verticalalignment="bottom",
+                )
+                # if quantile > 0.3:
+                ax.text(
+                    value,
+                    quantile / 2,
+                    "%.3f" % value,
+                    fontsize=fontsize,
+                    horizontalalignment="left",
+                    verticalalignment="bottom",
+                )
 
 
 def kde2plot_op(ax, x, y, grid=200, **kwargs):

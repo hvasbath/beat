@@ -1006,7 +1006,7 @@ def draw_scene_fits(problem, plot_options):
         % (stage.number, llk_str, po.plot_projection, po.nensemble),
     )
 
-    if not os.path.exists(outpath) or po.force:
+    if not os.path.exists(outpath + ".%s" % po.outformat) or po.force:
         figs = scene_fits(problem, stage, po)
     else:
         logger.info("scene plots exist. Use force=True for replotting!")

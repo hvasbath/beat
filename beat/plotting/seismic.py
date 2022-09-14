@@ -830,241 +830,252 @@ def seismic_fits(problem, stage, plot_options):
     else:
         all_time_shifts = {target: None for target in composite.targets}
 
-    # gather domain targets
-    domain_to_targets = utility.gather(composite.targets, lambda t: t.domain)
+    event_figs = []
+    for event_idx, event in enumerate(composite.events):
+        # gather event related targets
+        event_targets = []
+        for wmap in composite.wavemaps:
+            if event_idx == wmap.config.event_idx:
+                event_targets.extend(wmap.targets)
 
-    target_codes_to_targets = utility.gather(composite.targets, lambda t: t.codes)
+        target_codes_to_targets = utility.gather(event_targets, lambda t: t.codes)
 
-    # gather unique target codes
-    unique_target_codes = list(target_codes_to_targets.keys())
-    cg_to_target_codes = utility.gather(unique_target_codes, lambda t: t[3])
+        # gather unique target codes
+        unique_target_codes = list(target_codes_to_targets.keys())
+        cg_to_target_codes = utility.gather(unique_target_codes, lambda t: t[3])
 
-    skey = lambda tr: tr.channel
-    cgs = cg_to_target_codes.keys()
+        skey = lambda tr: tr.channel
+        cgs = cg_to_target_codes.keys()
 
-    figs = []
-    logger.info("Plotting waveforms ...")
-    for cg in cgs:
-        target_codes = cg_to_target_codes[cg]
+        figs = []
+        logger.info("Plotting waveforms ... for event number: %i" % event_idx)
+        logger.info(event.__str__())
+        for cg in cgs:
+            target_codes = cg_to_target_codes[cg]
 
-        nframes = len(target_codes)
+            nframes = len(target_codes)
 
-        nx = int(num.ceil(num.sqrt(nframes)))
-        ny = (nframes - 1) // nx + 1
+            nx = int(num.ceil(num.sqrt(nframes)))
+            ny = (nframes - 1) // nx + 1
 
-        logger.debug("nx %i, ny %i" % (nx, ny))
+            logger.debug("nx %i, ny %i" % (nx, ny))
 
-        nxmax = 4
-        nymax = 4
+            nxmax = 4
+            nymax = 4
 
-        nxx = (nx - 1) // nxmax + 1
-        nyy = (ny - 1) // nymax + 1
+            nxx = (nx - 1) // nxmax + 1
+            nyy = (ny - 1) // nymax + 1
 
-        xs = num.arange(nx) // ((max(2, nx) - 1.0) / 2.0)
-        ys = num.arange(ny) // ((max(2, ny) - 1.0) / 2.0)
+            xs = num.arange(nx) // ((max(2, nx) - 1.0) / 2.0)
+            ys = num.arange(ny) // ((max(2, ny) - 1.0) / 2.0)
 
-        xs -= num.mean(xs)
-        ys -= num.mean(ys)
+            xs -= num.mean(xs)
+            ys -= num.mean(ys)
 
-        fxs = num.tile(xs, ny)
-        fys = num.repeat(ys, nx)
+            fxs = num.tile(xs, ny)
+            fys = num.repeat(ys, nx)
 
-        data = []
-        for target_code in target_codes:
-            target = target_codes_to_targets[target_code][0]
-            azi = source.azibazi_to(target)[0]
-            dist = source.distance_to(target)
-            x = dist * num.sin(num.deg2rad(azi))
-            y = dist * num.cos(num.deg2rad(azi))
-            data.append((x, y, dist))
-
-        gxs, gys, dists = num.array(data, dtype=num.float).T
-
-        iorder = num.argsort(dists)
-
-        gxs = gxs[iorder]
-        gys = gys[iorder]
-        target_codes_sorted = [target_codes[ii] for ii in iorder]
-
-        gxs -= num.mean(gxs)
-        gys -= num.mean(gys)
-
-        gmax = max(num.max(num.abs(gys)), num.max(num.abs(gxs)))
-        if gmax == 0.0:
-            gmax = 1.0
-
-        gxs /= gmax
-        gys /= gmax
-
-        dists = num.sqrt(
-            (fxs[num.newaxis, :] - gxs[:, num.newaxis]) ** 2
-            + (fys[num.newaxis, :] - gys[:, num.newaxis]) ** 2
-        )
-
-        distmax = num.max(dists)
-
-        availmask = num.ones(dists.shape[1], dtype=num.bool)
-        frame_to_target_code = {}
-        for itarget, target_code in enumerate(target_codes_sorted):
-            iframe = num.argmin(num.where(availmask, dists[itarget], distmax + 1.0))
-            availmask[iframe] = False
-            iy, ix = num.unravel_index(iframe, (ny, nx))
-            frame_to_target_code[iy, ix] = target_code
-
-        figures = {}
-        for iy in range(ny):
-            for ix in range(nx):
-                if (iy, ix) not in frame_to_target_code:
-                    continue
-
-                ixx = ix // nxmax
-                iyy = iy // nymax
-                if (iyy, ixx) not in figures:
-                    figures[iyy, ixx] = plt.figure(
-                        figsize=mpl_papersize("a4", "landscape")
-                    )
-
-                    figures[iyy, ixx].subplots_adjust(
-                        left=0.03,
-                        right=1.0 - 0.03,
-                        bottom=0.03,
-                        top=1.0 - 0.06,
-                        wspace=0.20,
-                        hspace=0.30,
-                    )
-
-                    figs.append(figures[iyy, ixx])
-
-                logger.debug("iyy %i, ixx %i" % (iyy, ixx))
-                logger.debug("iy %i, ix %i" % (iy, ix))
-                fig = figures[iyy, ixx]
-
-                target_code = frame_to_target_code[iy, ix]
-                domain_targets = target_codes_to_targets[target_code]
-                if len(domain_targets) > 1:
-                    only_spectrum = False
-                else:
-                    only_spectrum = True
-
-                for k_subf, target in enumerate(domain_targets):
-
-                    syn_traces = all_syn_trs_target[target]
-                    itarget = target_index[target]
-                    result = bresults[itarget]
-
-                    # get min max of all traces
-                    key = target.codes[3]
-                    amin, amax = trace.minmax(syn_traces, key=skey)[key]
-                    # need target specific minmax
-                    absmax = max(abs(amin), abs(amax))
-
-                    ny_this = nymax  # min(ny, nymax)
-                    nx_this = nxmax  # min(nx, nxmax)
-                    i_this = (iy % ny_this) * nx_this + (ix % nx_this) + 1
-                    logger.debug("i_this %i" % i_this)
-                    logger.debug("Station {}".format(utility.list2string(target.codes)))
-
-                    if k_subf == 0:
-                        # only create axes instances for first target
-                        axes2 = fig.add_subplot(ny_this, nx_this, i_this)
-
-                        space = 0.4
-                        space_factor = 0.7 + space
-                        axes2.set_axis_off()
-                        axes2.set_ylim(-1.05 * space_factor, 1.05)
-
-                        axes = axes2.twinx()
-                        axes.set_axis_off()
-
-                    if target.domain == "time":
-                        ymin, ymax = -absmax * 1.5 * space_factor, absmax * 1.5
-                        try:
-                            axes.set_ylim(ymin, ymax)
-                        except ValueError:
-                            logger.debug(
-                                "These traces contain NaN or Inf open in snuffler?"
-                            )
-                            input("Press enter! Otherwise Ctrl + C")
-                            from pyrocko.trace import snuffle
-
-                            snuffle(syn_traces)
-
-                        subplot_waveforms(
-                            axes=axes,
-                            axes2=axes2,
-                            po=po,
-                            result=result,
-                            target=target,
-                            traces=syn_traces,
-                            source=source,
-                            var_reductions=all_var_reductions[target],
-                            time_shifts=all_time_shifts[target],
-                            time_shift_bounds=time_shift_bounds,
-                            synth_plot_flag=synth_plot_flag,
-                            absmax=absmax,
-                            mode=composite._mode,
-                            fontsize=fontsize,
-                            syn_color=syn_color,
-                            obs_color=obs_color,
-                            time_shift_color=time_shift_color,
-                            tap_color_edge=tap_color_edge,
-                            tap_color_annot=tap_color_annot,
-                        )
-
-                    if target.domain == "spectrum":
-                        subplot_spectrum(
-                            axes=axes,
-                            axes2=axes2,
-                            po=po,
-                            target=target,
-                            traces=syn_traces,
-                            result=result,
-                            synth_plot_flag=synth_plot_flag,
-                            only_spectrum=only_spectrum,
-                            var_reductions=all_var_reductions[target],
-                            fontsize=fontsize,
-                            syn_color=syn_color,
-                            obs_color=obs_color,
-                            misfit_color=misfit_color,
-                            tap_color_annot=tap_color_annot,
-                            ypad_factor=1.2,
-                        )
-
-                scale_string = None
-
-                infos = []
-                if scale_string:
-                    infos.append(scale_string)
-
-                infos.append(".".join(x for x in target.codes if x))
-                dist = source.distance_to(target)
+            data = []
+            for target_code in target_codes:
+                targets = target_codes_to_targets[target_code]
+                target = targets[0]
                 azi = source.azibazi_to(target)[0]
-                infos.append(str_dist(dist))
-                infos.append("%.0f\u00B0" % azi)
-                # infos.append('%.3f' % gcms[itarget])
-                axes2.annotate(
-                    "\n".join(infos),
-                    xy=(0.0, 1.0),
-                    xycoords="axes fraction",
-                    xytext=(1.0, 1.0),
-                    textcoords="offset points",
-                    ha="left",
-                    va="top",
-                    fontsize=fontsize,
-                    fontstyle="normal",
-                    zorder=10,
-                )
+                dist = source.distance_to(target)
+                x = dist * num.sin(num.deg2rad(azi))
+                y = dist * num.cos(num.deg2rad(azi))
+                data.append((x, y, dist))
 
-                axes2.set_zorder(10)
+            gxs, gys, dists = num.array(data, dtype=num.float).T
 
-        for (iyy, ixx), fig in figures.items():
-            title = ".".join(x for x in cg if x)
-            if len(figures) > 1:
-                title += " (%i/%i, %i/%i)" % (iyy + 1, nyy, ixx + 1, nxx)
+            iorder = num.argsort(dists)
 
-            fig.suptitle(title, fontsize=fontsize_title)
+            gxs = gxs[iorder]
+            gys = gys[iorder]
+            target_codes_sorted = [target_codes[ii] for ii in iorder]
 
-    return figs
+            gxs -= num.mean(gxs)
+            gys -= num.mean(gys)
+
+            gmax = max(num.max(num.abs(gys)), num.max(num.abs(gxs)))
+            if gmax == 0.0:
+                gmax = 1.0
+
+            gxs /= gmax
+            gys /= gmax
+
+            dists = num.sqrt(
+                (fxs[num.newaxis, :] - gxs[:, num.newaxis]) ** 2
+                + (fys[num.newaxis, :] - gys[:, num.newaxis]) ** 2
+            )
+
+            distmax = num.max(dists)
+
+            availmask = num.ones(dists.shape[1], dtype=num.bool)
+            frame_to_target_code = {}
+            for itarget, target_code in enumerate(target_codes_sorted):
+                iframe = num.argmin(num.where(availmask, dists[itarget], distmax + 1.0))
+                availmask[iframe] = False
+                iy, ix = num.unravel_index(iframe, (ny, nx))
+                frame_to_target_code[iy, ix] = target_code
+
+            figures = {}
+            for iy in range(ny):
+                for ix in range(nx):
+                    if (iy, ix) not in frame_to_target_code:
+                        continue
+
+                    ixx = ix // nxmax
+                    iyy = iy // nymax
+                    if (iyy, ixx) not in figures:
+                        figures[iyy, ixx] = plt.figure(
+                            figsize=mpl_papersize("a4", "landscape")
+                        )
+
+                        figures[iyy, ixx].subplots_adjust(
+                            left=0.03,
+                            right=1.0 - 0.03,
+                            bottom=0.03,
+                            top=1.0 - 0.06,
+                            wspace=0.20,
+                            hspace=0.30,
+                        )
+
+                        figs.append(figures[iyy, ixx])
+
+                    logger.debug("iyy %i, ixx %i" % (iyy, ixx))
+                    logger.debug("iy %i, ix %i" % (iy, ix))
+                    fig = figures[iyy, ixx]
+
+                    target_code = frame_to_target_code[iy, ix]
+                    domain_targets = target_codes_to_targets[target_code]
+                    if len(domain_targets) > 1:
+                        only_spectrum = False
+                    else:
+                        only_spectrum = True
+
+                    for k_subf, target in enumerate(domain_targets):
+
+                        syn_traces = all_syn_trs_target[target]
+                        itarget = target_index[target]
+                        result = bresults[itarget]
+
+                        # get min max of all traces
+                        key = target.codes[3]
+                        amin, amax = trace.minmax(syn_traces, key=skey)[key]
+                        # need target specific minmax
+                        absmax = max(abs(amin), abs(amax))
+
+                        ny_this = nymax  # min(ny, nymax)
+                        nx_this = nxmax  # min(nx, nxmax)
+                        i_this = (iy % ny_this) * nx_this + (ix % nx_this) + 1
+                        logger.debug("i_this %i" % i_this)
+                        logger.debug(
+                            "Station {}".format(utility.list2string(target.codes))
+                        )
+
+                        if k_subf == 0:
+                            # only create axes instances for first target
+                            axes2 = fig.add_subplot(ny_this, nx_this, i_this)
+
+                            space = 0.4
+                            space_factor = 0.7 + space
+                            axes2.set_axis_off()
+                            axes2.set_ylim(-1.05 * space_factor, 1.05)
+
+                            axes = axes2.twinx()
+                            axes.set_axis_off()
+
+                        if target.domain == "time":
+                            ymin, ymax = -absmax * 1.5 * space_factor, absmax * 1.5
+                            try:
+                                axes.set_ylim(ymin, ymax)
+                            except ValueError:
+                                logger.debug(
+                                    "These traces contain NaN or Inf open in snuffler?"
+                                )
+                                input("Press enter! Otherwise Ctrl + C")
+                                from pyrocko.trace import snuffle
+
+                                snuffle(syn_traces)
+
+                            subplot_waveforms(
+                                axes=axes,
+                                axes2=axes2,
+                                po=po,
+                                result=result,
+                                target=target,
+                                traces=syn_traces,
+                                source=source,
+                                var_reductions=all_var_reductions[target],
+                                time_shifts=all_time_shifts[target],
+                                time_shift_bounds=time_shift_bounds,
+                                synth_plot_flag=synth_plot_flag,
+                                absmax=absmax,
+                                mode=composite._mode,
+                                fontsize=fontsize,
+                                syn_color=syn_color,
+                                obs_color=obs_color,
+                                time_shift_color=time_shift_color,
+                                tap_color_edge=tap_color_edge,
+                                tap_color_annot=tap_color_annot,
+                            )
+
+                        if target.domain == "spectrum":
+                            subplot_spectrum(
+                                axes=axes,
+                                axes2=axes2,
+                                po=po,
+                                target=target,
+                                traces=syn_traces,
+                                result=result,
+                                synth_plot_flag=synth_plot_flag,
+                                only_spectrum=only_spectrum,
+                                var_reductions=all_var_reductions[target],
+                                fontsize=fontsize,
+                                syn_color=syn_color,
+                                obs_color=obs_color,
+                                misfit_color=misfit_color,
+                                tap_color_annot=tap_color_annot,
+                                ypad_factor=1.2,
+                            )
+
+                    scale_string = None
+
+                    infos = []
+                    if scale_string:
+                        infos.append(scale_string)
+
+                    infos.append(".".join(x for x in target.codes if x))
+                    dist = source.distance_to(target)
+                    azi = source.azibazi_to(target)[0]
+                    infos.append(str_dist(dist))
+                    infos.append("%.0f\u00B0" % azi)
+                    # infos.append('%.3f' % gcms[itarget])
+                    axes2.annotate(
+                        "\n".join(infos),
+                        xy=(0.0, 1.0),
+                        xycoords="axes fraction",
+                        xytext=(1.0, 1.0),
+                        textcoords="offset points",
+                        ha="left",
+                        va="top",
+                        fontsize=fontsize,
+                        fontstyle="normal",
+                        zorder=10,
+                    )
+
+                    axes2.set_zorder(10)
+
+            for (iyy, ixx), fig in figures.items():
+                title = ".".join(x for x in cg if x)
+                if len(figures) > 1:
+                    title += " (%i/%i, %i/%i)" % (iyy + 1, nyy, ixx + 1, nxx)
+
+                fig.suptitle(title, fontsize=fontsize_title)
+
+        event_figs.append((event_idx, figs))
+
+    return event_figs
 
 
 def draw_seismic_fits(problem, po):
@@ -1100,7 +1111,7 @@ def draw_seismic_fits(problem, po):
     )
 
     if not os.path.exists(outpath) or po.force:
-        figs = seismic_fits(problem, stage, po)
+        event_figs = seismic_fits(problem, stage, po)
     else:
         logger.info("waveform plots exist. Use force=True for replotting!")
         return
@@ -1108,14 +1119,18 @@ def draw_seismic_fits(problem, po):
     if po.outformat == "display":
         plt.show()
     else:
-        logger.info("saving figures to %s" % outpath)
-        if po.outformat == "pdf":
-            with PdfPages(outpath + ".pdf") as opdf:
-                for fig in figs:
-                    opdf.savefig(fig)
-        else:
-            for i, fig in enumerate(figs):
-                fig.savefig(outpath + "_%i.%s" % (i, po.outformat), dpi=po.dpi)
+        for event_idx, figs in event_figs:
+            event_outpath = "{}_{}".format(outpath, event_idx)
+            logger.info("saving figures to %s" % event_outpath)
+            if po.outformat == "pdf":
+                with PdfPages(event_outpath + ".pdf") as opdf:
+                    for fig in figs:
+                        opdf.savefig(fig)
+            else:
+                for i, fig in enumerate(figs):
+                    fig.savefig(
+                        event_outpath + "_%i.%s" % (i, po.outformat), dpi=po.dpi
+                    )
 
 
 def point2array(point, varnames, rpoint=None):
