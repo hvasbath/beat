@@ -7,6 +7,9 @@ If you came looking for the beat package calculating internet time you can find 
 
 Based on pyrocko, theano and pymc3
 
+14 September 2022
+Version 1.2.1 is released, improvements on the stage_posterior plot. Updated [Example 8](https://pyrocko.org/beat/docs/current/examples/MTQT_polarity.html#plotting) to show-case its use.
+
 21 August 2022
 Version 1.2.0 is released introducing waveform polarity inversion and inversion in spectral domain for seismic data.
 Checkout the [changelog](https://github.com/hvasbath/beat/blob/master/CHANGELOG.md) for all the details.
