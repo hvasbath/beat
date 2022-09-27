@@ -20,6 +20,7 @@ import numpy as num
 from pyrocko import catalog, orthodrome, util
 from pyrocko.cake import LayeredModel, m2d, read_nd_model_str
 from pyrocko.gf.seismosizer import RectangularSource
+from pyrocko.guts import Float, Int, Object
 from theano import config as tconfig
 
 logger = logging.getLogger("utility")
@@ -1556,3 +1557,42 @@ def find_elbow(data, theta=None, rotate_left=False):
     # rotate data vector
     rotated_data = data.dot(rotation_matrix)
     return rotated_data[:, 1].argmin(), rotated_data
+
+
+class StencilOperator(Object):
+
+    h = Float.T(default=0.1, help="step size left and right of the reference value")
+    order = Int.T(default=3, help="number of points of central differences")
+
+    def __init__(self, **kwargs):
+
+        stencil_order = kwargs["order"]
+        if stencil_order not in [3, 5]:
+            raise ValueError(
+                "Only stencil orders 3 and 5 implemented."
+                " Requested: %i" % stencil_order
+            )
+
+        self._coeffs = {3: num.array([1.0, -1.0]), 5: num.array([1.0, 8.0, -8.0, -1.0])}
+
+        self._denominator = {3: 2.0, 5: 12.0}
+
+        self._hsteps = {3: num.array([-1, 1]), 5: num.array([-2, -1, 1, 2])}
+
+        Object.__init__(self, **kwargs)
+
+    @property
+    def coefficients(self):
+        coeffs = self._coeffs[self.order]
+        return coeffs.reshape((coeffs.size, 1, 1))
+
+    def __len__(self):
+        return self.coefficients.size
+
+    @property
+    def denominator(self):
+        return self._denominator[self.order] * self.h
+
+    @property
+    def hsteps(self):
+        return self._hsteps[self.order] * self.h

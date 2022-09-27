@@ -3797,6 +3797,131 @@ def seis_synthetics(
         raise TypeError("Outmode %s not supported!" % outmode)
 
 
+spatial_derivative_parameters = {"dn": "north_shift", "de": "east_shift", "dd": "depth"}
+
+
+def seis_derivative(
+    engine,
+    sources,
+    targets,
+    arrival_taper,
+    arrival_times,
+    wavename,
+    filterer,
+    h,
+    parameter,
+    stencil_order=3,
+    outmode="tapered_data",
+):
+    """
+    Calculate numerical derivative with respect to source or spatial parameter
+    Parameters
+    ----------
+    engine : :class:`pyrocko.gf.seismosizer.LocalEngine`
+    sources : list
+        containing :class:`pyrocko.gf.seismosizer.Source` Objects
+        reference source is the first in the list!!!
+    targets : list
+        containing :class:`pyrocko.gf.seismosizer.Target` Objects
+    arrival_taper : :class:`ArrivalTaper`
+    arrival_times : list or:class:`numpy.ndarray`
+        containing the start times [s] since 1st.January 1970 to start
+        tapering
+    wavename : string
+        of the tabulated phase that determines the phase arrival
+    filterer : :class:`Filterer`
+    h : float
+        distance for derivative calculation
+    parameter : str
+        parameter with respect to which the derivative
+        is being calculated e.g. 'strike', 'dip', 'depth'
+    stencil_order : int
+        order N of numerical stencil differentiation, available; 3 or 5
+    Returns
+    -------
+    :class:`num.array` ntargets x nsamples with the first derivative
+    """
+
+    ntargets = len(targets)
+
+    available_params = list(sources[0].keys()) + list(
+        spatial_derivative_parameters.keys()
+    )
+    if parameter not in available_params:
+        raise AttributeError(
+            "Parameter for which the derivative was requested is neither"
+            " represented by the source nor the target. Supported parameters:"
+            " %s" % utility.list2string(available_params)
+        )
+
+    calc_sources = copy.deepcopy(sources)
+    store = engine.get_store(targets[0].store_id)
+    nsamples = int(num.ceil(store.config.sample_rate * arrival_taper.duration()))
+
+    stencil = utility.StencilOperator(h=h, order=stencil_order)
+
+    # loop over stencil steps
+    n_stencil_steps = len(stencil)
+    tmp = num.zeros((n_stencil_steps, ntargets, nsamples), dtype="float64")
+    for i, hstep in enumerate(stencil.hsteps):
+
+        if parameter in spatial_derivative_parameters:
+            target_param_name = spatial_derivative_parameters[parameter]
+            diff_targets = []
+            diff_sources = sources
+            for target in targets:
+                target_diff = copy.deepcopy(target)
+                target_param = getattr(target, target_param_name)
+                setattr(target_diff, target_param_name, target_param + hstep)
+                diff_targets.append(target_diff)
+
+            arrival_times = num.repeat(arrival_times, n_stencil_steps)
+        else:
+            diff_targets = targets
+            diff_sources = []
+            for source in calc_sources:
+                source_diff = source.clone()
+                source_param = source[parameter]
+                setattr(source_diff, parameter, source_param + hstep)
+                diff_sources.append(source_diff)
+
+        tmp[i, :, :], tmins = seis_synthetics(
+            engine=engine,
+            sources=diff_sources,
+            targets=diff_targets,
+            arrival_taper=arrival_taper,
+            wavename=wavename,
+            filterer=filterer,
+            arrival_times=arrival_times,
+            pre_stack_cut=True,
+            outmode="array",
+            chop_bounds=["b", "c"],
+        )
+
+    diff_array = (tmp * stencil.coefficients).sum(axis=0) / stencil.denominator
+
+    if outmode == "array":
+        return diff_array
+    elif outmode == "tapered_data":
+        out_traces = []
+        for i, target in enumerate(targets):
+            store = engine.get_store(target.store_id)
+            network, station, location, channel = target.codes
+            strain_trace = trace.Trace(
+                tmin=tmins[i],
+                ydata=diff_array[i, :],
+                network=network,
+                station=station,
+                location="{}{}".format(parameter, location),
+                channel=channel,
+                deltat=store.config.deltat,
+            )
+            out_traces.append(strain_trace)
+        return out_traces
+    else:
+        raise IOError("Outmode %s not supported!" % outmode)
+
+
 def radiation_weights_p(takeoff_angles, azimuths):
     """
     Station dependent propagation coefficients for P waves
