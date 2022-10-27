@@ -380,6 +380,11 @@ class NonlinearGFConfig(GFConfig):
         "depth the velocity model is not varied based on the errors "
         "defined above!",
     )
+    version = String.T(
+        default=None,
+        optional=True,
+        help="Version number of the backend codes. If not defined, default versions will be used.",
+    )
 
 
 class SeismicGFConfig(NonlinearGFConfig):

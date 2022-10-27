@@ -9,15 +9,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 Contributors: Hannes Vasyura-Bathke @hvasbath
 
 ### Added
-plotting.marginals.traceplot: source_idxs argument can be slice e.g. 1:10 to take mean of patch attributes
-heart.seis_derivative: function to numerically calculate derivatives wrt source attributes for waveforms
-utility: functions for slice to string conversion and vice versa
+- plotting.marginals.traceplot: source_idxs argument can be slice e.g. 1:10 to take mean of patch attributes
+- heart.seis_derivative: function to numerically calculate derivatives wrt source attributes for waveforms
+- utility: functions for slice to string conversion and vice versa
+- config; NonlinearGFConfig added version attribute to specify backend version to use for GF calculation
 
 ### Changed
-plotting.marginals.traceplot: CDF plotting of multiple distributions in a single subplot marks quantiles only once
+- plotting.marginals.traceplot: CDF plotting of multiple distributions in a single subplot marks quantiles only once
 
 ### Fixed
-plotting.marginals.traceplot: multipage output repeating variables
+- plotting.marginals.traceplot: multipage output repeating variables
 
 
 ## [1.2.1] 14 September 2022

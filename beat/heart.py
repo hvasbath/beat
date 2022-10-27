@@ -2160,7 +2160,12 @@ backend_builders = {"qseis": qseis.build, "qssp": qssp.build}
 
 
 def choose_backend(
-    fomosto_config, code, source_model, receiver_model, gf_directory="qseis2d_green"
+    fomosto_config,
+    code,
+    source_model,
+    receiver_model,
+    gf_directory="qseis2d_green",
+    version=None,
 ):
     """
     Get backend related config.
@@ -2178,7 +2183,7 @@ def choose_backend(
         raise TypeError('For near-field phases the "qseis" backend has to be used!')
 
     if code == "qseis":
-        version = "2006a"
+        default_version = "2006a"
         if "slowest" in waveforms or distances.min() < 10:
             logger.info(
                 "Receiver and source"
@@ -2204,16 +2209,16 @@ def choose_backend(
             wavelet_duration_samples=0.001,
             sw_flat_earth_transform=sw_flat_earth_transform,
             sw_algorithm=sw_algorithm,
-            qseis_version=version,
+            qseis_version=version or default_version,
         )
 
     elif code == "qssp":
         source_model = copy.deepcopy(receiver_model)
         receiver_model = None
-        version = "2010"
+        default_version = "2010"
 
         conf = qssp.QSSPConfig(
-            qssp_version=version,
+            qssp_version=version or default_version,
             slowness_max=float(num.max(slowness_taper)),
             toroidal_modes=True,
             spheroidal_modes=True,
@@ -2322,7 +2327,12 @@ def seis_construct_gf(
             gf_directory = os.path.join(sf.store_superdir, "base_gfs_%i" % crust_ind)
 
             conf = choose_backend(
-                fomosto_config, sf.code, source_model, receiver_model, gf_directory
+                fomosto_config,
+                sf.code,
+                source_model,
+                receiver_model,
+                gf_directory,
+                version=sf.version,
             )
 
             fomosto_config.validate()
@@ -2463,7 +2473,8 @@ def geo_construct_gf(event, geodetic_config, crust_ind=0, execute=True, force=Fa
     """
     from pyrocko.fomosto import psgrn_pscmp as ppp
 
-    version = "2008a"
+    default_version = "2008a"
+
     gfc = geodetic_config.gf_config
 
     # extract source crustal profile and check for water layer
@@ -2477,9 +2488,9 @@ def geo_construct_gf(event, geodetic_config, crust_ind=0, execute=True, force=Fa
 
     c = ppp.PsGrnPsCmpConfig()
 
-    c.pscmp_config.version = version
+    c.pscmp_config.version = gfc.version or default_version
 
-    c.psgrn_config.version = version
+    c.psgrn_config.version = gfc.version or default_version
     c.psgrn_config.sampling_interval = gfc.sampling_interval
     c.psgrn_config.gf_depth_spacing = gfc.medium_depth_spacing
     c.psgrn_config.gf_distance_spacing = gfc.medium_distance_spacing
