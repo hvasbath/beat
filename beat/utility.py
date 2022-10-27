@@ -1094,6 +1094,23 @@ def running_window_rms(data, window_size, mode="valid"):
     return num.sqrt(num.convolve(data2, window, mode))
 
 
+def slice2string(slice_obj):
+    """
+    Wrapper for better formatted string method for slices.
+
+    Returns
+    -------
+    str
+    """
+    if isinstance(slice_obj, slice):
+        if slice_obj.step:
+            return "{}:{}:{}".format(slice_obj.start, slice_obj.stop, slice_obj.step)
+        else:
+            return "{}:{}".format(slice_obj.start, slice_obj.stop)
+    else:
+        return slice_obj
+
+
 def list2string(l, fill=", "):
     """
     Convert list of string to single string.
@@ -1103,7 +1120,20 @@ def list2string(l, fill=", "):
     l: list
         of strings
     """
-    return fill.join("%s" % listentry for listentry in l)
+    return fill.join("%s" % slice2string(listentry) for listentry in l)
+
+
+def string2slice(slice_string):
+    """
+    Convert string of slice form to python slice object.
+
+    Parameters
+    ----------
+    slice_string: str
+        of form "0:2" i.e. two integer numbers separated by colon
+    """
+
+    return slice(*[int(idx) for idx in slice_string.split(":")])
 
 
 def unique_list(l):

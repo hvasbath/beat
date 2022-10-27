@@ -35,7 +35,7 @@ from beat.models import Stage, estimate_hypers, load_model, sample
 from beat.sampler.pt import SamplingHistory
 from beat.sampler.smc import sample_factor_final_stage
 from beat.sources import MTQTSource, MTSourceWithMagnitude
-from beat.utility import list2string
+from beat.utility import list2string, string2slice
 
 logger = logging.getLogger("beat")
 
@@ -1862,7 +1862,14 @@ selected giving a comma separated list.""" % list2string(
     if len(options.source_idxs) < 1:
         source_idxs = None
     else:
-        source_idxs = [int(idx) for idx in options.source_idxs]
+        source_idxs = []
+        for str_idx in options.source_idxs:
+            try:
+                idx = int(str_idx)
+            except ValueError:
+                idx = string2slice(str_idx)
+
+            source_idxs.append(idx)
 
     po = plotting.PlotOptions(
         plot_projection=options.plot_projection,
