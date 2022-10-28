@@ -381,8 +381,7 @@ class NonlinearGFConfig(GFConfig):
         "defined above!",
     )
     version = String.T(
-        default=None,
-        optional=True,
+        default="",
         help="Version number of the backend codes. If not defined, default versions will be used.",
     )
 

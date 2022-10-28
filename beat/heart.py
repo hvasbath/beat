@@ -2184,6 +2184,7 @@ def choose_backend(
 
     if code == "qseis":
         default_version = "2006a"
+        code_version = version or default_version
         if "slowest" in waveforms or distances.min() < 10:
             logger.info(
                 "Receiver and source"
@@ -2209,16 +2210,17 @@ def choose_backend(
             wavelet_duration_samples=0.001,
             sw_flat_earth_transform=sw_flat_earth_transform,
             sw_algorithm=sw_algorithm,
-            qseis_version=version or default_version,
+            qseis_version=code_version,
         )
 
     elif code == "qssp":
         source_model = copy.deepcopy(receiver_model)
         receiver_model = None
         default_version = "2010"
+        code_version = version or default_version
 
         conf = qssp.QSSPConfig(
-            qssp_version=version or default_version,
+            qssp_version=code_version,
             slowness_max=float(num.max(slowness_taper)),
             toroidal_modes=True,
             spheroidal_modes=True,
@@ -2227,6 +2229,8 @@ def choose_backend(
 
     else:
         raise NotImplementedError("Backend not supported: %s" % code)
+
+    logger.info("Using modelling code: %s with version: %s", code, code_version)
 
     # fill remaining fomosto params
     fc.earthmodel_1d = source_model
