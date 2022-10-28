@@ -310,8 +310,6 @@ def histplot_op(
     """
 
     cumulative = kwargs.pop("cumulative", False)
-    nsources = kwargs.pop("nsources", False)
-    isource = kwargs.pop("isource", 0)
 
     if color is not None and cmap is not None:
         logger.debug("Using color for histogram edgecolor ...")
@@ -398,39 +396,30 @@ def histplot_op(
 
             for quantile, value in sigma_quants.items():
                 quantile /= 100.0
-                if nsources == 1:
-                    x = [leftb, value, value]
-                    y = [quantile, quantile, 0.0]
-                else:
-                    x = [leftb, rightb]
-                    y = [quantile, quantile]
+                x = [leftb, value, value]
+                y = [quantile, quantile, 0.0]
 
+                ax.plot(x, y, "--k", linewidth=0.5)
                 fontsize = 6
+                xval = (value - num.abs(leftb)) / 2 + leftb
 
-                if isource + 1 == nsources:
-                    # plot for last hist in axis
-                    ax.plot(x, y, "--k", linewidth=0.5)
-
-                    xval = (value - leftb) / 2 + leftb
-
-                    ax.text(
-                        xval,
-                        quantile,
-                        "{}%".format(int(quantile * 100)),
-                        fontsize=fontsize,
-                        horizontalalignment="center",
-                        verticalalignment="bottom",
-                    )
-
-                if nsources == 1:
-                    ax.text(
-                        value,
-                        quantile / 2,
-                        "%.3f" % value,
-                        fontsize=fontsize,
-                        horizontalalignment="left",
-                        verticalalignment="bottom",
-                    )
+                ax.text(
+                    xval,
+                    quantile,
+                    "{}%".format(int(quantile * 100)),
+                    fontsize=fontsize,
+                    horizontalalignment="center",
+                    verticalalignment="bottom",
+                )
+                # if quantile > 0.3:
+                ax.text(
+                    value,
+                    quantile / 2,
+                    "%.3f" % value,
+                    fontsize=fontsize,
+                    horizontalalignment="left",
+                    verticalalignment="bottom",
+                )
 
 
 def kde2plot_op(ax, x, y, grid=200, **kwargs):

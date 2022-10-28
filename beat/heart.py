@@ -2160,12 +2160,7 @@ backend_builders = {"qseis": qseis.build, "qssp": qssp.build}
 
 
 def choose_backend(
-    fomosto_config,
-    code,
-    source_model,
-    receiver_model,
-    gf_directory="qseis2d_green",
-    version=None,
+    fomosto_config, code, source_model, receiver_model, gf_directory="qseis2d_green"
 ):
     """
     Get backend related config.
@@ -2183,8 +2178,7 @@ def choose_backend(
         raise TypeError('For near-field phases the "qseis" backend has to be used!')
 
     if code == "qseis":
-        default_version = "2006a"
-        code_version = version or default_version
+        version = "2006a"
         if "slowest" in waveforms or distances.min() < 10:
             logger.info(
                 "Receiver and source"
@@ -2210,17 +2204,16 @@ def choose_backend(
             wavelet_duration_samples=0.001,
             sw_flat_earth_transform=sw_flat_earth_transform,
             sw_algorithm=sw_algorithm,
-            qseis_version=code_version,
+            qseis_version=version,
         )
 
     elif code == "qssp":
         source_model = copy.deepcopy(receiver_model)
         receiver_model = None
-        default_version = "2010"
-        code_version = version or default_version
+        version = "2010"
 
         conf = qssp.QSSPConfig(
-            qssp_version=code_version,
+            qssp_version=version,
             slowness_max=float(num.max(slowness_taper)),
             toroidal_modes=True,
             spheroidal_modes=True,
@@ -2229,8 +2222,6 @@ def choose_backend(
 
     else:
         raise NotImplementedError("Backend not supported: %s" % code)
-
-    logger.info("Using modelling code: %s with version: %s", code, code_version)
 
     # fill remaining fomosto params
     fc.earthmodel_1d = source_model
@@ -2331,12 +2322,7 @@ def seis_construct_gf(
             gf_directory = os.path.join(sf.store_superdir, "base_gfs_%i" % crust_ind)
 
             conf = choose_backend(
-                fomosto_config,
-                sf.code,
-                source_model,
-                receiver_model,
-                gf_directory,
-                version=sf.version,
+                fomosto_config, sf.code, source_model, receiver_model, gf_directory
             )
 
             fomosto_config.validate()
@@ -2477,8 +2463,7 @@ def geo_construct_gf(event, geodetic_config, crust_ind=0, execute=True, force=Fa
     """
     from pyrocko.fomosto import psgrn_pscmp as ppp
 
-    default_version = "2008a"
-
+    version = "2008a"
     gfc = geodetic_config.gf_config
 
     # extract source crustal profile and check for water layer
@@ -2492,9 +2477,9 @@ def geo_construct_gf(event, geodetic_config, crust_ind=0, execute=True, force=Fa
 
     c = ppp.PsGrnPsCmpConfig()
 
-    c.pscmp_config.version = gfc.version or default_version
+    c.pscmp_config.version = version
 
-    c.psgrn_config.version = gfc.version or default_version
+    c.psgrn_config.version = version
     c.psgrn_config.sampling_interval = gfc.sampling_interval
     c.psgrn_config.gf_depth_spacing = gfc.medium_depth_spacing
     c.psgrn_config.gf_distance_spacing = gfc.medium_distance_spacing
@@ -3810,131 +3795,6 @@ def seis_synthetics(
 
     else:
         raise TypeError("Outmode %s not supported!" % outmode)
-
-
-spatial_derivative_parameters = {"dn": "north_shift", "de": "east_shift", "dd": "depth"}
-
-
-def seis_derivative(
-    engine,
-    sources,
-    targets,
-    arrival_taper,
-    arrival_times,
-    wavename,
-    filterer,
-    h,
-    parameter,
-    stencil_order=3,
-    outmode="tapered_data",
-):
-    """
-    Calculate numerical derivative with respect to source or spatial parameter
-    Parameters
-    ----------
-    engine : :class:`pyrocko.gf.seismosizer.LocalEngine`
-    sources : list
-        containing :class:`pyrocko.gf.seismosizer.Source` Objects
-        reference source is the first in the list!!!
-    targets : list
-        containing :class:`pyrocko.gf.seismosizer.Target` Objects
-    arrival_taper : :class:`ArrivalTaper`
-    arrival_times : list or:class:`numpy.ndarray`
-        containing the start times [s] since 1st.January 1970 to start
-        tapering
-    wavename : string
-        of the tabulated phase that determines the phase arrival
-    filterer : :class:`Filterer`
-    h : float
-        distance for derivative calculation
-    parameter : str
-        parameter with respect to which the derivative
-        is being calculated e.g. 'strike', 'dip', 'depth'
-    stencil_order : int
-        order N of numerical stencil differentiation, available; 3 or 5
-    Returns
-    -------
-    :class:`num.array` ntargets x nsamples with the first derivative
-    """
-
-    ntargets = len(targets)
-
-    available_params = list(sources[0].keys()) + list(
-        spatial_derivative_parameters.keys()
-    )
-    if parameter not in available_params:
-        raise AttributeError(
-            "Parameter for which the derivative was requested is neither"
-            " represented by the source nor the target. Supported parameters:"
-            " %s" % utility.list2string(available_params)
-        )
-
-    calc_sources = copy.deepcopy(sources)
-    store = engine.get_store(targets[0].store_id)
-    nsamples = int(num.ceil(store.config.sample_rate * arrival_taper.duration()))
-
-    stencil = utility.StencilOperator(h=h, order=stencil_order)
-
-    # loop over stencil steps
-    n_stencil_steps = len(stencil)
-    tmp = num.zeros((n_stencil_steps, ntargets, nsamples), dtype="float64")
-    for i, hstep in enumerate(stencil.hsteps):
-
-        if parameter in spatial_derivative_parameters:
-            target_param_name = spatial_derivative_parameters[parameter]
-            diff_targets = []
-            diff_sources = sources
-            for target in targets:
-                target_diff = copy.deepcopy(target)
-                target_param = getattr(target, target_param_name)
-                setattr(target_diff, target_param_name, target_param + hstep)
-                diff_targets.append(target_diff)
-
-            arrival_times = num.repeat(arrival_times, n_stencil_steps)
-        else:
-            diff_targets = targets
-            diff_sources = []
-            for source in calc_sources:
-                source_diff = source.clone()
-                source_param = source[parameter]
-                setattr(source_diff, parameter, source_param + hstep)
-                diff_sources.append(source_diff)
-
-        tmp[i, :, :], tmins = seis_synthetics(
-            engine=engine,
-            sources=diff_sources,
-            targets=diff_targets,
-            arrival_taper=arrival_taper,
-            wavename=wavename,
-            filterer=filterer,
-            arrival_times=arrival_times,
-            pre_stack_cut=True,
-            outmode="array",
-            chop_bounds=["b", "c"],
-        )
-
-    diff_array = (tmp * stencil.coefficients).sum(axis=0) / stencil.denominator
-
-    if outmode == "array":
-        return diff_array
-    elif outmode == "tapered_data":
-        out_traces = []
-        for i, target in enumerate(targets):
-            store = engine.get_store(target.store_id)
-            network, station, location, channel = target.codes
-            strain_trace = trace.Trace(
-                tmin=tmins[i],
-                ydata=diff_array[i, :],
-                network=network,
-                station=station,
-                location="{}{}".format(parameter, location),
-                channel=channel,
-                deltat=store.config.deltat,
-            )
-            out_traces.append(strain_trace)
-        return out_traces
-    else:
-        raise IOError("Outmode %s not supported!" % outmode)
 
 
 def radiation_weights_p(takeoff_angles, azimuths):

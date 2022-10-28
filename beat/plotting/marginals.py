@@ -284,7 +284,6 @@ def traceplot(
 
     figs = []
     fig_axs = []
-    var_idx = 0
     for nsubplots in nsubplots_page:
 
         width, height = mpl_papersize("a4", "portrait")
@@ -299,7 +298,7 @@ def traceplot(
             coli, rowi = utility.mod_i(i, nrow)
             ax = axs[rowi, coli]
 
-            if var_idx > n - 1:
+            if i > n - 1:
                 try:
                     fig.delaxes(ax)
                 except KeyError:
@@ -308,8 +307,7 @@ def traceplot(
                 if nvar == 1:
                     source_idxs = [backup_source_idxs[i]]
 
-                v = varnames[var_idx]
-                var_idx += 1
+                v = varnames[i]
 
                 color = copy.deepcopy(input_color)
 
@@ -322,9 +320,7 @@ def traceplot(
                     if v in dist_vars:
                         if source_idxs is None:
                             source_idx_step = int(num.floor(d.shape[1] / 6))
-                            logger.info(
-                                "No patches defined using 1 every %i!", source_idx_step
-                            )
+                            logger.info("No patches defined using 1 every %i!")
                             source_idxs = num.arange(
                                 0, d.shape[1], source_idx_step
                             ).tolist()
@@ -333,21 +329,13 @@ def traceplot(
                             "Plotting patches: %s" % utility.list2string(source_idxs)
                         )
 
-                        selected = []
-                        for s_idx in source_idxs:
-                            try:
-                                if isinstance(s_idx, slice):
-                                    d_sel = num.atleast_2d(d.T[s_idx].mean(0))
-                                else:
-                                    d_sel = num.atleast_2d(d.T[s_idx])
-                            except IndexError:
-                                raise IndexError(
-                                    "One or several patches do not exist! "
-                                    "Patch idxs: %s" % utility.list2string([s_idx])
-                                )
-                            selected.append(d_sel)
-
-                        selected = num.vstack(selected)
+                        try:
+                            selected = num.atleast_2d(d.T[source_idxs])
+                        except IndexError:
+                            raise IndexError(
+                                "One or several patches do not exist! "
+                                "Patch idxs: %s" % utility.list2string(source_idxs)
+                            )
                     else:
                         selected = d.T
 
@@ -396,9 +384,6 @@ def traceplot(
                         elif plot_style in ["pdf", "cdf"]:
 
                             kwargs["label"] = source_idxs
-                            # following determine quantile annotations in cdf
-                            kwargs["nsources"] = nsources
-                            kwargs["isource"] = isource
                             if plot_style == "cdf":
                                 kwargs["cumulative"] = True
                             else:
@@ -424,8 +409,8 @@ def traceplot(
 
                             if v in dist_vars:
                                 try:  # variable bounds
-                                    lower = param.lower[tuple(source_idxs)]
-                                    upper = param.upper[tuple(source_idxs)]
+                                    lower = param.lower[source_idxs]
+                                    upper = param.upper[source_idxs]
                                 except IndexError:
                                     lower, upper = param.lower, param.upper
 
