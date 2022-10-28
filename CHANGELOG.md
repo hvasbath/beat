@@ -5,12 +5,13 @@ All notable changes to BEAT will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 
-## [1.2.2] TBD 2022
+## [1.2.2] 28 October 2022
 Contributors: Hannes Vasyura-Bathke @hvasbath
 
 ### Added
 - plotting.marginals.traceplot: source_idxs argument can be slice e.g. 1:10 to take mean of patch attributes
 - heart.seis_derivative: function to numerically calculate derivatives wrt source attributes for waveforms
+- heart.py, config.py: allow for version control for fomosto backends through "version" argument at *gf_config*
 - utility: functions for slice to string conversion and vice versa
 - config; NonlinearGFConfig added version attribute to specify backend version to use for GF calculation
 

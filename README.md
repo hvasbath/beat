@@ -7,6 +7,9 @@ If you came looking for the beat package calculating internet time you can find 
 
 Based on pyrocko, theano and pymc3
 
+28 October 2022
+Version 1.2.2 is released. Details in the [changelog](https://github.com/hvasbath/beat/blob/master/CHANGELOG.md).
+
 14 September 2022
 Version 1.2.1 is released, improvements on the stage_posterior plot. Updated [Example 8](https://pyrocko.org/beat/docs/current/examples/MTQT_polarity.html#plotting) to show-case its use.
 
