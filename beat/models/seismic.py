@@ -1092,15 +1092,6 @@ class SeismicDistributerComposite(SeismicComposite):
                     )
                 )
 
-            for wmap in self.wavemaps:
-                logger.info('Preparing data of "%s" for optimization' % wmap._mapid)
-                wmap.prepare_data(
-                    source=self.events[wmap.config.event_idx],
-                    engine=self.engine,
-                    outmode="array",
-                    chop_bounds=["b", "c"],
-                )
-
     def load_fault_geometry(self):
         """
         Load fault-geometry, i.e. discretized patches.

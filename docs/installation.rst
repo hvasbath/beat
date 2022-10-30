@@ -4,7 +4,7 @@
 Detailed Installation instructions
 **********************************
 
-BEAT can be installed on any Unix based system with python>=3.7
+BEAT can be installed on any Unix based system with python>=3.8
 that supports its prerequisites.
 
 
