@@ -5,6 +5,15 @@ All notable changes to BEAT will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 
+## [1.2.3] 20 November 2022
+Contributors: Hannes Vasyura-Bathke @hvasbath
+
+### Fixed
+- FFI: do not init wavemaps during *SeismicComposite* init
+- heart: flexible versioning for geodetic GF backend
+- docs: correctly state python3.8 in installation instructions
+
+
 ## [1.2.2] 28 October 2022
 Contributors: Hannes Vasyura-Bathke @hvasbath
 

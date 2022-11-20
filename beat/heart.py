@@ -3832,6 +3832,7 @@ def seis_derivative(
 ):
     """
     Calculate numerical derivative with respect to source or spatial parameter
+
     Parameters
     ----------
     engine : :class:`pyrocko.gf.seismosizer.LocalEngine`
@@ -3854,6 +3855,7 @@ def seis_derivative(
         is being calculated e.g. 'strike', 'dip', 'depth'
     stencil_order : int
         order N of numerical stencil differentiation, available; 3 or 5
+
     Returns
     -------
     :class:`num.array` ntargets x nsamples with the first derivative

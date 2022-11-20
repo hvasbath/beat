@@ -16,6 +16,8 @@ Citing BEAT
 The development of BEAT lead to several publications that describe theory and methods in detail.
 If your work results in an publication where you used BEAT we kindly ask you to consider citing the BEAT software package and the related article(s). Doing so is essential for maintaining and further developing the software.
 
+.. [VasyuraBathke2021] Vasyura-Bathke, Hannes; Dettmer, Jan; Dutta, Rishabh, Mai, Paul Martin; Jónsson, Sigurjón (2021): **Accounting for theory errors with empirical Bayesian noise models in nonlinear centroid moment tensor estimation**. Geophysical Journal International. https://doi.org/10.1093/gji/ggab034
+
 .. [VasyuraBathke2020] Vasyura-Bathke, Hannes; Dettmer, Jan; Steinberg, Andreas; Heimann, Sebastian; Isken, Marius; Zielke, Olaf; Mai, Paul Martin; Sudhaus, Henriette; Jónsson, Sigurjón (2020): **The Bayesian Earthquake Analysis Tool**. Seismological Research Letters. https://doi.org/10.1785/0220190075
 
 .. [VasyuraBathke2019] Vasyura-Bathke, Hannes; Dettmer, Jan; Steinberg, Andreas; Heimann, Sebastian; Isken, Marius; Zielke, Olaf; Mai, Paul Martin; Sudhaus, Henriette; Jónsson, Sigurjón (2019): **BEAT - Bayesian Earthquake Analysis Tool**. V. 1.0. GFZ Data Services. http://doi.org/10.5880/fidgeo.2019.024

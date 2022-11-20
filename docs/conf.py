@@ -65,7 +65,7 @@ master_doc = "index"
 
 # General information about the project.
 project = "beat"
-copyright = "2021, Hannes Vasyura-Bathke"
+copyright = "2022, Hannes Vasyura-Bathke"
 author = "Hannes Vasyura-Bathke"
 
 # The version info for the project you're documenting, acts as replacement for
@@ -82,7 +82,7 @@ release = version
 #
 # This is also used if you do content translation via gettext catalogs.
 # Usually you set "language" from the command line for these cases.
-language = None
+language = "en"
 
 # There are two options for replacing |today|: either, you set today to some
 # non-false value, then it is used:
