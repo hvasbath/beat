@@ -4,7 +4,7 @@
 Short Installation instructions
 *******************************
 
-BEAT can be installed on any Unix based system with python>=3.7 that supports its prerequisites.
+BEAT can be installed on any Unix based system with python>=3.8 that supports its prerequisites.
 
 Please consider to use `virtual environments <https://docs.python.org/3/tutorial/venv.html>`__ to lower the risk of package conflicts.
 

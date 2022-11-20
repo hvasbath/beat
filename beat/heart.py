@@ -2481,6 +2481,8 @@ def geo_construct_gf(event, geodetic_config, crust_ind=0, execute=True, force=Fa
 
     gfc = geodetic_config.gf_config
 
+    version = gfc.version or default_version
+
     # extract source crustal profile and check for water layer
     source_model = get_velocity_model(
         event,
@@ -2492,9 +2494,9 @@ def geo_construct_gf(event, geodetic_config, crust_ind=0, execute=True, force=Fa
 
     c = ppp.PsGrnPsCmpConfig()
 
-    c.pscmp_config.version = gfc.version or default_version
+    c.pscmp_config.version = version
 
-    c.psgrn_config.version = gfc.version or default_version
+    c.psgrn_config.version = version
     c.psgrn_config.sampling_interval = gfc.sampling_interval
     c.psgrn_config.gf_depth_spacing = gfc.medium_depth_spacing
     c.psgrn_config.gf_distance_spacing = gfc.medium_distance_spacing
