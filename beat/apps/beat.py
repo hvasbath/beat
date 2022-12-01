@@ -910,7 +910,7 @@ def command_clone(args):
                 new_datatypes.append(datatype)
 
                 if datatype != "polarity":
-                    files = [pjoin(project_dir, datatype + "_data.pkl")]
+                    files = [datatype + "_data.pkl"]
                 else:
                     marker_files = [
                         basename(fname) for fname in glob(pjoin(project_dir, "*.pf"))
@@ -922,6 +922,7 @@ def command_clone(args):
                     if os.path.exists(data_path) and options.copy_data:
                         logger.info("Cloning data ... %s " % data_path)
                         cloned_data_path = pjoin(cloned_dir, file)
+                        logger.info("Cloned data path: %s", cloned_data_path)
                         shutil.copyfile(data_path, cloned_data_path)
             else:
                 if datatype in c.problem_config.datatypes:
