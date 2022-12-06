@@ -1128,6 +1128,11 @@ class GeodeticConfig(Object):
                         )
 
                         out_names.extend(hiernames)
+                    else:
+                        logger.info(
+                            "Did not find dataset name %s in the corrections list.",
+                            dataset.name,
+                        )
 
         return list(set(out_names))
 
@@ -1940,6 +1945,8 @@ class BEATconfig(Object, Cloneable):
                 hierarnames.extend(
                     self.geodetic_config.get_hierarchical_names(datasets)
                 )
+            else:
+                logger.info("No corrections enabled")
 
         if self.seismic_config is not None:
             hierarnames.extend(self.seismic_config.get_hierarchical_names())
