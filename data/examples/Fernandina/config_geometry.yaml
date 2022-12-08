@@ -136,7 +136,7 @@ sampler_config: !beat.SamplerConfig
     n_steps: 300
     n_chains: 40
     coef_variation: 1.0
-    stage: 7
+    stage: 0
     proposal_dist: MultivariateCauchy
     update_covariances: false
 hyper_sampler_config: !beat.SamplerConfig
