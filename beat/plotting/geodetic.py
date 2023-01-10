@@ -479,6 +479,9 @@ def scene_fits(problem, stage, plot_options):
         bpoint = get_result_point(stage.mtrace, po.post_llk)
 
     bresults_tmp = composite.assemble_results(bpoint)
+    composite.analyse_noise(bpoint)
+    composite.update_weights(bpoint)
+
     bvar_reductions = composite.get_variance_reductions(
         bpoint, weights=composite.weights, results=bresults_tmp
     )

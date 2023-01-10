@@ -822,7 +822,6 @@ def toeplitz_covariance_2d(coords, data, max_dist_perc=0.2):
         max distance [decimal percent] to select as nearest neighbors
     """
     stds = k_nearest_neighbor_rms(coords=coords, data=data, max_dist_perc=max_dist_perc)
-    print(stds.shape, data.shape)
     coeffs = autocovariance(data / stds)
     return toeplitz(coeffs), stds
 

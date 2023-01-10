@@ -56,6 +56,7 @@ class GeodeticComposite(Composite):
     """
 
     _hierarchicalnames = None
+    weights = None
 
     def __init__(self, gc, project_dir, events, hypers=False):
 
@@ -90,7 +91,7 @@ class GeodeticComposite(Composite):
         self.sodws = shared(odws, name="odws", borrow=True)
 
         self.noise_analyser = cov.GeodeticNoiseAnalyser(
-            structure=self.config.noise_estimator.structure, events=self.events
+            structure=gc.noise_estimator.structure, events=self.events
         )
 
         if gc.corrections_config.has_enabled_corrections:
@@ -164,8 +165,8 @@ class GeodeticComposite(Composite):
                 "for %s ..." % (self.config.noise_estimator.structure, dataset.name)
             )
 
-            cov_d_geodetic = self.noise_analyser.get_data_covariances(
-                self.dataset, result=result
+            cov_d_geodetic = self.noise_analyser.get_data_covariance(
+                dataset, result=result
             )
 
             if dataset.covariance is None:
@@ -709,7 +710,7 @@ class GeodeticGeometryComposite(GeodeticSourceComposite):
         # update data covariances in case model dependent non-toeplitz
         if self.config.noise_estimator.structure == "non-toeplitz":
             logger.info("Updating data-covariances ...")
-            self.analyse_noise(point, chop_bounds=chop_bounds)
+            self.analyse_noise(point)
 
         crust_inds = range(*gc.gf_config.n_variations)
         thresh = 5
