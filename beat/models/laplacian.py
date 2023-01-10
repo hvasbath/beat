@@ -10,7 +10,7 @@ from theano import tensor as tt
 from beat import config as bconfig
 from beat.heart import log_determinant
 from beat.models.base import Composite, FaultGeometryNotFoundError
-from beat.utility import load_objects
+from beat.utility import load_objects, distances
 
 logger = getLogger("ffi.laplacian")
 
@@ -205,37 +205,6 @@ def _patch_locations(n_patch_strike, n_patch_dip):
     dmat[0::n_patch_strike, 2] = zeros_dip
     dmat[n_patch_strike - 1 :: n_patch_strike, 3] = zeros_dip
     return dmat
-
-
-def distances(points, ref_points):
-    """
-    Calculate distances in Cartesian coordinates between points and reference
-    points in N-D.
-
-    Parameters
-    ----------
-    points: :class:`numpy.Ndarray` (n points x n spatial dimensions)
-    ref_points: :class:`numpy.Ndarray` (m points x n spatial dimensions)
-
-    Returns
-    -------
-    ndarray (n_points x n_ref_points)
-    """
-    nref_points = ref_points.shape[0]
-    ndim = points.shape[1]
-    ndim_ref = ref_points.shape[1]
-    if ndim != ndim_ref:
-        raise TypeError(
-            "Coordinates to calculate differences must have the same number "
-            "of dimensions! Given dimensions are {} and {}".format(ndim, ndim_ref)
-        )
-
-    points_rep = num.tile(points, nref_points).reshape(
-        points.shape[0], nref_points, ndim
-    )
-
-    distances = num.sqrt(num.power(points_rep - ref_points, 2).sum(axis=2))
-    return distances
 
 
 def get_smoothing_operator_nearest_neighbor(

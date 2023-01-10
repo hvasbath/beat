@@ -6,16 +6,18 @@ import numpy as num
 from matplotlib import pyplot as plt
 from pyrocko import util
 
-from beat.covariance import non_toeplitz_covariance
+from beat.covariance import non_toeplitz_covariance, non_toeplitz_covariance_2d
 from beat.heart import Covariance
 from beat.models import load_model
+from beat.utility import get_random_uniform
+
 
 num.random.seed(10)
 
 logger = logging.getLogger("test_covariance")
 
 
-class TestUtility(unittest.TestCase):
+class TestCovariance(unittest.TestCase):
     def __init__(self, *args, **kwargs):
         unittest.TestCase.__init__(self, *args, **kwargs)
 
@@ -30,6 +32,42 @@ class TestUtility(unittest.TestCase):
         fig, axs = plt.subplots(1, 2)
         im = axs[0].matshow(cov)
         axs[1].plot(d)
+        plt.colorbar(im)
+        plt.show()
+
+    def test_non_toeplitz_2d(self):
+
+        ws = 500
+        data = num.random.normal(scale=2, size=ws)
+        coords_x = get_random_uniform(-10000, 10000, dimension=ws)
+        coords_y = get_random_uniform(-10000, 10000, dimension=ws)
+        coords = num.vstack([coords_x, coords_y]).T
+        cov = non_toeplitz_covariance_2d(coords, data, max_dist_perc=0.2)
+        d = num.diag(cov)
+
+        print(d.mean())
+        _, axs = plt.subplots(1, 2)
+        im = axs[0].matshow(cov)
+        axs[1].scatter(coords_x, coords_y, 5, d)
+        plt.colorbar(im)
+        plt.show()
+
+    def test_non_toeplitz_2d_data(self):
+
+        from beat.utility import load_objects
+        from beat import config
+
+        home = "/home/vasyurhm/BEATS/PeaceRiver/Alberta2022joint/"
+        data = load_objects(home + "geodetic_data.pkl")
+        d = data[0]
+        c = config.load(filename=home + "config_geometry.yaml")
+        d.update_local_coords(c.event)
+        coords = num.vstack([d.east_shifts, d.north_shifts]).T
+        cov = non_toeplitz_covariance_2d(coords, d.displacement, max_dist_perc=0.2)
+
+        _, axs = plt.subplots(1, 2)
+        im = axs[0].matshow(cov)
+        axs[1].scatter(coords[:, 0], coords[:, 1], 5, d.displacement)
         plt.colorbar(im)
         plt.show()
 

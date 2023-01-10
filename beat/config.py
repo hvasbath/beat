@@ -32,7 +32,7 @@ from pyrocko.guts import (
 from theano import config as tconfig
 
 from beat import utility
-from beat.covariance import available_noise_structures
+from beat.covariance import available_noise_structures, available_noise_structures_2d
 from beat.heart import (
     ArrivalTaper,
     Filter,
@@ -254,6 +254,7 @@ km = 1000.0
 _quantity_choices = ["displacement", "velocity", "acceleration"]
 _interpolation_choices = ["nearest_neighbor", "multilinear"]
 _structure_choices = available_noise_structures()
+_structure_choices_2d = available_noise_structures_2d()
 _mode_choices = [geometry_mode_str, ffi_mode_str]
 _regularization_choices = ["laplacian", "none"]
 _correlation_function_choices = ["nearest_neighbor", "gaussian", "exponential"]
@@ -691,6 +692,16 @@ class SeismicNoiseAnalyserConfig(Object):
     )
 
 
+class GeodeticNoiseAnalyserConfig(Object):
+
+    structure = StringChoice.T(
+        choices=_structure_choices_2d,
+        default="import",
+        help="Determines data-covariance matrix structure."
+        " Choices: %s" % utility.list2string(_structure_choices_2d),
+    )
+
+
 class SeismicConfig(Object):
     """
     Config for seismic data optimization related parameters.
@@ -1075,9 +1086,9 @@ class GeodeticConfig(Object):
         default={"SAR": SARDatasetConfig.D(), "GNSS": GNSSDatasetConfig.D()},
         help="Types of geodetic data, i.e. SAR, GNSS, with their configs",
     )
-    calc_data_cov = Bool.T(
-        default=True,
-        help="Flag for calculating the data covariance matrix, " 'outsourced to "kite"',
+    noise_estimator = GeodeticNoiseAnalyserConfig.T(
+        default=GeodeticNoiseAnalyserConfig.D(),
+        help="Determines the structure of the data-covariance matrix.",
     )
     interpolation = StringChoice.T(
         choices=_interpolation_choices,

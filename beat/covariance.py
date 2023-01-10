@@ -5,10 +5,12 @@ import numpy as num
 from pymc3 import Point
 from pyrocko import gf, trace
 from scipy.linalg import toeplitz
+from scipy.spatial import KDTree
 from theano import config as tconfig
 
 from beat import heart
-from beat.utility import ensure_cov_psd, list2string, running_window_rms
+from beat.utility import ensure_cov_psd, list2string, running_window_rms, distances
+
 
 logger = logging.getLogger("covariance")
 
@@ -91,8 +93,18 @@ NoiseStructureCatalog = {
 }
 
 
+NoiseStructureCatalog2d = {
+    "import": ones_data_covariance,
+    "non-toeplitz": ones_data_covariance,
+}
+
+
 def available_noise_structures():
     return list(NoiseStructureCatalog.keys())
+
+
+def available_noise_structures_2d():
+    return list(NoiseStructureCatalog2d.keys())
 
 
 def import_data_covariance(data_trace, arrival_taper, sample_rate, domain="time"):
@@ -141,6 +153,83 @@ def import_data_covariance(data_trace, arrival_taper, sample_rate, domain="time"
         return data_cov
 
 
+class GeodeticNoiseAnalyser(object):
+    """
+    Geodetic noise analyser
+
+    Parameters
+    ----------
+    structure :  string
+        either, import, variance, non-toeplitz
+    events : list
+        of :class:`pyrocko.meta.Event` reference event(s) from catalog
+    """
+
+    def __init__(
+        self,
+        structure="import",
+        events=None,
+    ):
+
+        avail = available_noise_structures_2d()
+        if structure not in avail:
+            raise AttributeError(
+                'Selected noise structure "%s" not supported! Implemented'
+                " noise structures: %s" % (structure, list2string(avail))
+            )
+
+        self.events = events
+        self.structure = structure
+
+    def get_structure(self, dataset):
+        return NoiseStructureCatalog2d[self.structure](dataset.ncoords)
+
+    def do_import(self, dataset):
+        if dataset.covariance.data is not None:
+            return dataset.covariance.data
+        else:
+            raise ValueError(
+                "Data covariance for dataset %s needs to be defined!" % dataset.name
+            )
+
+    def do_non_toeplitz(self, dataset, result):
+
+        if dataset.typ == "SAR":
+            dataset.update_local_coords(self.events[0])
+            coords = num.vstack([dataset.east_shifts, dataset.north_shifts]).T
+
+            scaling = non_toeplitz_covariance_2d(
+                coords, result.processed_res, max_dist_perc=0.2
+            )
+        else:
+            scaling = dataset.covariance.data
+
+        return scaling
+
+    def get_data_covariance(self, dataset, result=None):
+        """
+        Estimated data covariances of seismic traces
+
+        Parameters
+        ----------
+        datasets
+        results
+
+        Returns
+        -------
+        :class:`numpy.ndarray`
+        """
+
+        covariance_structure = self.get_structure(dataset)
+
+        if self.structure == "import":
+            scaling = self.do_import(dataset)
+        elif self.structure == "non-toeplitz":
+            scaling = self.do_non_toeplitz(dataset, result)
+
+        return ensure_cov_psd(scaling * covariance_structure)
+
+
 class SeismicNoiseAnalyser(object):
     """
     Seismic noise analyser
@@ -148,7 +237,7 @@ class SeismicNoiseAnalyser(object):
     Parameters
     ----------
     structure : string
-        either identity, exponential, import
+        either, variance, exponential, import, non-toeplitz
     pre_arrival_time : float
         in [s], time before P arrival until variance is estimated
     engine : :class:`pyrocko.gf.seismosizer.LocalEngine`
@@ -162,7 +251,7 @@ class SeismicNoiseAnalyser(object):
 
     def __init__(
         self,
-        structure="identity",
+        structure="variance",
         pre_arrival_time=5.0,
         engine=None,
         events=None,
@@ -651,7 +740,7 @@ def toeplitz_covariance(data, window_size):
 
     Returns
     -------
-    toeplitz : :class:`numpy.ndarray` 2-d, (size data, size data)
+    toeplitz : :class:`numpy.ndarray` 1-d, (size data)
     stds : :class:`numpy.ndarray` 1-d, size data
         of running windows
     """
@@ -663,7 +752,7 @@ def toeplitz_covariance(data, window_size):
 def non_toeplitz_covariance(data, window_size):
     """
     Get scaled non- Toeplitz covariance matrix, which may be able to account
-    for non-stationary data-errors.
+    for non-stationary data-errors. For 1-d data.
 
     Parameters
     ----------
@@ -677,6 +766,84 @@ def non_toeplitz_covariance(data, window_size):
     :class:`numpy.ndarray` (size data, size data)
     """
     toeplitz, stds = toeplitz_covariance(data, window_size)
+    return toeplitz * stds[:, num.newaxis] * stds[num.newaxis, :]
+
+
+def k_nearest_neighbor_rms(coords, data, k=None, max_dist_perc=0.2):
+    """
+    Calculate running rms on irregular sampled 2d spatial data.
+
+    Parameters
+    ----------
+    coords : :class:`numpy.ndarray` 2-d, (size data, n coords-dims)
+        containing spatial coordinates (east_shifts, north_shifts)
+    data : :class:`numpy.ndarray` 1-d, (size data)
+        containing values of physical quantity
+    k : int
+        taking k - nearest neighbors for std estimation
+    max_dist_perc : float
+        max distance [decimal percent] to select as nearest neighbors
+    """
+
+    if k and max_dist_perc:
+        raise ValueError("Either k or max_dist_perc should be defined!")
+
+    kdtree = KDTree(coords, leafsize=1)
+
+    dists = distances(coords, coords)
+    r = dists.max() * max_dist_perc
+
+    logger.debug("Nearest neighbor distance is: %f", r)
+
+    stds = []
+    for point in coords:
+        if k is not None:
+            _, idxs = kdtree.query(point, k=k)
+        elif r is not None:
+            idxs = kdtree.query_ball_point(point, r=r)
+        else:
+            raise ValueError()
+
+        stds.append(num.std(data[idxs], ddof=1))
+
+    return num.array(stds)
+
+
+def toeplitz_covariance_2d(coords, data, max_dist_perc=0.2):
+    """
+    Get Toeplitz banded matrix for given 2d data.
+
+    Returns
+    -------
+    toeplitz : :class:`numpy.ndarray` 2-d, (size data, size data)
+    stds : :class:`numpy.ndarray` 1-d, size data
+        of running windows
+    max_dist_perc : float
+        max distance [decimal percent] to select as nearest neighbors
+    """
+    stds = k_nearest_neighbor_rms(coords=coords, data=data, max_dist_perc=max_dist_perc)
+    print(stds.shape, data.shape)
+    coeffs = autocovariance(data / stds)
+    return toeplitz(coeffs), stds
+
+
+def non_toeplitz_covariance_2d(coords, data, max_dist_perc):
+    """
+    Get scaled non- Toeplitz covariance matrix, which may be able to account
+    for non-stationary data-errors. For 2-d geospatial data.
+
+    Parameters
+    ----------
+    data : :class:`numpy.ndarray`
+        of data to estimate non-stationary error matrix for
+    max_dist_perc : float
+        max distance [decimal percent] to select as nearest neighbors
+
+    Returns
+    -------
+    :class:`numpy.ndarray` (size data, size data)
+    """
+    toeplitz, stds = toeplitz_covariance_2d(coords, data, max_dist_perc)
     return toeplitz * stds[:, num.newaxis] * stds[num.newaxis, :]
 
 
