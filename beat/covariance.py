@@ -167,22 +167,23 @@ class GeodeticNoiseAnalyser(object):
 
     def __init__(
         self,
-        structure="import",
+        config,
         events=None,
     ):
 
         avail = available_noise_structures_2d()
-        if structure not in avail:
+
+        if config.structure not in avail:
             raise AttributeError(
                 'Selected noise structure "%s" not supported! Implemented'
                 " noise structures: %s" % (structure, list2string(avail))
             )
 
         self.events = events
-        self.structure = structure
+        self.config = config
 
     def get_structure(self, dataset):
-        return NoiseStructureCatalog2d[self.structure](dataset.ncoords)
+        return NoiseStructureCatalog2d[self.config.structure](dataset.ncoords)
 
     def do_import(self, dataset):
         if dataset.covariance.data is not None:
@@ -199,10 +200,16 @@ class GeodeticNoiseAnalyser(object):
             coords = num.vstack([dataset.east_shifts, dataset.north_shifts]).T
 
             scaling = non_toeplitz_covariance_2d(
-                coords, result.processed_res, max_dist_perc=0.2
+                coords, result.processed_res, max_dist_perc=self.config.max_dist_perc
             )
         else:
             scaling = dataset.covariance.data
+
+        if num.isnan(scaling).any():
+            raise ValueError(
+                "Estimated Non-Toeplitz covariance matrix for dataset %s contains Nan! "
+                "Please increase 'max_dist_perc'!" % dataset.name
+            )
 
         return scaling
 
@@ -222,9 +229,9 @@ class GeodeticNoiseAnalyser(object):
 
         covariance_structure = self.get_structure(dataset)
 
-        if self.structure == "import":
+        if self.config.structure == "import":
             scaling = self.do_import(dataset)
-        elif self.structure == "non-toeplitz":
+        elif self.config.structure == "non-toeplitz":
             scaling = self.do_non_toeplitz(dataset, result)
 
         return ensure_cov_psd(scaling * covariance_structure)

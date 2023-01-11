@@ -10,6 +10,7 @@ plots_catalog = {
     "waveform_fits": draw_seismic_fits,
     "scene_fits": draw_scene_fits,
     "gnss_fits": draw_gnss_fits,
+    "geodetic_covariances": draw_geodetic_covariances,
     "velocity_models": draw_earthmodels,
     "slip_distribution": draw_slip_dist,
     "slip_distribution_3d": draw_3d_slip_distribution,
@@ -35,7 +36,7 @@ seismic_plots = [
 ]
 
 
-geodetic_plots = ["scene_fits", "gnss_fits"]
+geodetic_plots = ["scene_fits", "gnss_fits", "geodetic_covariances"]
 
 
 geometry_plots = ["correlation_hist", "velocity_models"]

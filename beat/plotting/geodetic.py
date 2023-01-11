@@ -26,9 +26,11 @@ from .common import (
     get_nice_plot_bounds,
     get_result_point,
     km,
+    cbtick,
     plot_inset_hist,
     scale_axes,
     set_anchor,
+    plot_covariances,
 )
 
 logger = logging.getLogger("plotting.geodetic")
@@ -425,6 +427,47 @@ def gnss_fits(problem, stage, plot_options):
     return figs
 
 
+def geodetic_covariances(problem, stage, plot_options):
+
+    datatype = "geodetic"
+    mode = problem.config.problem_config.mode
+    problem.init_hierarchicals()
+
+    po = plot_options
+
+    composite = problem.composites[datatype]
+    event = composite.event
+    try:
+        sources = composite.sources
+        ref_sources = None
+    except AttributeError:
+        logger.info("FFI scene fit, using reference source ...")
+        ref_sources = composite.config.gf_config.reference_sources
+        set_anchor(ref_sources, anchor="top")
+        fault = composite.load_fault_geometry()
+        sources = fault.get_all_subfaults(
+            datatype=datatype, component=composite.slip_varnames[0]
+        )
+        set_anchor(sources, anchor="top")
+
+    if po.reference:
+        if mode != ffi_mode_str:
+            composite.point2sources(po.reference)
+            ref_sources = copy.deepcopy(composite.sources)
+        bpoint = po.reference
+    else:
+        bpoint = get_result_point(stage.mtrace, po.post_llk)
+
+    bresults_tmp = composite.assemble_results(bpoint)
+    composite.analyse_noise(bpoint)
+
+    covariances = [dataset.covariance for dataset in composite.datasets]
+
+    figs, axs = plot_covariances(composite.datasets, covariances)
+
+    return figs
+
+
 def scene_fits(problem, stage, plot_options):
     """
     Plot geodetic data, synthetics and residuals.
@@ -748,10 +791,6 @@ def scene_fits(problem, stage, plot_options):
             else:
                 ax.plot(fe, fn, marker="*", markersize=10, color=color, **kwargs)
 
-    def cbtick(x):
-        rx = math.floor(x * 1000.0) / 1000.0
-        return [-rx, rx]
-
     colims = [
         num.max([num.max(num.abs(r.processed_obs)), num.max(num.abs(r.processed_syn))])
         for r in results
@@ -970,6 +1009,58 @@ def scene_fits(problem, stage, plot_options):
         gc.collect()
 
     return figures
+
+
+def draw_geodetic_covariances(problem, plot_options):
+
+    if "geodetic" not in list(problem.composites.keys()):
+        raise TypeError("No geodetic composite defined in the problem!")
+
+    logger.info("Drawing geodetic covariances ...")
+    po = plot_options
+
+    stage = Stage(
+        homepath=problem.outfolder, backend=problem.config.sampler_config.backend
+    )
+
+    if not po.reference:
+        stage.load_results(
+            varnames=problem.varnames,
+            model=problem.model,
+            stage_number=po.load_stage,
+            load="trace",
+            chains=[-1],
+        )
+        llk_str = po.post_llk
+    else:
+        llk_str = "ref"
+
+    mode = problem.config.problem_config.mode
+
+    outpath = os.path.join(
+        problem.config.project_dir,
+        mode,
+        po.figure_dir,
+        "geodetic_covs_%s_%s" % (stage.number, llk_str),
+    )
+
+    if not os.path.exists(outpath + ".%s" % po.outformat) or po.force:
+        figs = geodetic_covariances(problem, stage, po)
+    else:
+        logger.info("geodetic covariances plots exist. Use force=True for replotting!")
+        return
+
+    if po.outformat == "display":
+        plt.show()
+    else:
+        logger.info("saving figures to %s" % outpath)
+        if po.outformat == "pdf":
+            with PdfPages(outpath + ".pdf") as opdf:
+                for fig in figs:
+                    opdf.savefig(fig)
+        else:
+            for i, fig in enumerate(figs):
+                fig.savefig("%s_%i.%s" % (outpath, i, po.outformat), dpi=po.dpi)
 
 
 def draw_scene_fits(problem, plot_options):

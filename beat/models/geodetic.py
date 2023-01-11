@@ -91,7 +91,7 @@ class GeodeticComposite(Composite):
         self.sodws = shared(odws, name="odws", borrow=True)
 
         self.noise_analyser = cov.GeodeticNoiseAnalyser(
-            structure=gc.noise_estimator.structure, events=self.events
+            config=gc.noise_estimator, events=self.events
         )
 
         if gc.corrections_config.has_enabled_corrections:

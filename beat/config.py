@@ -700,6 +700,11 @@ class GeodeticNoiseAnalyserConfig(Object):
         help="Determines data-covariance matrix structure."
         " Choices: %s" % utility.list2string(_structure_choices_2d),
     )
+    max_dist_perc = Float.T(
+        default=0.2,
+        help="Distance in decimal percent from maximum distance in scene to use for "
+        "non-Toeplitz noise estimation",
+    )
 
 
 class SeismicConfig(Object):

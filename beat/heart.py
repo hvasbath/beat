@@ -247,6 +247,17 @@ class Covariance(Object):
         self.slog_pdet.set_value(self.log_pdet)
         self.slog_pdet.astype(tconfig.floatX)
 
+    def get_min_max_components(self):
+
+        covmats = []
+        for comp in self.covs_supported():
+            covmats.append(getattr(self, comp))
+
+        vmin = num.max(num.abs(list(map(num.min, covmats))))
+        vmax = num.max(list(map(num.max, covmats)))
+        total_max = num.max([vmin, vmax])
+        return -total_max, total_max
+
 
 class ArrivalTaper(trace.Taper):
     """

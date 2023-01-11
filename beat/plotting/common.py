@@ -8,7 +8,7 @@ from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 from pymc3 import quantiles
 from pyrocko import orthodrome as otd
 from pyrocko.guts import Bool, Dict, Int, List, Object, String, StringChoice, load
-from pyrocko.plot import mpl_graph_color
+from pyrocko.plot import mpl_graph_color, mpl_papersize
 from scipy.stats import kde
 from theano import config as tconfig
 
@@ -104,6 +104,11 @@ def get_matplotlib_version():
     from matplotlib import __version__ as mplversion
 
     return float(mplversion[0]), float(mplversion[2:])
+
+
+def cbtick(x):
+    rx = num.floor(x * 1000.0) / 1000.0
+    return [-rx, rx]
 
 
 def plot_cov(target, point_size=20):
@@ -369,7 +374,7 @@ def histplot_op(
             color=color,
             edgecolor=color,
             cumulative=cumulative,
-            **kwargs
+            **kwargs,
         )
 
         if cmap:
@@ -788,3 +793,98 @@ def get_nice_plot_bounds(dmin, dmax, override_mode="min-max"):
     inc = nice_value(dmax - dmin)
     autos = AutoScaler(inc=inc, snap="on", approx_ticks=2)
     return autos.make_scale((dmin, dmax), override_mode=override_mode)
+
+
+def plot_covariances(datasets, covariances):
+
+    cmap = plt.get_cmap("seismic")
+
+    ndata = len(covariances)
+
+    fontsize = 10
+    ndmax = 3
+
+    fullfig, restfig = utility.mod_i(ndata, ndmax)
+    factors = num.ones(fullfig).tolist()
+    if restfig:
+        factors.append(float(restfig) / ndmax)
+
+    figures = []
+    axes = []
+    for f in factors:
+        figsize = list(mpl_papersize("a4", "portrait"))
+        figsize[1] *= f
+
+        fig, ax = plt.subplots(nrows=int(round(ndmax * f)), ncols=2, figsize=figsize)
+        fig.tight_layout()
+        fig.subplots_adjust(
+            left=0.08,
+            right=1.0 - 0.03,
+            bottom=0.05,
+            top=1.0 - 0.03,
+            wspace=0.2,
+            hspace=0.25,
+        )
+        figures.append(fig)
+        ax_a = num.atleast_2d(ax)
+        axes.append(ax_a)
+
+    cbl = 0.76
+    cbh = 0.01
+    cbw = 0.15
+
+    for kidx, (cov, dataset) in enumerate(zip(covariances, datasets)):
+
+        figidx, rowidx = utility.mod_i(kidx, ndmax)
+        axs = axes[figidx][rowidx, :]
+
+        f = factors[figidx]
+        if f > 2.0 / 3:
+            cbb = 0.68 - (0.3075 * rowidx)
+        elif f > 1.0 / 2:
+            cbb = 0.53 - (0.47 * rowidx)
+        elif f > 1.0 / 4:
+            cbb = 0.06
+
+        vmin, vmax = cov.get_min_max_components()
+        for l, attr in enumerate(["data", "pred_v"]):
+            cmat = getattr(cov, attr)
+            ax = axs[l]
+            if cmat is not None and cmat.sum() != 0.0:
+
+                im = ax.imshow(
+                    cmat,
+                    cmap=cmap,
+                    vmin=vmin,
+                    vmax=vmax,
+                    interpolation="nearest",
+                )
+
+                xticker = MaxNLocator(nbins=2)
+                yticker = MaxNLocator(nbins=2)
+                ax.xaxis.set_major_locator(xticker)
+                ax.yaxis.set_major_locator(yticker)
+                if l == 0:
+                    ax.set_ylabel("Sample idx")
+                    ax.set_xlabel("Sample idx")
+                    ax.set_title(dataset.name)
+
+                    cbaxes = fig.add_axes([cbl, cbb, cbw, cbh])
+                    cblabel = "Covariance [m²]"
+                    cbs = plt.colorbar(
+                        im,
+                        ax=ax,
+                        ticks=(vmin, vmax),
+                        format=lambda x, _: f"{x:.2e}",
+                        cax=cbaxes,
+                        orientation="horizontal",
+                        cmap=cmap,
+                    )
+                    cbs.set_label(cblabel, fontsize=fontsize)
+            else:
+                logger.info(
+                    'Did not find "%s" covariance component for %s', attr, dataset.name
+                )
+                fig.delaxes(ax)
+
+    return figures, axes
