@@ -369,11 +369,21 @@ def weed_input_rvs(input_rvs, mode, datatype):
                 "delta_time",
                 "nucleation_x",
                 "nucleation_y",
+                "peak_ratio",
             ] + burian
         elif datatype == "seismic":
             tobeweeded = ["opening"] + burian
         elif datatype == "polarity":
-            tobeweeded = ["time", "duration", "magnitude", "peak_ratio"] + burian
+            tobeweeded = [
+                "time",
+                "duration",
+                "magnitude",
+                "peak_ratio",
+                "slip",
+                "opening_fraction",
+                "nucleation_x",
+                "nucleation_y",
+            ] + burian
 
     elif mode == "interseismic":
         if datatype == "geodetic":
