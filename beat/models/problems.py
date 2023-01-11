@@ -430,6 +430,7 @@ class Problem(object):
                     hyperparams[hyperpar.name] = hyperpar.lower
 
         if len(hyperparameters) > 0:
+            print(hyperparameters)
             raise InconsistentNumberHyperparametersError(
                 "There are hyperparameters in config file, which are not"
                 " covered by datasets/datatypes."
