@@ -396,6 +396,7 @@ def histplot_op(
             leftb = num.minimum(leftb, left)
             rightb = num.maximum(rightb, right)
 
+        logger.debug("Histogram bounds: left %f, right %f", leftb, rightb)
         ax.set_xlim(leftb, rightb)
         if cumulative:
             # need left plot bound, leftb

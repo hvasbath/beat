@@ -3,6 +3,8 @@ import logging
 import math
 import os
 
+from scipy import stats
+
 import numpy as num
 from matplotlib import pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
@@ -165,6 +167,7 @@ def gnss_fits(problem, stage, plot_options):
         bpoint = get_result_point(stage.mtrace, po.post_llk)
 
     results = composite.assemble_results(bpoint)
+
     bvar_reductions = composite.get_variance_reductions(
         bpoint, weights=composite.weights, results=results
     )
@@ -525,6 +528,13 @@ def scene_fits(problem, stage, plot_options):
     composite.analyse_noise(bpoint)
     composite.update_weights(bpoint)
 
+    # to display standardized residuals
+    stdz_residuals = composite.get_standardized_residuals(bpoint, results=bresults_tmp)
+
+    if po.plot_projection == "individual":
+        for result, dataset in zip(bresults_tmp, composite.datasets):
+            result.processed_res = stdz_residuals[dataset.name]
+
     bvar_reductions = composite.get_variance_reductions(
         bpoint, weights=composite.weights, results=bresults_tmp
     )
@@ -628,7 +638,7 @@ def scene_fits(problem, stage, plot_options):
                 scale_x["offset"] = source.lon
                 scale_y["offset"] = source.lat
 
-            elif po.plot_projection == "local":
+            elif po.plot_projection in ["local", "individual"]:
                 ystr = "Distance [km]"
                 xstr = "Distance [km]"
                 if scene.frame.isDegree():
@@ -672,7 +682,7 @@ def scene_fits(problem, stage, plot_options):
             west, east = xlim
             south, north = ylim
 
-        elif po.plot_projection == "local":
+        elif po.plot_projection in ["local", "individual"]:
             lats, lons = otd.ne_to_latlon(
                 event.lat,
                 event.lon,
@@ -862,9 +872,12 @@ def scene_fits(problem, stage, plot_options):
             logger.info("Plotting %s" % data_str)
             datavec = getattr(result, "processed_%s" % data_str)
 
-            if data_str == "res" and po.plot_projection == "local":
+            if data_str == "res" and po.plot_projection in ["local", "individual"]:
                 vmin = -dcolims[tidx]
                 vmax = dcolims[tidx]
+                logger.debug(
+                    "Variance of residual for %s is: %f", dataset.name, datavec.var()
+                )
             else:
                 vmin = -colims[tidx]
                 vmax = colims[tidx]
@@ -902,6 +915,24 @@ def scene_fits(problem, stage, plot_options):
 
             draw_leaves(ax, scene, offset_e, offset_n)
             draw_coastlines(ax, lon, lat, event, scene, po)
+
+        # histogram of stdz residual
+        in_ax_res = plot_inset_hist(
+            axs[2],
+            data=make_2d(stdz_residuals[dataset.name]),
+            best_data=None,
+            linewidth=1.0,
+            bbox_to_anchor=(0.0, 0.775, 0.25, 0.225),
+            labelsize=6,
+            color="grey",
+        )
+        # reference gaussian
+        x = num.linspace(*stats.norm.ppf((0.001, 0.999)), 100)
+        gauss = stats.norm.pdf(x)
+        in_ax_res.plot(x, gauss, "k-", lw=0.5, alpha=0.8)
+
+        format_axes(in_ax_res, remove=["right", "bottom"], visible=True, linewidth=0.75)
+        in_ax_res.set_xlabel("stz res [$\sigma$]", fontsize=fontsize - 3)
 
         if po.nensemble > 1:
             in_ax = plot_inset_hist(
@@ -990,7 +1021,7 @@ def scene_fits(problem, stage, plot_options):
         )
         cbs.set_label(cblabel, fontsize=fontsize)
 
-        if po.plot_projection == "local":
+        if po.plot_projection in ["local", "individual"]:
             dcbaxes = figures[figidx].add_axes([cbl + 0.3, cbb, cbw, cbh])
             cbr = plt.colorbar(
                 imgs[2],
@@ -1000,6 +1031,9 @@ def scene_fits(problem, stage, plot_options):
                 orientation="horizontal",
                 cmap=cmap,
             )
+            if po.plot_projection == "individual":
+                cblabel = "standard dev [$\sigma$]"
+
             cbr.set_label(cblabel, fontsize=fontsize)
 
         axis_config(axes[figidx][rowidx, :], event, scene, po)

@@ -22,7 +22,7 @@ from beat.models.base import (
     ConfigInconsistentError,
     FaultGeometryNotFoundError,
 )
-from beat.models.distributions import multivariate_normal_chol
+from beat.models.distributions import get_hyper_name, multivariate_normal_chol
 
 logger = getLogger("geodetic")
 
@@ -526,6 +526,48 @@ class GeodeticComposite(Composite):
             var_reds[dataset.name] = var_red
 
         return var_reds
+
+    def get_standardized_residuals(self, point, results=None):
+        """
+        Parameters
+        ----------
+        point : dict
+            with parameters to point in solution space to calculate
+            standardized residuals
+
+        Returns
+        -------
+        dict of arrays of standardized residuals,
+            keys are nslc_ids
+        """
+
+        def compute_residuals(observe, synthetic, hp_specific):
+            hp_name = get_hyper_name(observe)
+            if hp_name in point:
+                if hp_specific:
+                    hp = point[hp_name][counter(hp_name)]
+                else:
+                    hp = point[hp_name]
+            else:
+                hp = num.log(2.0)
+
+            choli = num.linalg.inv(observe.covariance.chol * num.exp(hp) * 2.0)
+            return choli.dot(synthetic.processed_res)
+
+        if results is None:
+            results = self.assemble_results(point)
+
+        self.update_weights(point)
+
+        counter = utility.Counter()
+        hp_specific = self.config.dataset_specific_residual_noise_estimation
+
+        stdz_residuals = OrderedDict()
+        for i in range(self.n_t):
+            stdz_res = compute_residuals(self.datasets[i], results[i], hp_specific)
+            stdz_residuals[self.datasets[i].name] = stdz_res
+
+        return stdz_residuals
 
 
 class GeodeticSourceComposite(GeodeticComposite):

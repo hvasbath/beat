@@ -550,7 +550,7 @@ class SeismicComposite(Composite):
                 hp = num.log(2)
 
             ydata = synthetic.processed_res.get_ydata()
-            choli = num.linalg.inv(observe.covariance.chol * num.exp(hp) / 2.0)
+            choli = num.linalg.inv(observe.covariance.chol * num.exp(hp) * 2.0)
             return choli.dot(ydata)
 
         results = self.assemble_results(point, order="list", chop_bounds=chop_bounds)
