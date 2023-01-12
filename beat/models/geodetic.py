@@ -551,7 +551,7 @@ class GeodeticComposite(Composite):
             else:
                 hp = num.log(2.0)
 
-            choli = num.linalg.inv(observe.covariance.chol * num.exp(hp) * 2.0)
+            choli = num.linalg.inv(observe.covariance.chol * num.exp(hp * 2.0))
             return choli.dot(synthetic.processed_res)
 
         if results is None:
