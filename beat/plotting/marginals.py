@@ -86,7 +86,7 @@ def apply_unified_axis(
     naxs = axs.size
     nvars = len(varnames)
     if naxs != nvars:
-        logger.debug(
+        logger.warning(
             "Inconsistenet number of Axes: %i and variables: %i!" % (naxs, nvars)
         )
 
@@ -285,6 +285,7 @@ def traceplot(
     figs = []
     fig_axs = []
     var_idx = 0
+    varname_page_idx = 0
     for nsubplots in nsubplots_page:
 
         width, height = mpl_papersize("a4", "portrait")
@@ -481,12 +482,14 @@ def traceplot(
                                 ax.axvline(x=e[idx], color=pcolor, lw=1.0)
 
         if unify:
+            page_varnames = varnames[varname_page_idx : varname_page_idx + nsubplots]
             unities = unify_tick_intervals(
-                axs, varnames, ntickmarks_max=ntickmarks_max, axis="x"
+                axs, page_varnames, ntickmarks_max=ntickmarks_max, axis="x"
             )
             apply_unified_axis(
-                axs, varnames, unities, axis="x", scale_factor=scale_factor
+                axs, page_varnames, unities, axis="x", scale_factor=scale_factor
             )
+            varname_page_idx += nsubplots
 
         fig.subplots_adjust(wspace=0.05, hspace=0.5)
         fig.tight_layout()
@@ -789,6 +792,7 @@ def correlation_plot_hist(
         unitiesx = unify_tick_intervals(
             axs, varnames_repeat_x, ntickmarks_max=ntickmarks_max, axis="x"
         )
+
         apply_unified_axis(
             axs,
             varnames_repeat_x,
