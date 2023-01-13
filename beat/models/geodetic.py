@@ -21,8 +21,9 @@ from beat.models.base import (
     Composite,
     ConfigInconsistentError,
     FaultGeometryNotFoundError,
+    get_hypervalue_from_point,
 )
-from beat.models.distributions import get_hyper_name, multivariate_normal_chol
+from beat.models.distributions import multivariate_normal_chol
 
 logger = getLogger("geodetic")
 
@@ -499,10 +500,16 @@ class GeodeticComposite(Composite):
 
         logger.debug("Calculating variance reduction for solution ...")
 
+        counter = utility.Counter()
+        hp_specific = self.config.dataset_specific_residual_noise_estimation
+
         var_reds = OrderedDict()
         for dataset, weight, result in zip(self.datasets, weights, results):
 
-            icov = dataset.covariance.inverse
+            hp = get_hypervalue_from_point(
+                point, dataset, counter, hp_specific=hp_specific
+            )
+            icov = dataset.covariance.inverse(num.exp(hp * 2.0))
 
             data = result.processed_obs
             residual = result.processed_res
@@ -540,20 +547,6 @@ class GeodeticComposite(Composite):
         dict of arrays of standardized residuals,
             keys are nslc_ids
         """
-
-        def compute_residuals(observe, synthetic, hp_specific):
-            hp_name = get_hyper_name(observe)
-            if hp_name in point:
-                if hp_specific:
-                    hp = point[hp_name][counter(hp_name)]
-                else:
-                    hp = point[hp_name]
-            else:
-                hp = num.log(2.0)
-
-            choli = num.linalg.inv(observe.covariance.chol * num.exp(hp * 2.0))
-            return choli.dot(synthetic.processed_res)
-
         if results is None:
             results = self.assemble_results(point)
 
@@ -563,9 +556,12 @@ class GeodeticComposite(Composite):
         hp_specific = self.config.dataset_specific_residual_noise_estimation
 
         stdz_residuals = OrderedDict()
-        for i in range(self.n_t):
-            stdz_res = compute_residuals(self.datasets[i], results[i], hp_specific)
-            stdz_residuals[self.datasets[i].name] = stdz_res
+        for dataset, result in zip(self.datasets, results):
+            hp = get_hypervalue_from_point(
+                point, dataset, counter, hp_specific=hp_specific
+            )
+            choli = num.linalg.inv(dataset.covariance.chol(num.exp(hp * 2.0)))
+            stdz_residuals[dataset.name] = choli.dot(result.processed_res)
 
         return stdz_residuals
 

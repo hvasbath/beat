@@ -156,6 +156,15 @@ class Covariance(Object):
         setattr(self, cov_mat_str, cov_mat)
 
     @property
+    def c_total(self):
+
+        self.check_matrix_init("data")
+        self.check_matrix_init("pred_g")
+        self.check_matrix_init("pred_v")
+
+        return self.data + self.pred_g + self.pred_v
+
+    @property
     def p_total(self):
 
         self.check_matrix_init("pred_g")
@@ -163,12 +172,11 @@ class Covariance(Object):
 
         return self.pred_g + self.pred_v
 
-    @property
-    def inverse(self):
+    def inverse(self, factor=1.0):
         """
         Add and invert ALL uncertainty covariance Matrices.
         """
-        Cx = self.p_total + self.data
+        Cx = self.c_total * factor
         if Cx.sum() == 0:
             raise ValueError("No covariances given!")
         else:
@@ -192,12 +200,11 @@ class Covariance(Object):
             raise AttributeError("No data covariance matrix defined!")
         return num.linalg.inv(self.data).astype(tconfig.floatX)
 
-    @property
-    def chol(self):
+    def chol(self, factor=1.0):
         """
         Cholesky factor, of ALL uncertainty covariance matrices.
         """
-        Cx = self.p_total + self.data
+        Cx = self.c_total * factor
         if Cx.sum() == 0:
             raise ValueError("No covariances given!")
         else:
@@ -225,9 +232,9 @@ class Covariance(Object):
         upper triangle of the cholesky decomposition
         """
         try:
-            return num.linalg.cholesky(self.inverse).T.astype(tconfig.floatX)
+            return num.linalg.cholesky(self.inverse()).T.astype(tconfig.floatX)
         except num.linalg.LinAlgError:
-            inverse_chol = num.linalg.inv(self.chol.T)
+            inverse_chol = num.linalg.inv(self.chol().T)
             _, chol_ur = num.linalg.qr(inverse_chol.T)
             return chol_ur.astype(tconfig.floatX)  # return upper right
 
@@ -236,7 +243,7 @@ class Covariance(Object):
         """
         Calculate the log of the determinant of the total matrix.
         """
-        ldet_x = num.log(num.diag(self.chol)).sum() * 2.0
+        ldet_x = num.log(num.diag(self.chol())).sum() * 2.0
         return utility.scalar2floatX(ldet_x)
 
     def update_slog_pdet(self):

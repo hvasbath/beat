@@ -932,7 +932,7 @@ def scene_fits(problem, stage, plot_options):
         in_ax_res.plot(x, gauss, "k-", lw=0.5, alpha=0.8)
 
         format_axes(in_ax_res, remove=["right", "bottom"], visible=True, linewidth=0.75)
-        in_ax_res.set_xlabel("stz res [$\sigma$]", fontsize=fontsize - 3)
+        in_ax_res.set_xlabel("std. res. [$\sigma$]", fontsize=fontsize - 3)
 
         if po.nensemble > 1:
             in_ax = plot_inset_hist(
@@ -1017,7 +1017,6 @@ def scene_fits(problem, stage, plot_options):
             ticks=cbtick(colims[tidx]),
             cax=cbaxes,
             orientation="horizontal",
-            cmap=cmap,
         )
         cbs.set_label(cblabel, fontsize=fontsize)
 
@@ -1029,7 +1028,6 @@ def scene_fits(problem, stage, plot_options):
                 ticks=cbtick(dcolims[tidx]),
                 cax=dcbaxes,
                 orientation="horizontal",
-                cmap=cmap,
             )
             if po.plot_projection == "individual":
                 cblabel = "standard dev [$\sigma$]"

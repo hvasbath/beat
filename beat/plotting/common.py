@@ -396,7 +396,7 @@ def histplot_op(
             leftb = num.minimum(leftb, left)
             rightb = num.maximum(rightb, right)
 
-        logger.debug("Histogram bounds: left %f, right %f", leftb, rightb)
+        logger.debug("Histogram bounds: left %f, right", leftb, rightb)
         ax.set_xlim(leftb, rightb)
         if cumulative:
             # need left plot bound, leftb
@@ -572,6 +572,7 @@ def plot_inset_hist(
     cbounds=None,
     color="orange",
     alpha=0.4,
+    background_alpha=1.0,
 ):
 
     in_ax = inset_axes(
@@ -597,6 +598,7 @@ def plot_inset_hist(
     in_ax.yaxis.set_visible(False)
     xticker = MaxNLocator(nbins=2)
     in_ax.xaxis.set_major_locator(xticker)
+    in_ax.patch.set_alpha(background_alpha)
     return in_ax
 
 
@@ -879,7 +881,6 @@ def plot_covariances(datasets, covariances):
                         format=lambda x, _: f"{x:.2e}",
                         cax=cbaxes,
                         orientation="horizontal",
-                        cmap=cmap,
                     )
                     cbs.set_label(cblabel, fontsize=fontsize)
             else:

@@ -1,6 +1,8 @@
 import logging
 import os
 
+from scipy import stats
+
 import numpy as num
 from matplotlib import pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
@@ -400,6 +402,7 @@ def subplot_waveforms(
     source,
     traces,
     result,
+    stdz_residual,
     var_reductions,
     time_shifts,
     time_shift_bounds,
@@ -440,9 +443,25 @@ def subplot_waveforms(
             axes,
             data=make_2d(var_reductions),
             best_data=best_data,
-            bbox_to_anchor=(0.85, 0.75, 0.2, 0.2),
+            bbox_to_anchor=(0.9, 0.75, 0.2, 0.2),
+            background_alpha=0.7,
         )
         in_ax.set_title("VR [%]", fontsize=5)
+
+    # histogram of stdz residual
+    in_ax_res = plot_inset_hist(
+        axes,
+        data=make_2d(stdz_residual),
+        best_data=None,
+        bbox_to_anchor=(0.65, 0.75, 0.2, 0.2),
+        color="grey",
+        background_alpha=0.7,
+    )
+    # reference gaussian
+    x = num.linspace(*stats.norm.ppf((0.001, 0.999)), 100)
+    gauss = stats.norm.pdf(x)
+    in_ax_res.plot(x, gauss, "k-", lw=0.5, alpha=0.8)
+    in_ax_res.set_title("std. res. [$\sigma$]", fontsize=5)
 
     plot_taper(
         axes2,
@@ -491,6 +510,7 @@ def subplot_waveforms(
                 # cbounds=time_shift_bounds,
                 color=time_shift_color,
                 alpha=0.7,
+                background_alpha=0.7,
             )
             in_ax.set_xlim(*time_shift_bounds)
     else:
@@ -555,6 +575,7 @@ def subplot_spectrum(
     target,
     traces,
     result,
+    stdz_residual,
     synth_plot_flag,
     only_spectrum,
     var_reductions,
@@ -573,7 +594,7 @@ def subplot_spectrum(
             axes2,
             width="100%",
             height="100%",
-            bbox_to_anchor=(0.05, -0.15, 0.75, 0.24),
+            bbox_to_anchor=(-0.05, -0.15, 0.65, 0.24),
             bbox_transform=axes.transAxes,
             loc=2,
             borderpad=0,
@@ -606,9 +627,24 @@ def subplot_spectrum(
             axes2,
             data=make_2d(var_reductions),
             best_data=best_data,
-            bbox_to_anchor=(0.85, bbox_y, 0.2, 0.2),
+            bbox_to_anchor=(0.9, bbox_y, 0.2, 0.2),
         )
         in_ax.set_title("SPC_VR [%]", fontsize=5)
+
+    # histogram of stdz residual
+    in_ax_res = plot_inset_hist(
+        axes2,
+        data=make_2d(stdz_residual),
+        best_data=None,
+        bbox_to_anchor=(0.65, bbox_y, 0.2, 0.2),
+        color="grey",
+        background_alpha=0.7,
+    )
+    # reference gaussian
+    x = num.linspace(*stats.norm.ppf((0.001, 0.999)), 100)
+    gauss = stats.norm.pdf(x)
+    in_ax_res.plot(x, gauss, "k-", lw=0.5, alpha=0.8)
+    in_ax_res.set_title("spc. std. res. [$\sigma$]", fontsize=5)
 
     fxdata = result.processed_syn.get_xdata()
 
@@ -757,6 +793,10 @@ def seismic_fits(problem, stage, plot_options):
 
     bvar_reductions = composite.get_variance_reductions(
         best_point, weights=composite.weights, results=bresults, chop_bounds=chop_bounds
+    )
+
+    stdz_residuals = composite.get_standardized_residuals(
+        best_point, chop_bounds=chop_bounds, results=bresults
     )
 
     # collecting results for targets
@@ -1003,6 +1043,7 @@ def seismic_fits(problem, stage, plot_options):
                                 axes2=axes2,
                                 po=po,
                                 result=result,
+                                stdz_residual=stdz_residuals[target.nslcd_id_str],
                                 target=target,
                                 traces=syn_traces,
                                 source=source,
@@ -1028,6 +1069,7 @@ def seismic_fits(problem, stage, plot_options):
                                 target=target,
                                 traces=syn_traces,
                                 result=result,
+                                stdz_residual=stdz_residuals[target.nslcd_id_str],
                                 synth_plot_flag=synth_plot_flag,
                                 only_spectrum=only_spectrum,
                                 var_reductions=all_var_reductions[target],

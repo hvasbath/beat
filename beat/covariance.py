@@ -373,13 +373,17 @@ class SeismicNoiseAnalyser(object):
             nslc_id_str = list2string(ctrace.nslc_id)
 
             if wmap.config.domain == "spectrum":
-                lower_idx, upper_idx = wmap.get_valid_spectrum_indices(
+                valid_spectrum_indices = wmap.get_valid_spectrum_indices(
                     chop_bounds=chop_bounds, pad_to_pow2=True
                 )
-                data = ctrace.spectrum(True, 0.05)[1]
-                data = data[lower_idx:upper_idx]
-            else:
-                data = ctrace.get_ydata()
+                data = heart.fft_transforms(
+                    [ctrace],
+                    valid_spectrum_indices,
+                    outmode="stacked_traces",
+                    pad_to_pow2=True,
+                )
+
+            data = ctrace.get_ydata()
 
             if data.size == 0:
                 raise ValueError(
@@ -390,7 +394,7 @@ class SeismicNoiseAnalyser(object):
 
             scaling = num.nanvar(data)
             if num.isfinite(scaling).all():
-                logger.debug("Variance estimate of %s = %g" % (nslc_id_str, scaling))
+                logger.info("Variance estimate of %s = %g" % (nslc_id_str, scaling))
                 scalings.append(scaling)
             else:
                 raise ValueError(
