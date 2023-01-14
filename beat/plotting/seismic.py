@@ -1228,9 +1228,11 @@ def extract_mt_components(problem, po, include_magnitude=False):
             m6s = num.empty((n_mts, len(varnames)), dtype="float64")
             for i, varname in enumerate(varnames):
                 try:
-                    m6s[:, i] = stage.mtrace.get_values(
-                        varname, combine=True, squeeze=False
-                    )[idx_source].T.ravel()
+                    m6s[:, i] = (
+                        stage.mtrace.get_values(varname, combine=True, squeeze=True)
+                        .T[idx_source]
+                        .ravel()
+                    )
 
                 except ValueError:  # if fixed value add that to the ensemble
                     rpoint = problem.get_random_point()
@@ -1888,6 +1890,8 @@ def draw_fuzzy_mt_decomposition(problem, po):
 
     fontsize = 10
 
+    n_sources = problem.config.problem_config.n_sources
+
     if po.load_stage is None:
         po.load_stage = -1
 
@@ -1902,7 +1906,8 @@ def draw_fuzzy_mt_decomposition(problem, po):
 
     if not os.path.exists(outpath) or po.force or po.outformat == "display":
 
-        fig = plt.figure(figsize=(6.0, 2.0))
+        height = 1.5 + n_sources - 1
+        fig = plt.figure(figsize=(6.0, height))
         fig.subplots_adjust(left=0.0, right=1.0, bottom=0.0, top=1.0)
         axes = fig.add_subplot(1, 1, 1)
 
@@ -2362,9 +2367,11 @@ def draw_lune_plot(problem, po):
         result_ensemble = {}
         for varname in ["v", "w"]:
             try:
-                result_ensemble[varname] = stage.mtrace.get_values(
-                    varname, combine=True, squeeze=False
-                )[idx_source].T.ravel()
+                result_ensemble[varname] = (
+                    stage.mtrace.get_values(varname, combine=True, squeeze=True)
+                    .T[idx_source]
+                    .ravel()
+                )
             except ValueError:  # if fixed value add that to the ensemble
                 rpoint = problem.get_random_point()
                 result_ensemble[varname] = num.full_like(
