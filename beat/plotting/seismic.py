@@ -974,8 +974,8 @@ def seismic_fits(problem, stage, plot_options):
                         figures[iyy, ixx].subplots_adjust(
                             left=0.03,
                             right=1.0 - 0.03,
-                            bottom=0.03,
-                            top=1.0 - 0.06,
+                            bottom=0.06,
+                            top=0.96,
                             wspace=0.20,
                             hspace=0.30,
                         )
