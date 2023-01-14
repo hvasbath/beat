@@ -1204,7 +1204,7 @@ def extract_mt_components(problem, po, include_magnitude=False):
     source_type = problem.config.problem_config.source_type
     if source_type in ["MTSource", "MTQTSource"]:
         varnames = ["mnn", "mee", "mdd", "mne", "mnd", "med"]
-    elif source_type == "DCSource":
+    elif source_type in ["DCSource", "RectangularSource"]:
         varnames = ["strike", "dip", "rake"]
     else:
         raise ValueError('Plot is only supported for point "MTSource" and "DCSource"')
