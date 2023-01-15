@@ -1906,7 +1906,7 @@ def draw_fuzzy_mt_decomposition(problem, po):
 
     if not os.path.exists(outpath) or po.force or po.outformat == "display":
 
-        height = n_sources * 0.9
+        height = n_sources * 0.75
         fig = plt.figure(figsize=(6.0, height))
         fig.subplots_adjust(left=0.01, right=0.99, bottom=0.03, top=0.97)
         axes = fig.add_subplot(1, 1, 1)
