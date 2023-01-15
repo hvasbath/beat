@@ -382,8 +382,8 @@ class SeismicNoiseAnalyser(object):
                     outmode="stacked_traces",
                     pad_to_pow2=True,
                 )
-
-            data = ctrace.get_ydata()
+            else:
+                data = ctrace.get_ydata()
 
             if data.size == 0:
                 raise ValueError(
