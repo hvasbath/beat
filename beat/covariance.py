@@ -381,7 +381,7 @@ class SeismicNoiseAnalyser(object):
                     valid_spectrum_indices,
                     outmode="stacked_traces",
                     pad_to_pow2=True,
-                )
+                )[0].get_ydata()
             else:
                 data = ctrace.get_ydata()
 
