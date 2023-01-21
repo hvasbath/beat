@@ -892,11 +892,11 @@ def plot_covariances(datasets, covariances):
     return figures, axes
 
 
-def get_weights_point(composite, best_point):
+def get_weights_point(composite, best_point, update=False):
 
     if composite.config.noise_estimator.structure == "non-toeplitz":
         # nT run is done with test point covariances!
-        if problem.config.sampler_config.parameters.update_covariances:
+        if update:
             logger.info("Non-Toeplitz noise structure: Using BestPoint for Covariance!")
             tpoint = best_point
         else:

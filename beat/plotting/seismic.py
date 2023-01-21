@@ -764,7 +764,8 @@ def seismic_fits(problem, stage, plot_options):
         bresults = composite.assemble_results(best_point, chop_bounds=chop_bounds)
         synth_plot_flag = False
 
-    tpoint = get_weights_point(composite, best_point)
+    update = problem.config.sampler_config.parameters.update_covariances
+    tpoint = get_weights_point(composite, best_point, update=update)
 
     composite.analyse_noise(tpoint, chop_bounds=chop_bounds)
     composite.update_weights(tpoint, chop_bounds=chop_bounds)
