@@ -33,6 +33,7 @@ from .common import (
     scale_axes,
     set_anchor,
     plot_covariances,
+    get_weights_point,
 )
 
 logger = logging.getLogger("plotting.geodetic")
@@ -461,8 +462,10 @@ def geodetic_covariances(problem, stage, plot_options):
     else:
         bpoint = get_result_point(stage.mtrace, po.post_llk)
 
+    tpoint = get_weights_point(composite, bpoint)
+
     bresults_tmp = composite.assemble_results(bpoint)
-    composite.analyse_noise(bpoint)
+    composite.analyse_noise(tpoint)
 
     covariances = [dataset.covariance for dataset in composite.datasets]
 
@@ -525,11 +528,16 @@ def scene_fits(problem, stage, plot_options):
         bpoint = get_result_point(stage.mtrace, po.post_llk)
 
     bresults_tmp = composite.assemble_results(bpoint)
-    composite.analyse_noise(bpoint)
-    composite.update_weights(bpoint)
+
+    tpoint = get_weights_point(composite, bpoint)
+
+    composite.analyse_noise(tpoint)
+    composite.update_weights(tpoint)
 
     # to display standardized residuals
-    stdz_residuals = composite.get_standardized_residuals(bpoint, results=bresults_tmp)
+    stdz_residuals = composite.get_standardized_residuals(
+        bpoint, results=bresults_tmp, weights=composite.weights
+    )
 
     if po.plot_projection == "individual":
         for result, dataset in zip(bresults_tmp, composite.datasets):

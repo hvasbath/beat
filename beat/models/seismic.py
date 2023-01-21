@@ -526,7 +526,9 @@ class SeismicComposite(Composite):
             _llk = num.asarray([num.dot(tmp, tmp)])
             self._llks[k].set_value(_llk)
 
-    def get_standardized_residuals(self, point, chop_bounds=["b", "c"], results=None):
+    def get_standardized_residuals(
+        self, point, chop_bounds=["b", "c"], results=None, weights=None
+    ):
         """
         Parameters
         ----------
@@ -540,16 +542,13 @@ class SeismicComposite(Composite):
             keys are nslc_ids
         """
 
-        def compute_residuals(observe, synthetic, hp_specific):
-
-            return
-
         if results is None:
             results = self.assemble_results(
                 point, order="list", chop_bounds=chop_bounds
             )
 
-        self.update_weights(point, chop_bounds=chop_bounds)
+        if weights is None:
+            self.update_weights(point, chop_bounds=chop_bounds)
 
         counter = utility.Counter()
         hp_specific = self.config.dataset_specific_residual_noise_estimation

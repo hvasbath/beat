@@ -34,6 +34,7 @@ from .common import (
     str_dist,
     str_duration,
     str_unit,
+    get_weights_point,
 )
 
 km = 1000.0
@@ -763,8 +764,10 @@ def seismic_fits(problem, stage, plot_options):
         bresults = composite.assemble_results(best_point, chop_bounds=chop_bounds)
         synth_plot_flag = False
 
-    composite.analyse_noise(best_point, chop_bounds=chop_bounds)
-    composite.update_weights(best_point, chop_bounds=chop_bounds)
+    tpoint = get_weights_point(composite, best_point)
+
+    composite.analyse_noise(tpoint, chop_bounds=chop_bounds)
+    composite.update_weights(tpoint, chop_bounds=chop_bounds)
     if plot_options.nensemble > 1:
         from tqdm import tqdm
 
@@ -796,7 +799,10 @@ def seismic_fits(problem, stage, plot_options):
     )
 
     stdz_residuals = composite.get_standardized_residuals(
-        best_point, chop_bounds=chop_bounds, results=bresults
+        best_point,
+        chop_bounds=chop_bounds,
+        results=bresults,
+        weights=composite.weights,
     )
 
     # collecting results for targets

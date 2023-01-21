@@ -534,7 +534,7 @@ class GeodeticComposite(Composite):
 
         return var_reds
 
-    def get_standardized_residuals(self, point, results=None):
+    def get_standardized_residuals(self, point, results=None, weights=None):
         """
         Parameters
         ----------
@@ -550,7 +550,8 @@ class GeodeticComposite(Composite):
         if results is None:
             results = self.assemble_results(point)
 
-        self.update_weights(point)
+        if weights is None:
+            self.update_weights(point)
 
         counter = utility.Counter()
         hp_specific = self.config.dataset_specific_residual_noise_estimation
