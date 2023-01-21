@@ -462,8 +462,7 @@ def geodetic_covariances(problem, stage, plot_options):
     else:
         bpoint = get_result_point(stage.mtrace, po.post_llk)
 
-    update = problem.config.sampler_config.parameters.update_covariances
-    tpoint = get_weights_point(composite, bpoint, update=update)
+    tpoint = get_weights_point(composite, bpoint, problem.config)
 
     bresults_tmp = composite.assemble_results(bpoint)
     composite.analyse_noise(tpoint)
@@ -530,8 +529,7 @@ def scene_fits(problem, stage, plot_options):
 
     bresults_tmp = composite.assemble_results(bpoint)
 
-    update = problem.config.sampler_config.parameters.update_covariances
-    tpoint = get_weights_point(composite, bpoint, update=update)
+    tpoint = get_weights_point(composite, bpoint, problem.config)
 
     composite.analyse_noise(tpoint)
     composite.update_weights(tpoint)
