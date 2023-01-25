@@ -1346,6 +1346,7 @@ def draw_ray_piercing_points_bb(
             raise ValueError("Number of stations is inconsistent with polarity data!")
 
         for i_s, station in enumerate(stations):
+
             ax.text(
                 y[i_s],
                 x[i_s],
@@ -1357,6 +1358,9 @@ def draw_ray_piercing_points_bb(
                 ),  # polarities[i_s]),
                 color="red",
                 fontsize=5,
+                va="top",
+                ha="right",
+                rotation=45,
             )
 
 
