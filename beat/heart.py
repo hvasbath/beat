@@ -4143,7 +4143,12 @@ def pol_synthetics(
                 takeoff_angles_rad, azimuths_rad, wavename=wavename
             )
 
-    moment_tensor = source.pyrocko_moment_tensor()
+    try:
+        moment_tensor = source.pyrocko_moment_tensor()
+    except gf.seismosizer.DerivedMagnitudeError:
+        source.slip = None
+        moment_tensor = source.pyrocko_moment_tensor()
+
     m9 = moment_tensor.m()
 
     if isinstance(m9, num.matrix):
