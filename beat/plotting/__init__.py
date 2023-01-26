@@ -37,7 +37,7 @@ seismic_plots = [
 
 
 geodetic_plots = ["scene_fits", "gnss_fits", "geodetic_covariances"]
-
+polarity_plots = ["fuzzy_beachball", "fuzzy_mt_decomp", "lune", "hudson", "station_map"]
 
 geometry_plots = ["correlation_hist", "velocity_models"]
 
@@ -50,7 +50,11 @@ plots_mode_catalog = {
     "ffi": common_plots + ffi_plots,
 }
 
-plots_datatype_catalog = {"seismic": seismic_plots, "geodetic": geodetic_plots}
+plots_datatype_catalog = {
+    "seismic": seismic_plots,
+    "geodetic": geodetic_plots,
+    "polarity": polarity_plots,
+}
 
 
 def available_plots(mode=None, datatypes=["geodetic", "seismic"]):
@@ -61,4 +65,4 @@ def available_plots(mode=None, datatypes=["geodetic", "seismic"]):
         for datatype in datatypes:
             plots.extend(plots_datatype_catalog[datatype])
 
-        return plots
+        return list(set(plots))

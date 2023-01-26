@@ -58,7 +58,6 @@ Contents:
    short_installation
    anaconda_installation
    installation
-   updating
    getting_started/index
    examples/index
    faq
