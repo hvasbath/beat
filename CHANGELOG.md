@@ -4,6 +4,23 @@ All notable changes to BEAT will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.2.4] TBD 2023
+Contributors: Hannes Vasyura-Bathke @hvasbath
+
+### Added
+- covariance.GeodeticNoiseAnalyser: parametrize the residual noise allowing for non-Toeplitz/import
+- plotting.geodetic/seismic added standardized residual histograms to residuals
+- plotting.geodetic: new plot "geodetic_covariances"
+- plotting.geodetic: add "individual" plot_projection to scene_fits to show stdz residuals
+- plotting.seismic: fuzzy_bb, lune, hudson and fuzzy_mt_decomp support n_sources > 1
+- plotting.seismic: allow plotting of fuzzy_bb for RectangularSource
+
+### Fixed
+- plotting.marginals: stage_posteriors fixed axis unification and erroneous histogram plotting
+- docs: short_installation fix python version to 3.8
+- heart: pol_synthetics allow for RectangularSource
+- covariance: estimation of variance on amplitude spectra instead of complex spectra
+
 
 ## [1.2.3] 20 November 2022
 Contributors: Hannes Vasyura-Bathke @hvasbath
