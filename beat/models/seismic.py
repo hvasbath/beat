@@ -1259,6 +1259,9 @@ class SeismicDistributerComposite(SeismicComposite):
         wlogpts = []
         for wmap in self.wavemaps:
             wc = wmap.config
+            if wc.domain == "spectrum":
+                raise TypeError("FFI is currently only supported for time-domain!")
+
             # station corrections
             if len(self.hierarchicals) > 0:
                 logger.info("Applying station corrections ...")
