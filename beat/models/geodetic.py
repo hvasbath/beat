@@ -263,7 +263,7 @@ class GeodeticComposite(Composite):
                 for dataset in datasets
             }
 
-            outname = os.path.join(results_path, "%s_C_%s_%s" % ("geodetic", cov_mat))
+            outname = os.path.join(results_path, "%s_C_%s" % ("geodetic", cov_mat))
             logger.info('"%s" to: %s' % (outname))
             num.savez(outname, **covs)
 
