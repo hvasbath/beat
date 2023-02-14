@@ -7,6 +7,9 @@ If you came looking for the beat package calculating internet time you can find 
 
 Based on pyrocko, theano and pymc3
 
+14 February 2023
+Version 1.2.4 is released. Details in the [changelog](https://github.com/hvasbath/beat/blob/master/CHANGELOG.md).
+
 20 November 2022
 Version 1.2.3 is released. Bugfix-release.
 
