@@ -369,11 +369,23 @@ def weed_input_rvs(input_rvs, mode, datatype):
                 "delta_time",
                 "nucleation_x",
                 "nucleation_y",
+                "peak_ratio",
             ] + burian
         elif datatype == "seismic":
             tobeweeded = ["opening"] + burian
         elif datatype == "polarity":
-            tobeweeded = ["time", "duration", "magnitude", "peak_ratio"] + burian
+            tobeweeded = [
+                "time",
+                "duration",
+                "magnitude",
+                "peak_ratio",
+                "slip",
+                "opening_fraction",
+                "nucleation_x",
+                "nucleation_y",
+                "length",
+                "width",
+            ] + burian
 
     elif mode == "interseismic":
         if datatype == "geodetic":
@@ -1626,3 +1638,34 @@ class StencilOperator(Object):
     @property
     def hsteps(self):
         return self._hsteps[self.order] * self.h
+
+
+def distances(points, ref_points):
+    """
+    Calculate distances in Cartesian coordinates between points and reference
+    points in N-D.
+
+    Parameters
+    ----------
+    points: :class:`numpy.Ndarray` (n points x n spatial dimensions)
+    ref_points: :class:`numpy.Ndarray` (m points x n spatial dimensions)
+
+    Returns
+    -------
+    ndarray (n_points x n_ref_points)
+    """
+    nref_points = ref_points.shape[0]
+    ndim = points.shape[1]
+    ndim_ref = ref_points.shape[1]
+    if ndim != ndim_ref:
+        raise TypeError(
+            "Coordinates to calculate differences must have the same number "
+            "of dimensions! Given dimensions are {} and {}".format(ndim, ndim_ref)
+        )
+
+    points_rep = num.tile(points, nref_points).reshape(
+        points.shape[0], nref_points, ndim
+    )
+
+    distances = num.sqrt(num.power(points_rep - ref_points, 2).sum(axis=2))
+    return distances

@@ -113,6 +113,7 @@ class PolarityComposite(Composite):
 
         logpts = []
         for i, pmap in enumerate(self.wavemaps):
+
             self.synthesizers[i] = PolaritySynthesizer(
                 self.engine,
                 self.sources[pmap.config.event_idx],

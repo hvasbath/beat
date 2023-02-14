@@ -82,6 +82,7 @@ def upgrade_config_file(fn, diff=True, update=[]):
     rules = [
         ("beat.SeismicConfig", drop_attribute("blacklist")),
         ("beat.SeismicConfig", drop_attribute("calc_data_cov")),
+        ("beat.GeodeticConfig", drop_attribute("calc_data_cov")),
         (
             "beat.SeismicConfig",
             set_attribute(

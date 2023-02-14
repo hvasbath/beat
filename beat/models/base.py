@@ -8,7 +8,7 @@ from pyrocko.util import ensuredir
 
 from beat import config as bconfig
 from beat.backend import SampleStage, thin_buffer
-from beat.models.distributions import hyper_normal
+from beat.models.distributions import hyper_normal, get_hyper_name
 
 logger = getLogger("models.base")
 
@@ -20,7 +20,21 @@ __all__ = [
     "Stage",
     "load_stage",
     "estimate_hypers",
+    "get_hypervalue_from_point",
 ]
+
+
+def get_hypervalue_from_point(point, observe, counter, hp_specific=False):
+    hp_name = get_hyper_name(observe)
+
+    if hp_name in point:
+        if hp_specific:
+            hp = point[hp_name][counter(hp_name)]
+        else:
+            hp = point[hp_name]
+    else:
+        hp = num.log(2.0)
+    return hp
 
 
 class ConfigInconsistentError(Exception):

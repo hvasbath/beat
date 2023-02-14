@@ -1212,7 +1212,7 @@ def command_summarize(args):
             if options.calc_derived:
                 varnames, shapes = pc.get_derived_variables_shapes()
                 rtrace.add_derived_variables(varnames, shapes)
-                splitinds = cumsum([shape[0] for shape in shapes[:-1]])
+                splitinds = range(1, len(varnames))
 
             rtrace.setup(draws=draws, chain=-1, overwrite=True)
 

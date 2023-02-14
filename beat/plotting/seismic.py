@@ -1,6 +1,8 @@
 import logging
 import os
 
+from scipy import stats
+
 import numpy as num
 from matplotlib import pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
@@ -32,6 +34,7 @@ from .common import (
     str_dist,
     str_duration,
     str_unit,
+    get_weights_point,
 )
 
 km = 1000.0
@@ -400,6 +403,7 @@ def subplot_waveforms(
     source,
     traces,
     result,
+    stdz_residual,
     var_reductions,
     time_shifts,
     time_shift_bounds,
@@ -440,9 +444,25 @@ def subplot_waveforms(
             axes,
             data=make_2d(var_reductions),
             best_data=best_data,
-            bbox_to_anchor=(0.85, 0.75, 0.2, 0.2),
+            bbox_to_anchor=(0.9, 0.75, 0.2, 0.2),
+            background_alpha=0.7,
         )
         in_ax.set_title("VR [%]", fontsize=5)
+
+    # histogram of stdz residual
+    in_ax_res = plot_inset_hist(
+        axes,
+        data=make_2d(stdz_residual),
+        best_data=None,
+        bbox_to_anchor=(0.65, 0.75, 0.2, 0.2),
+        color="grey",
+        background_alpha=0.7,
+    )
+    # reference gaussian
+    x = num.linspace(*stats.norm.ppf((0.001, 0.999)), 100)
+    gauss = stats.norm.pdf(x)
+    in_ax_res.plot(x, gauss, "k-", lw=0.5, alpha=0.8)
+    in_ax_res.set_title("std. res. [$\sigma$]", fontsize=5)
 
     plot_taper(
         axes2,
@@ -491,6 +511,7 @@ def subplot_waveforms(
                 # cbounds=time_shift_bounds,
                 color=time_shift_color,
                 alpha=0.7,
+                background_alpha=0.7,
             )
             in_ax.set_xlim(*time_shift_bounds)
     else:
@@ -555,6 +576,7 @@ def subplot_spectrum(
     target,
     traces,
     result,
+    stdz_residual,
     synth_plot_flag,
     only_spectrum,
     var_reductions,
@@ -573,7 +595,7 @@ def subplot_spectrum(
             axes2,
             width="100%",
             height="100%",
-            bbox_to_anchor=(0.05, -0.15, 0.75, 0.24),
+            bbox_to_anchor=(-0.05, -0.15, 0.65, 0.24),
             bbox_transform=axes.transAxes,
             loc=2,
             borderpad=0,
@@ -606,9 +628,24 @@ def subplot_spectrum(
             axes2,
             data=make_2d(var_reductions),
             best_data=best_data,
-            bbox_to_anchor=(0.85, bbox_y, 0.2, 0.2),
+            bbox_to_anchor=(0.9, bbox_y, 0.2, 0.2),
         )
         in_ax.set_title("SPC_VR [%]", fontsize=5)
+
+    # histogram of stdz residual
+    in_ax_res = plot_inset_hist(
+        axes2,
+        data=make_2d(stdz_residual),
+        best_data=None,
+        bbox_to_anchor=(0.65, bbox_y, 0.2, 0.2),
+        color="grey",
+        background_alpha=0.7,
+    )
+    # reference gaussian
+    x = num.linspace(*stats.norm.ppf((0.001, 0.999)), 100)
+    gauss = stats.norm.pdf(x)
+    in_ax_res.plot(x, gauss, "k-", lw=0.5, alpha=0.8)
+    in_ax_res.set_title("spc. std. res. [$\sigma$]", fontsize=5)
 
     fxdata = result.processed_syn.get_xdata()
 
@@ -727,8 +764,10 @@ def seismic_fits(problem, stage, plot_options):
         bresults = composite.assemble_results(best_point, chop_bounds=chop_bounds)
         synth_plot_flag = False
 
-    composite.analyse_noise(best_point, chop_bounds=chop_bounds)
-    composite.update_weights(best_point, chop_bounds=chop_bounds)
+    tpoint = get_weights_point(composite, best_point, problem.config)
+
+    composite.analyse_noise(tpoint, chop_bounds=chop_bounds)
+    composite.update_weights(tpoint, chop_bounds=chop_bounds)
     if plot_options.nensemble > 1:
         from tqdm import tqdm
 
@@ -757,6 +796,13 @@ def seismic_fits(problem, stage, plot_options):
 
     bvar_reductions = composite.get_variance_reductions(
         best_point, weights=composite.weights, results=bresults, chop_bounds=chop_bounds
+    )
+
+    stdz_residuals = composite.get_standardized_residuals(
+        best_point,
+        chop_bounds=chop_bounds,
+        results=bresults,
+        weights=composite.weights,
     )
 
     # collecting results for targets
@@ -934,8 +980,8 @@ def seismic_fits(problem, stage, plot_options):
                         figures[iyy, ixx].subplots_adjust(
                             left=0.03,
                             right=1.0 - 0.03,
-                            bottom=0.03,
-                            top=1.0 - 0.06,
+                            bottom=0.06,
+                            top=0.96,
                             wspace=0.20,
                             hspace=0.30,
                         )
@@ -1003,6 +1049,7 @@ def seismic_fits(problem, stage, plot_options):
                                 axes2=axes2,
                                 po=po,
                                 result=result,
+                                stdz_residual=stdz_residuals[target.nslcd_id_str],
                                 target=target,
                                 traces=syn_traces,
                                 source=source,
@@ -1028,6 +1075,7 @@ def seismic_fits(problem, stage, plot_options):
                                 target=target,
                                 traces=syn_traces,
                                 result=result,
+                                stdz_residual=stdz_residuals[target.nslcd_id_str],
                                 synth_plot_flag=synth_plot_flag,
                                 only_spectrum=only_spectrum,
                                 var_reductions=all_var_reductions[target],
@@ -1133,7 +1181,7 @@ def draw_seismic_fits(problem, po):
                     )
 
 
-def point2array(point, varnames, rpoint=None):
+def point2array(point, varnames, idx_source=1, rpoint=None):
     """
     Concatenate values of point according to order of given varnames.
     """
@@ -1141,10 +1189,10 @@ def point2array(point, varnames, rpoint=None):
         array = num.empty((len(varnames)), dtype="float64")
         for i, varname in enumerate(varnames):
             try:
-                array[i] = point[varname].ravel()
+                array[i] = point[varname][idx_source].ravel()
             except KeyError:  # in case fixed variable
                 if rpoint:
-                    array[i] = rpoint[varname].ravel()
+                    array[i] = rpoint[varname][idx_source].ravel()
                 else:
                     raise ValueError(
                         'Fixed Component "%s" no fixed value given!' % varname
@@ -1160,9 +1208,11 @@ def extract_mt_components(problem, po, include_magnitude=False):
     Extract Moment Tensor components from problem results for plotting.
     """
     source_type = problem.config.problem_config.source_type
+    n_sources = problem.config.problem_config.n_sources
+
     if source_type in ["MTSource", "MTQTSource"]:
         varnames = ["mnn", "mee", "mdd", "mne", "mnd", "med"]
-    elif source_type == "DCSource":
+    elif source_type in ["DCSource", "RectangularSource"]:
         varnames = ["strike", "dip", "rake"]
     else:
         raise ValueError('Plot is only supported for point "MTSource" and "DCSource"')
@@ -1177,43 +1227,66 @@ def extract_mt_components(problem, po, include_magnitude=False):
             problem, stage_number=po.load_stage, load="trace", chains=[-1]
         )
 
-        n_mts = len(stage.mtrace)
-        m6s = num.empty((n_mts, len(varnames)), dtype="float64")
-        for i, varname in enumerate(varnames):
-            try:
-                m6s[:, i] = stage.mtrace.get_values(
-                    varname, combine=True, squeeze=True
-                ).ravel()
-            except ValueError:  # if fixed value add that to the ensemble
-                rpoint = problem.get_random_point()
-                mtfield = num.full_like(
-                    num.empty((n_mts), dtype=num.float64), rpoint[varname]
-                )
-                m6s[:, i] = mtfield
+        list_m6s = []
+        list_best_mts = []
+        for idx_source in range(n_sources):
+            n_mts = len(stage.mtrace)
+            m6s = num.empty((n_mts, len(varnames)), dtype="float64")
+            for i, varname in enumerate(varnames):
+                try:
+                    m6s[:, i] = (
+                        stage.mtrace.get_values(varname, combine=True, squeeze=True)
+                        .T[idx_source]
+                        .ravel()
+                    )
 
-        if po.nensemble:
-            logger.info("Drawing %i solutions from ensemble ..." % po.nensemble)
-            csteps = float(n_mts) / po.nensemble
-            idxs = num.floor(num.arange(0, n_mts, csteps)).astype("int32")
-            m6s = m6s[idxs, :]
-        else:
-            logger.info("Drawing full ensemble ...")
+                except ValueError:  # if fixed value add that to the ensemble
+                    rpoint = problem.get_random_point()
+                    mtfield = num.full_like(
+                        num.empty((n_mts), dtype=num.float64),
+                        rpoint[varname][idx_source],
+                    )
+                    m6s[:, i] = mtfield
 
-        point = get_result_point(stage.mtrace, po.post_llk)
-        best_mt = point2array(point, varnames=varnames, rpoint=rpoint)
+            if po.nensemble:
+                logger.info("Drawing %i solutions from ensemble ..." % po.nensemble)
+                csteps = float(n_mts) / po.nensemble
+                idxs = num.floor(num.arange(0, n_mts, csteps)).astype("int32")
+                m6s = m6s[idxs, :]
+            else:
+                logger.info("Drawing full ensemble ...")
+
+            point = get_result_point(stage.mtrace, po.post_llk)
+            best_mt = point2array(
+                point, varnames=varnames, rpoint=rpoint, idx_source=idx_source
+            )
+
+            list_m6s.append(m6s)
+            list_best_mts.append(best_mt)
     else:
         llk_str = "ref"
         point = po.reference
+        list_best_mts = []
+        list_m6s = []
         if source_type == "MTQTSource":
             composite = problem.composites[problem.config.problem_config.datatypes[0]]
             composite.point2sources(po.reference)
-            m6s = [composite.sources[0].get_derived_parameters()[0:6]]
-            best_mt = None
-        else:
-            m6s = [point2array(point=po.reference, varnames=varnames)]
-            best_mt = None
+            for source in composite.sources:
+                list_m6s.append([source.get_derived_parameters()[0:6]])
+                list_best_mts.append(None)
 
-    return m6s, best_mt, llk_str, point
+        else:
+            for idx_source in range(n_sources):
+                list_m6s.append(
+                    [
+                        point2array(
+                            point=po.reference, varnames=varnames, idx_source=idx_source
+                        )
+                    ]
+                )
+                list_best_mts.append(None)
+
+    return list_m6s, list_best_mts, llk_str, point
 
 
 def draw_ray_piercing_points_bb(
@@ -1273,6 +1346,7 @@ def draw_ray_piercing_points_bb(
             raise ValueError("Number of stations is inconsistent with polarity data!")
 
         for i_s, station in enumerate(stations):
+
             ax.text(
                 y[i_s],
                 x[i_s],
@@ -1284,6 +1358,9 @@ def draw_ray_piercing_points_bb(
                 ),  # polarities[i_s]),
                 color="red",
                 fontsize=5,
+                va="top",
+                ha="right",
+                rotation=45,
             )
 
 
@@ -1512,15 +1589,10 @@ def plot_fuzzy_beachball_mpl_pixmap(
 
 def draw_fuzzy_beachball(problem, po):
 
-    if problem.config.problem_config.n_sources > 1:
-        raise NotImplementedError(
-            "Fuzzy beachball is not yet implemented for more than one source!"
-        )
-
     if po.load_stage is None:
         po.load_stage = -1
 
-    m6s, best_mt, llk_str, point = extract_mt_components(problem, po)
+    list_m6s, list_best_mt, llk_str, point = extract_mt_components(problem, po)
 
     logger.info("Drawing Fuzzy Beachball ...")
 
@@ -1547,85 +1619,93 @@ def draw_fuzzy_beachball(problem, po):
 
     for k_pamp, wavename in enumerate(wavenames):
 
-        outpath = os.path.join(
-            problem.outfolder,
-            po.figure_dir,
-            "fuzzy_beachball_%i_%s_%i_%s.%s"
-            % (po.load_stage, llk_str, po.nensemble, wavename, po.outformat),
-        )
-
-        if not os.path.exists(outpath) or po.force or po.outformat == "display":
-            fig = plt.figure(figsize=(4.0, 4.0))
-            fig.subplots_adjust(left=0.0, right=1.0, bottom=0.0, top=1.0)
-            axes = fig.add_subplot(1, 1, 1)
-
-            transform, position, size = beachball.choose_transform(
-                axes, kwargs["size_units"], kwargs["position"], kwargs["size"]
+        for idx_source, (m6s, best_mt) in enumerate(zip(list_m6s, list_best_mt)):
+            outpath = os.path.join(
+                problem.outfolder,
+                po.figure_dir,
+                "fuzzy_beachball_%i_%s_%i_%s_%i.%s"
+                % (
+                    po.load_stage,
+                    llk_str,
+                    po.nensemble,
+                    wavename,
+                    idx_source,
+                    po.outformat,
+                ),
             )
 
-            plot_fuzzy_beachball_mpl_pixmap(
-                m6s,
-                axes,
-                best_mt=best_mt,
-                best_color="white",
-                wavename=wavename,
-                **kwargs
-            )
+            if not os.path.exists(outpath) or po.force or po.outformat == "display":
+                fig = plt.figure(figsize=(4.0, 4.0))
+                fig.subplots_adjust(left=0.0, right=1.0, bottom=0.0, top=1.0)
+                axes = fig.add_subplot(1, 1, 1)
 
-            if best_mt is not None:
-                best_amps, bx, by = mts2amps(
-                    [best_mt],
-                    grid_resolution=kwargs["grid_resolution"],
-                    projection=kwargs["projection"],
-                    beachball_type=kwargs["beachball_type"],
-                    wavename=wavename,
-                    mask=False,
+                transform, position, size = beachball.choose_transform(
+                    axes, kwargs["size_units"], kwargs["position"], kwargs["size"]
                 )
 
-                axes.contour(
-                    position[0] + by * size,
-                    position[1] + bx * size,
-                    best_amps.T,
-                    levels=[0.0],
-                    colors=["black"],
-                    linestyles="dashed",
-                    linewidths=kwargs["linewidth"],
-                    transform=transform,
-                    zorder=kwargs["zorder"],
-                    alpha=kwargs["alpha"],
-                )
-
-            if "polarity" in problem.config.problem_config.datatypes:
-                pmap = composite.wavemaps[k_pamp]
-                source = composite.sources[pmap.config.event_idx]
-                pmap.update_targets(
-                    composite.engine,
-                    source,
-                    always_raytrace=composite.config.gf_config.always_raytrace,
-                )
-                draw_ray_piercing_points_bb(
+                plot_fuzzy_beachball_mpl_pixmap(
+                    m6s,
                     axes,
-                    pmap.get_takeoff_angles_rad(),
-                    pmap.get_azimuths_rad(),
-                    pmap._prepared_data,
-                    stations=pmap.stations,
-                    size=size,
-                    position=position,
-                    transform=transform,
+                    best_mt=best_mt,
+                    best_color="white",
+                    wavename=wavename,
+                    **kwargs
                 )
 
-            axes.set_xlim(0.0, 10.0)
-            axes.set_ylim(0.0, 10.0)
-            axes.set_axis_off()
+                if best_mt is not None:
+                    best_amps, bx, by = mts2amps(
+                        [best_mt],
+                        grid_resolution=kwargs["grid_resolution"],
+                        projection=kwargs["projection"],
+                        beachball_type=kwargs["beachball_type"],
+                        wavename=wavename,
+                        mask=False,
+                    )
 
-            if not po.outformat == "display":
-                logger.info("saving figure to %s" % outpath)
-                fig.savefig(outpath, dpi=po.dpi)
+                    axes.contour(
+                        position[0] + by * size,
+                        position[1] + bx * size,
+                        best_amps.T,
+                        levels=[0.0],
+                        colors=["black"],
+                        linestyles="dashed",
+                        linewidths=kwargs["linewidth"],
+                        transform=transform,
+                        zorder=kwargs["zorder"],
+                        alpha=kwargs["alpha"],
+                    )
+
+                if "polarity" in problem.config.problem_config.datatypes:
+                    pmap = composite.wavemaps[k_pamp]
+                    source = composite.sources[pmap.config.event_idx]
+                    pmap.update_targets(
+                        composite.engine,
+                        source,
+                        always_raytrace=composite.config.gf_config.always_raytrace,
+                    )
+                    draw_ray_piercing_points_bb(
+                        axes,
+                        pmap.get_takeoff_angles_rad(),
+                        pmap.get_azimuths_rad(),
+                        pmap._prepared_data,
+                        stations=pmap.stations,
+                        size=size,
+                        position=position,
+                        transform=transform,
+                    )
+
+                axes.set_xlim(0.0, 10.0)
+                axes.set_ylim(0.0, 10.0)
+                axes.set_axis_off()
+
+                if not po.outformat == "display":
+                    logger.info("saving figure to %s" % outpath)
+                    fig.savefig(outpath, dpi=po.dpi)
+                else:
+                    plt.show()
+
             else:
-                plt.show()
-
-        else:
-            logger.info("Plot already exists! Please use --force to overwrite!")
+                logger.info("Plot already exists! Please use --force to overwrite!")
 
 
 def fuzzy_mt_decomposition(axes, list_m6s, labels=None, colors=None, fontsize=12):
@@ -1820,15 +1900,12 @@ def draw_fuzzy_mt_decomposition(problem, po):
 
     fontsize = 10
 
-    if problem.config.problem_config.n_sources > 1:
-        raise NotImplementedError(
-            "Fuzzy MT decomposition is not yet" "implemented for more than one source!"
-        )
+    n_sources = problem.config.problem_config.n_sources
 
     if po.load_stage is None:
         po.load_stage = -1
 
-    m6s, _, llk_str, _ = extract_mt_components(problem, po, include_magnitude=True)
+    list_m6s, _, llk_str, _ = extract_mt_components(problem, po, include_magnitude=True)
 
     outpath = os.path.join(
         problem.outfolder,
@@ -1839,11 +1916,12 @@ def draw_fuzzy_mt_decomposition(problem, po):
 
     if not os.path.exists(outpath) or po.force or po.outformat == "display":
 
-        fig = plt.figure(figsize=(6.0, 2.0))
-        fig.subplots_adjust(left=0.0, right=1.0, bottom=0.0, top=1.0)
+        height = 1.5 + (n_sources - 1) * 0.65
+        fig = plt.figure(figsize=(6.0, height))
+        fig.subplots_adjust(left=0.01, right=0.99, bottom=0.03, top=0.97)
         axes = fig.add_subplot(1, 1, 1)
 
-        fuzzy_mt_decomposition(axes, list_m6s=[m6s], fontsize=fontsize)
+        fuzzy_mt_decomposition(axes, list_m6s=list_m6s, fontsize=fontsize)
 
         if not po.outformat == "display":
             logger.info("saving figure to %s" % outpath)
@@ -1867,15 +1945,10 @@ def draw_hudson(problem, po):
     from pyrocko import moment_tensor as mtm
     from pyrocko.plot import beachball, hudson
 
-    if problem.config.problem_config.n_sources > 1:
-        raise NotImplementedError(
-            "Hudson plot is not yet implemented for more than one source!"
-        )
-
     if po.load_stage is None:
         po.load_stage = -1
 
-    m6s, best_mt, llk_str, _ = extract_mt_components(problem, po)
+    list_m6s, list_best_mts, llk_str, _ = extract_mt_components(problem, po)
 
     logger.info("Drawing Hudson plot ...")
 
@@ -1887,73 +1960,54 @@ def draw_hudson(problem, po):
     beachballsize = markersize
     beachballsize_small = beachballsize * 0.5
 
-    fig = plt.figure(figsize=(4.0, 4.0))
-    fig.subplots_adjust(left=0.0, right=1.0, bottom=0.0, top=1.0)
-    axes = fig.add_subplot(1, 1, 1)
-    hudson.draw_axes(axes)
+    for idx_source, (m6s, best_mt) in enumerate(zip(list_m6s, list_best_mts)):
+        fig = plt.figure(figsize=(4.0, 4.0))
+        fig.subplots_adjust(left=0.0, right=1.0, bottom=0.0, top=1.0)
+        axes = fig.add_subplot(1, 1, 1)
+        hudson.draw_axes(axes)
 
-    data = []
-    for m6 in m6s:
-        mt = mtm.as_mt(m6)
-        u, v = hudson.project(mt)
+        data = []
+        for m6 in m6s:
+            mt = mtm.as_mt(m6)
+            u, v = hudson.project(mt)
 
-        if random.random() < 0.05:
-            try:
-                beachball.plot_beachball_mpl(
-                    mt,
-                    axes,
-                    beachball_type=beachball_type,
-                    position=(u, v),
-                    size=beachballsize_small,
-                    color_t="black",
-                    alpha=0.5,
-                    zorder=1,
-                    linewidth=0.25,
-                )
-            except beachball.BeachballError as e:
-                logger.warn(str(e))
+            if random.random() < 0.05:
+                try:
+                    beachball.plot_beachball_mpl(
+                        mt,
+                        axes,
+                        beachball_type=beachball_type,
+                        position=(u, v),
+                        size=beachballsize_small,
+                        color_t="black",
+                        alpha=0.5,
+                        zorder=1,
+                        linewidth=0.25,
+                    )
+                except beachball.BeachballError as e:
+                    logger.warn(str(e))
 
-        else:
-            data.append((u, v))
+            else:
+                data.append((u, v))
 
-    if data:
-        u, v = num.array(data).T
-        axes.plot(
-            u,
-            v,
-            "o",
-            color=color,
-            ms=markersize_small,
-            mec="none",
-            mew=0,
-            alpha=0.25,
-            zorder=0,
-        )
-
-    if best_mt is not None:
-        mt = mtm.as_mt(best_mt)
-        u, v = hudson.project(mt)
-
-        try:
-            beachball.plot_beachball_mpl(
-                mt,
-                axes,
-                beachball_type=beachball_type,
-                position=(u, v),
-                size=beachballsize,
-                color_t=color,
-                alpha=0.5,
-                zorder=2,
-                linewidth=0.25,
+        if data:
+            u, v = num.array(data).T
+            axes.plot(
+                u,
+                v,
+                "o",
+                color=color,
+                ms=markersize_small,
+                mec="none",
+                mew=0,
+                alpha=0.25,
+                zorder=0,
             )
-        except beachball.BeachballError as e:
-            logger.warn(str(e))
 
-    if isinstance(problem.event.moment_tensor, mtm.MomentTensor):
-        mt = problem.event.moment_tensor
-        u, v = hudson.project(mt)
+        if best_mt is not None:
+            mt = mtm.as_mt(best_mt)
+            u, v = hudson.project(mt)
 
-        if not po.reference:
             try:
                 beachball.plot_beachball_mpl(
                     mt,
@@ -1961,36 +2015,57 @@ def draw_hudson(problem, po):
                     beachball_type=beachball_type,
                     position=(u, v),
                     size=beachballsize,
-                    color_t="grey",
+                    color_t=color,
                     alpha=0.5,
                     zorder=2,
                     linewidth=0.25,
                 )
-                logger.info("drawing reference event in grey ...")
             except beachball.BeachballError as e:
                 logger.warn(str(e))
-    else:
-        logger.info(
-            "No reference event moment tensor information given, "
-            "skipping drawing ..."
+
+        if isinstance(problem.event.moment_tensor, mtm.MomentTensor):
+            mt = problem.event.moment_tensor
+            u, v = hudson.project(mt)
+
+            if not po.reference:
+                try:
+                    beachball.plot_beachball_mpl(
+                        mt,
+                        axes,
+                        beachball_type=beachball_type,
+                        position=(u, v),
+                        size=beachballsize,
+                        color_t="grey",
+                        alpha=0.5,
+                        zorder=2,
+                        linewidth=0.25,
+                    )
+                    logger.info("drawing reference event in grey ...")
+                except beachball.BeachballError as e:
+                    logger.warn(str(e))
+        else:
+            logger.info(
+                "No reference event moment tensor information given, "
+                "skipping drawing ..."
+            )
+
+        outpath = os.path.join(
+            problem.outfolder,
+            po.figure_dir,
+            "hudson_%i_%s_%i_%i.%s"
+            % (po.load_stage, llk_str, po.nensemble, idx_source, po.outformat),
         )
 
-    outpath = os.path.join(
-        problem.outfolder,
-        po.figure_dir,
-        "hudson_%i_%s_%i.%s" % (po.load_stage, llk_str, po.nensemble, po.outformat),
-    )
+        if not os.path.exists(outpath) or po.force or po.outformat == "display":
 
-    if not os.path.exists(outpath) or po.force or po.outformat == "display":
+            if not po.outformat == "display":
+                logger.info("saving figure to %s" % outpath)
+                fig.savefig(outpath, dpi=po.dpi)
+            else:
+                plt.show()
 
-        if not po.outformat == "display":
-            logger.info("saving figure to %s" % outpath)
-            fig.savefig(outpath, dpi=po.dpi)
         else:
-            plt.show()
-
-    else:
-        logger.info("Plot already exists! Please use --force to overwrite!")
+            logger.info("Plot already exists! Please use --force to overwrite!")
 
 
 def draw_data_stations(
@@ -2290,10 +2365,8 @@ def draw_lune_plot(problem, po):
     if po.outformat == "svg":
         raise NotImplementedError("SVG format is not supported for this plot!")
 
-    if problem.config.problem_config.n_sources > 1:
-        raise NotImplementedError(
-            "Lune plot is not yet implemented for more than one source!"
-        )
+    if problem.config.problem_config.source_type != "MTQTSource":
+        TypeError("Lune plot is only supported for the MTQTSource!")
 
     if po.load_stage is None:
         po.load_stage = -1
@@ -2301,56 +2374,62 @@ def draw_lune_plot(problem, po):
     stage = load_stage(problem, stage_number=po.load_stage, load="trace", chains=[-1])
     n_mts = len(stage.mtrace)
 
-    result_ensemble = {}
-    for varname in ["v", "w"]:
-        try:
-            result_ensemble[varname] = stage.mtrace.get_values(
-                varname, combine=True, squeeze=True
-            ).ravel()
-        except ValueError:  # if fixed value add that to the ensemble
-            rpoint = problem.get_random_point()
-            result_ensemble[varname] = num.full_like(
-                num.empty((n_mts), dtype=num.float64), rpoint[varname]
-            )
+    n_sources = problem.config.problem_config.n_sources
 
-    if po.reference:
-        reference_v_tape = po.reference["v"]
-        reference_w_tape = po.reference["w"]
-        llk_str = "ref"
-    else:
-        reference_v_tape = None
-        reference_w_tape = None
-        llk_str = po.post_llk
+    for idx_source in range(n_sources):
+        result_ensemble = {}
+        for varname in ["v", "w"]:
+            try:
+                result_ensemble[varname] = (
+                    stage.mtrace.get_values(varname, combine=True, squeeze=True)
+                    .T[idx_source]
+                    .ravel()
+                )
+            except ValueError:  # if fixed value add that to the ensemble
+                rpoint = problem.get_random_point()
+                result_ensemble[varname] = num.full_like(
+                    num.empty((n_mts), dtype=num.float64), rpoint[varname][idx_source]
+                )
 
-    outpath = os.path.join(
-        problem.outfolder,
-        po.figure_dir,
-        "lune_%i_%s_%i.%s" % (po.load_stage, llk_str, po.nensemble, po.outformat),
-    )
+        if po.reference:
+            reference_v_tape = po.reference["v"][idx_source]
+            reference_w_tape = po.reference["w"][idx_source]
+            llk_str = "ref"
+        else:
+            reference_v_tape = None
+            reference_w_tape = None
+            llk_str = po.post_llk
 
-    if po.nensemble > 1:
-        logger.info("Plotting selected ensemble as nensemble > 1 ...")
-        selected = num.linspace(0, n_mts, po.nensemble, dtype="int", endpoint=False)
-        v_tape = result_ensemble["v"][selected]
-        w_tape = result_ensemble["w"][selected]
-    else:
-        logger.info("Plotting whole posterior ...")
-        v_tape = result_ensemble["v"]
-        w_tape = result_ensemble["w"]
-
-    if not os.path.exists(outpath) or po.force or po.outformat == "display":
-        logger.info("Drawing Lune plot ...")
-        gmt = lune_plot(
-            v_tape=v_tape,
-            w_tape=w_tape,
-            reference_v_tape=reference_v_tape,
-            reference_w_tape=reference_w_tape,
+        outpath = os.path.join(
+            problem.outfolder,
+            po.figure_dir,
+            "lune_%i_%s_%i_%i.%s"
+            % (po.load_stage, llk_str, po.nensemble, idx_source, po.outformat),
         )
 
-        logger.info("saving figure to %s" % outpath)
-        gmt.save(outpath, resolution=300, size=10)
-    else:
-        logger.info("Plot exists! Use --force to overwrite!")
+        if po.nensemble > 1:
+            logger.info("Plotting selected ensemble as nensemble > 1 ...")
+            selected = num.linspace(0, n_mts, po.nensemble, dtype="int", endpoint=False)
+            v_tape = result_ensemble["v"][selected]
+            w_tape = result_ensemble["w"][selected]
+        else:
+            logger.info("Plotting whole posterior ...")
+            v_tape = result_ensemble["v"]
+            w_tape = result_ensemble["w"]
+
+        if not os.path.exists(outpath) or po.force or po.outformat == "display":
+            logger.info("Drawing Lune plot ...")
+            gmt = lune_plot(
+                v_tape=v_tape,
+                w_tape=w_tape,
+                reference_v_tape=reference_v_tape,
+                reference_w_tape=reference_w_tape,
+            )
+
+            logger.info("saving figure to %s" % outpath)
+            gmt.save(outpath, resolution=300, size=10)
+        else:
+            logger.info("Plot exists! Use --force to overwrite!")
 
 
 def lune_plot(v_tape=None, w_tape=None, reference_v_tape=None, reference_w_tape=None):

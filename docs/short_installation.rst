@@ -4,7 +4,7 @@
 Short Installation instructions
 *******************************
 
-BEAT can be installed on any Unix based system with python>=3.8 that supports its prerequisites.
+BEAT can be installed on any Unix based system with python==3.8 that supports its prerequisites.
 
 Please consider to use `virtual environments <https://docs.python.org/3/tutorial/venv.html>`__ to lower the risk of package conflicts.
 
@@ -42,7 +42,7 @@ In the activated environment we install the latest release of *beat* through the
     pip3 install beat
 
 
-Install beat, development version
+Install beat from source (github)
 ---------------------------------
 
 Get the development version through the github repository::
@@ -50,8 +50,16 @@ Get the development version through the github repository::
     cd ~/src  # or wherever you keep the packages
     git clone https://github.com/hvasbath/beat
     cd beat
-    git pull origin master
-    pip3 install .
+    # get feature branch from online repository and create local branch
+    git fetch origin feature_branch_name:feature_branch_name
+    # switch to branch "feature_branch_name" locally
+    git checkout feature_branch_name
+    git pull origin feature_branch_name
+    pip3 install -e .
+
+Once the development headers are installed. Only switching between gitbranches- is enough.::
+
+    git checkout $branch_name
 
 
 Greens Function calculations

@@ -21,6 +21,7 @@ from beat.models.base import (
     Composite,
     ConfigInconsistentError,
     FaultGeometryNotFoundError,
+    get_hypervalue_from_point,
 )
 from beat.models.distributions import multivariate_normal_chol
 
@@ -56,6 +57,7 @@ class GeodeticComposite(Composite):
     """
 
     _hierarchicalnames = None
+    weights = None
 
     def __init__(self, gc, project_dir, events, hypers=False):
 
@@ -89,26 +91,9 @@ class GeodeticComposite(Composite):
         self.slos_vectors = shared(los_vectors, name="los_vecs", borrow=True)
         self.sodws = shared(odws, name="odws", borrow=True)
 
-        if gc.calc_data_cov:
-            logger.warning(
-                "Covariance estimation not implemented (yet)!"
-                " Using imported covariances!"
-            )
-        else:
-            logger.info(
-                "No data-covariance estimation! Using imported" " covariances \n"
-            )
-
-        self.weights = []
-        for i, data in enumerate(self.datasets):
-            if int(data.covariance.data.sum()) == data.ncoords:
-                logger.warning(
-                    "Data covariance is identity matrix!" " Please double check!!!"
-                )
-
-            choli = data.covariance.chol_inverse
-            self.weights.append(shared(choli, name="geo_weight_%i" % i, borrow=True))
-            data.covariance.update_slog_pdet()
+        self.noise_analyser = cov.GeodeticNoiseAnalyser(
+            config=gc.noise_estimator, events=self.events
+        )
 
         if gc.corrections_config.has_enabled_corrections:
             correction_configs = gc.corrections_config.iter_corrections()
@@ -126,6 +111,18 @@ class GeodeticComposite(Composite):
                 self._llks.append(
                     shared(num.array([1.0]), name="geo_llk_%i" % t, borrow=True)
                 )
+
+    def init_weights(self):
+        self.weights = []
+        for i, data in enumerate(self.datasets):
+            if int(data.covariance.data.sum()) == data.ncoords:
+                logger.warning(
+                    "Data covariance is identity matrix! Please double check!!!"
+                )
+
+            choli = data.covariance.chol_inverse
+            self.weights.append(shared(choli, name="geo_weight_%i" % i, borrow=True))
+            data.covariance.update_slog_pdet()
 
     @property
     def n_t(self):
@@ -149,6 +146,39 @@ class GeodeticComposite(Composite):
                     )
 
         return names
+
+    def analyse_noise(self, tpoint=None):
+        """
+        Analyse geodetic noise in datasets and set
+        data-covariance matrixes accordingly.
+        """
+        if self.config.noise_estimator.structure == "non-toeplitz":
+            results = self.assemble_results(tpoint)
+        else:
+            results = [None] * len(self.datasets)
+
+        if len(self.datasets) != len(results):
+            raise ValueError("Number of datasets and results need to be equal!")
+
+        for dataset, result in zip(self.datasets, results):
+            logger.info(
+                'Retrieving geodetic data-covariances with structure "%s" '
+                "for %s ..." % (self.config.noise_estimator.structure, dataset.name)
+            )
+
+            cov_d_geodetic = self.noise_analyser.get_data_covariance(
+                dataset, result=result
+            )
+
+            if dataset.covariance is None:
+                dataset.covariance = heart.Covariance(data=cov_d_geodetic)
+            else:
+                dataset.covariance.data = cov_d_geodetic
+
+            if int(dataset.covariance.data.sum()) == dataset.ncoords:
+                logger.warning(
+                    "Data covariance is identity matrix! Please double check!!!"
+                )
 
     def get_hypersize(self, hp_name=""):
         """
@@ -223,6 +253,20 @@ class GeodeticComposite(Composite):
 
         from beat.plotting import map_displacement_grid
 
+        def save_covs(datasets, cov_mat="pred_v"):
+            """
+            Save covariance matrixes of given attribute
+            """
+
+            covs = {
+                dataset.name: getattr(dataset.covariance, cov_mat)
+                for dataset in datasets
+            }
+
+            outname = os.path.join(results_path, "%s_C_%s" % ("geodetic", cov_mat))
+            logger.info('"%s" to: %s' % (outname))
+            num.savez(outname, **covs)
+
         gc = self.config
 
         results = self.assemble_results(point)
@@ -295,6 +339,16 @@ class GeodeticComposite(Composite):
                             scene.displacement = vals
                             scene.save(filename)
                             logger.info("Stored kite scene to: %s" % filename)
+
+        # export stdz residuals
+        self.analyse_noise(point)
+        if update:
+            logger.info("Saving velocity model covariance matrixes...")
+            self.update_weights(point)
+            save_covs(self.datasets, "pred_v")
+
+        logger.info("Saving data covariance matrixes...")
+        save_covs(self.datasets, "data")
 
     def init_hierarchicals(self, problem_config):
         """
@@ -433,6 +487,7 @@ class GeodeticComposite(Composite):
         assert len(results) == ndatasets
 
         if weights is None:
+            self.analyse_noise(point)
             self.update_weights(point)
             weights = self.weights
 
@@ -445,10 +500,16 @@ class GeodeticComposite(Composite):
 
         logger.debug("Calculating variance reduction for solution ...")
 
+        counter = utility.Counter()
+        hp_specific = self.config.dataset_specific_residual_noise_estimation
+
         var_reds = OrderedDict()
         for dataset, weight, result in zip(self.datasets, weights, results):
 
-            icov = dataset.covariance.inverse
+            hp = get_hypervalue_from_point(
+                point, dataset, counter, hp_specific=hp_specific
+            )
+            icov = dataset.covariance.inverse(num.exp(hp * 2.0))
 
             data = result.processed_obs
             residual = result.processed_res
@@ -472,6 +533,38 @@ class GeodeticComposite(Composite):
             var_reds[dataset.name] = var_red
 
         return var_reds
+
+    def get_standardized_residuals(self, point, results=None, weights=None):
+        """
+        Parameters
+        ----------
+        point : dict
+            with parameters to point in solution space to calculate
+            standardized residuals
+
+        Returns
+        -------
+        dict of arrays of standardized residuals,
+            keys are nslc_ids
+        """
+        if results is None:
+            results = self.assemble_results(point)
+
+        if weights is None:
+            self.update_weights(point)
+
+        counter = utility.Counter()
+        hp_specific = self.config.dataset_specific_residual_noise_estimation
+
+        stdz_residuals = OrderedDict()
+        for dataset, result in zip(self.datasets, results):
+            hp = get_hypervalue_from_point(
+                point, dataset, counter, hp_specific=hp_specific
+            )
+            choli = num.linalg.inv(dataset.covariance.chol(num.exp(hp * 2.0)))
+            stdz_residuals[dataset.name] = choli.dot(result.processed_res)
+
+        return stdz_residuals
 
 
 class GeodeticSourceComposite(GeodeticComposite):
@@ -555,6 +648,7 @@ class GeodeticSourceComposite(GeodeticComposite):
         posterior_llk : :class:`theano.tensor.Tensor`
         """
         hp_specific = self.config.dataset_specific_residual_noise_estimation
+        tpoint = problem_config.get_test_point()
 
         self.input_rvs = input_rvs
         self.fixed_rvs = fixed_rvs
@@ -577,6 +671,8 @@ class GeodeticSourceComposite(GeodeticComposite):
         )
 
         self.init_hierarchicals(problem_config)
+        self.analyse_noise(tpoint)
+        self.init_weights()
         if self.config.corrections_config.has_enabled_corrections:
             logger.info("Applying corrections! ...")
             residuals = self.apply_corrections(residuals, operation="-")
@@ -645,12 +741,27 @@ class GeodeticGeometryComposite(GeodeticSourceComposite):
         """
         gc = self.config
 
+        if not self.weights:
+            self.init_weights()
+
         self.point2sources(point)
+
+        # update data covariances in case model dependent non-toeplitz
+        if self.config.noise_estimator.structure == "non-toeplitz":
+            logger.info("Updating data-covariances ...")
+            self.analyse_noise(point)
 
         crust_inds = range(*gc.gf_config.n_variations)
         thresh = 5
         if len(crust_inds) > thresh:
             logger.info("Updating geodetic velocity model-covariances ...")
+            if self.config.noise_estimator.structure == "non-toeplitz":
+                logger.warning(
+                    "Non-toeplitz estimation in combination with model "
+                    "prediction covariances is still EXPERIMENTAL and results"
+                    " should be interpreted with care!!"
+                )
+
             for i, data in enumerate(self.datasets):
                 crust_targets = heart.init_geodetic_targets(
                     datasets=[data],
@@ -744,6 +855,10 @@ class GeodeticInterseismicComposite(GeodeticSourceComposite):
         return synths
 
     def update_weights(self, point, n_jobs=1, plot=False):
+
+        if not self.weights:
+            self.init_weights()
+
         logger.warning("Not implemented yet!")
         raise NotImplementedError("Not implemented yet!")
 
@@ -869,8 +984,15 @@ class GeodeticDistributerComposite(GeodeticComposite):
         """
         logger.info("Loading %s Green's Functions" % self.name)
         self.load_gfs(
-            crust_inds=[self.config.gf_config.reference_model_idx], make_shared=True
+            crust_inds=[self.config.gf_config.reference_model_idx], make_shared=False
         )
+
+        tpoint = problem_config.get_test_point()
+        self.analyse_noise(tpoint)
+        for gfs in self.gfs.values():
+            gfs.init_optimization()
+
+        self.init_weights()
 
         hp_specific = self.config.dataset_specific_residual_noise_estimation
 
@@ -957,10 +1079,24 @@ class GeodeticDistributerComposite(GeodeticComposite):
         """
         gc = self.config
 
+        if not self.weights:
+            self.init_weights()
+
+        # update data covariances in case model dependent non-toeplitz
+        if self.config.noise_estimator.structure == "non-toeplitz":
+            logger.info("Updating data-covariances ...")
+            self.analyse_noise(point)
+
         crust_inds = range(*gc.gf_config.n_variations)
         thresh = 5
         if len(crust_inds) > thresh:
             logger.info("Updating geodetic velocity model-covariances ...")
+            if self.config.noise_estimator.structure == "non-toeplitz":
+                logger.warning(
+                    "Non-toeplitz estimation in combination with model "
+                    "prediction covariances is still EXPERIMENTAL and results"
+                    " should be interpreted with care!!"
+                )
 
             crust_inds = list(range(*self.config.gf_config.n_variations))
             n_variations = len(crust_inds)

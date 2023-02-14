@@ -11,7 +11,7 @@ from setuptools.command.build_py import build_py
 op = os.path
 
 packname = "beat"
-version = "1.2.3"
+version = "1.2.4"
 
 
 try:

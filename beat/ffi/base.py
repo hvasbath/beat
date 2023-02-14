@@ -1130,8 +1130,10 @@ def seis_construct_gf_linear(
         flag to overwrite existing linear GF Library
     """
 
+    if wavemap.config.domain == "spectrum":
+        raise TypeError("FFI is currently only supported for time-domain!")
+
     # get starttimes for hypocenter at corner of fault
-    # TODO: make nsubfaults compatible - should work
     st_mins = []
     st_maxs = []
     for idx, sf in enumerate(fault.iter_subfaults()):

@@ -3,6 +3,8 @@ import logging
 import math
 import os
 
+from scipy import stats
+
 import numpy as num
 from matplotlib import pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
@@ -26,9 +28,12 @@ from .common import (
     get_nice_plot_bounds,
     get_result_point,
     km,
+    cbtick,
     plot_inset_hist,
     scale_axes,
     set_anchor,
+    plot_covariances,
+    get_weights_point,
 )
 
 logger = logging.getLogger("plotting.geodetic")
@@ -163,6 +168,7 @@ def gnss_fits(problem, stage, plot_options):
         bpoint = get_result_point(stage.mtrace, po.post_llk)
 
     results = composite.assemble_results(bpoint)
+
     bvar_reductions = composite.get_variance_reductions(
         bpoint, weights=composite.weights, results=results
     )
@@ -425,6 +431,49 @@ def gnss_fits(problem, stage, plot_options):
     return figs
 
 
+def geodetic_covariances(problem, stage, plot_options):
+
+    datatype = "geodetic"
+    mode = problem.config.problem_config.mode
+    problem.init_hierarchicals()
+
+    po = plot_options
+
+    composite = problem.composites[datatype]
+    event = composite.event
+    try:
+        sources = composite.sources
+        ref_sources = None
+    except AttributeError:
+        logger.info("FFI scene fit, using reference source ...")
+        ref_sources = composite.config.gf_config.reference_sources
+        set_anchor(ref_sources, anchor="top")
+        fault = composite.load_fault_geometry()
+        sources = fault.get_all_subfaults(
+            datatype=datatype, component=composite.slip_varnames[0]
+        )
+        set_anchor(sources, anchor="top")
+
+    if po.reference:
+        if mode != ffi_mode_str:
+            composite.point2sources(po.reference)
+            ref_sources = copy.deepcopy(composite.sources)
+        bpoint = po.reference
+    else:
+        bpoint = get_result_point(stage.mtrace, po.post_llk)
+
+    tpoint = get_weights_point(composite, bpoint, problem.config)
+
+    bresults_tmp = composite.assemble_results(bpoint)
+    composite.analyse_noise(tpoint)
+
+    covariances = [dataset.covariance for dataset in composite.datasets]
+
+    figs, axs = plot_covariances(composite.datasets, covariances)
+
+    return figs
+
+
 def scene_fits(problem, stage, plot_options):
     """
     Plot geodetic data, synthetics and residuals.
@@ -479,6 +528,21 @@ def scene_fits(problem, stage, plot_options):
         bpoint = get_result_point(stage.mtrace, po.post_llk)
 
     bresults_tmp = composite.assemble_results(bpoint)
+
+    tpoint = get_weights_point(composite, bpoint, problem.config)
+
+    composite.analyse_noise(tpoint)
+    composite.update_weights(tpoint)
+
+    # to display standardized residuals
+    stdz_residuals = composite.get_standardized_residuals(
+        bpoint, results=bresults_tmp, weights=composite.weights
+    )
+
+    if po.plot_projection == "individual":
+        for result, dataset in zip(bresults_tmp, composite.datasets):
+            result.processed_res = stdz_residuals[dataset.name]
+
     bvar_reductions = composite.get_variance_reductions(
         bpoint, weights=composite.weights, results=bresults_tmp
     )
@@ -582,7 +646,7 @@ def scene_fits(problem, stage, plot_options):
                 scale_x["offset"] = source.lon
                 scale_y["offset"] = source.lat
 
-            elif po.plot_projection == "local":
+            elif po.plot_projection in ["local", "individual"]:
                 ystr = "Distance [km]"
                 xstr = "Distance [km]"
                 if scene.frame.isDegree():
@@ -626,7 +690,7 @@ def scene_fits(problem, stage, plot_options):
             west, east = xlim
             south, north = ylim
 
-        elif po.plot_projection == "local":
+        elif po.plot_projection in ["local", "individual"]:
             lats, lons = otd.ne_to_latlon(
                 event.lat,
                 event.lon,
@@ -745,10 +809,6 @@ def scene_fits(problem, stage, plot_options):
             else:
                 ax.plot(fe, fn, marker="*", markersize=10, color=color, **kwargs)
 
-    def cbtick(x):
-        rx = math.floor(x * 1000.0) / 1000.0
-        return [-rx, rx]
-
     colims = [
         num.max([num.max(num.abs(r.processed_obs)), num.max(num.abs(r.processed_syn))])
         for r in results
@@ -820,9 +880,12 @@ def scene_fits(problem, stage, plot_options):
             logger.info("Plotting %s" % data_str)
             datavec = getattr(result, "processed_%s" % data_str)
 
-            if data_str == "res" and po.plot_projection == "local":
+            if data_str == "res" and po.plot_projection in ["local", "individual"]:
                 vmin = -dcolims[tidx]
                 vmax = dcolims[tidx]
+                logger.debug(
+                    "Variance of residual for %s is: %f", dataset.name, datavec.var()
+                )
             else:
                 vmin = -colims[tidx]
                 vmax = colims[tidx]
@@ -860,6 +923,24 @@ def scene_fits(problem, stage, plot_options):
 
             draw_leaves(ax, scene, offset_e, offset_n)
             draw_coastlines(ax, lon, lat, event, scene, po)
+
+        # histogram of stdz residual
+        in_ax_res = plot_inset_hist(
+            axs[2],
+            data=make_2d(stdz_residuals[dataset.name]),
+            best_data=None,
+            linewidth=1.0,
+            bbox_to_anchor=(0.0, 0.775, 0.25, 0.225),
+            labelsize=6,
+            color="grey",
+        )
+        # reference gaussian
+        x = num.linspace(*stats.norm.ppf((0.001, 0.999)), 100)
+        gauss = stats.norm.pdf(x)
+        in_ax_res.plot(x, gauss, "k-", lw=0.5, alpha=0.8)
+
+        format_axes(in_ax_res, remove=["right", "bottom"], visible=True, linewidth=0.75)
+        in_ax_res.set_xlabel("std. res. [$\sigma$]", fontsize=fontsize - 3)
 
         if po.nensemble > 1:
             in_ax = plot_inset_hist(
@@ -944,11 +1025,10 @@ def scene_fits(problem, stage, plot_options):
             ticks=cbtick(colims[tidx]),
             cax=cbaxes,
             orientation="horizontal",
-            cmap=cmap,
         )
         cbs.set_label(cblabel, fontsize=fontsize)
 
-        if po.plot_projection == "local":
+        if po.plot_projection in ["local", "individual"]:
             dcbaxes = figures[figidx].add_axes([cbl + 0.3, cbb, cbw, cbh])
             cbr = plt.colorbar(
                 imgs[2],
@@ -956,8 +1036,10 @@ def scene_fits(problem, stage, plot_options):
                 ticks=cbtick(dcolims[tidx]),
                 cax=dcbaxes,
                 orientation="horizontal",
-                cmap=cmap,
             )
+            if po.plot_projection == "individual":
+                cblabel = "standard dev [$\sigma$]"
+
             cbr.set_label(cblabel, fontsize=fontsize)
 
         axis_config(axes[figidx][rowidx, :], event, scene, po)
@@ -967,6 +1049,58 @@ def scene_fits(problem, stage, plot_options):
         gc.collect()
 
     return figures
+
+
+def draw_geodetic_covariances(problem, plot_options):
+
+    if "geodetic" not in list(problem.composites.keys()):
+        raise TypeError("No geodetic composite defined in the problem!")
+
+    logger.info("Drawing geodetic covariances ...")
+    po = plot_options
+
+    stage = Stage(
+        homepath=problem.outfolder, backend=problem.config.sampler_config.backend
+    )
+
+    if not po.reference:
+        stage.load_results(
+            varnames=problem.varnames,
+            model=problem.model,
+            stage_number=po.load_stage,
+            load="trace",
+            chains=[-1],
+        )
+        llk_str = po.post_llk
+    else:
+        llk_str = "ref"
+
+    mode = problem.config.problem_config.mode
+
+    outpath = os.path.join(
+        problem.config.project_dir,
+        mode,
+        po.figure_dir,
+        "geodetic_covs_%s_%s" % (stage.number, llk_str),
+    )
+
+    if not os.path.exists(outpath + ".%s" % po.outformat) or po.force:
+        figs = geodetic_covariances(problem, stage, po)
+    else:
+        logger.info("geodetic covariances plots exist. Use force=True for replotting!")
+        return
+
+    if po.outformat == "display":
+        plt.show()
+    else:
+        logger.info("saving figures to %s" % outpath)
+        if po.outformat == "pdf":
+            with PdfPages(outpath + ".pdf") as opdf:
+                for fig in figs:
+                    opdf.savefig(fig)
+        else:
+            for i, fig in enumerate(figs):
+                fig.savefig("%s_%i.%s" % (outpath, i, po.outformat), dpi=po.dpi)
 
 
 def draw_scene_fits(problem, plot_options):

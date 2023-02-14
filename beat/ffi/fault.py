@@ -23,13 +23,13 @@ from beat.config import (
 from beat.fast_sweeping import fast_sweep
 from beat.heart import velocities_from_pole
 from beat.models.laplacian import (
-    distances,
     get_smoothing_operator_correlated,
     get_smoothing_operator_nearest_neighbor,
 )
 from beat.utility import (
     Counter,
     check_point_keys,
+    distances,
     dump_objects,
     find_elbow,
     kmtypes,

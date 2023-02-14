@@ -22,6 +22,7 @@ from beat.models.base import (
     Composite,
     ConfigInconsistentError,
     FaultGeometryNotFoundError,
+    get_hypervalue_from_point,
 )
 from beat.models.distributions import get_hyper_name, multivariate_normal_chol
 
@@ -525,7 +526,9 @@ class SeismicComposite(Composite):
             _llk = num.asarray([num.dot(tmp, tmp)])
             self._llks[k].set_value(_llk)
 
-    def get_standardized_residuals(self, point, chop_bounds=["b", "c"]):
+    def get_standardized_residuals(
+        self, point, chop_bounds=["b", "c"], results=None, weights=None
+    ):
         """
         Parameters
         ----------
@@ -539,33 +542,27 @@ class SeismicComposite(Composite):
             keys are nslc_ids
         """
 
-        def compute_residuals(observe, synthetic, hp_specific):
-            hp_name = get_hyper_name(observe)
-            if hp_name in point:
-                if hp_specific:
-                    hp = point[hp_name][counter(hp_name)]
-                else:
-                    hp = point[hp_name]
-            else:
-                hp = num.log(2)
+        if results is None:
+            results = self.assemble_results(
+                point, order="list", chop_bounds=chop_bounds
+            )
 
-            ydata = synthetic.processed_res.get_ydata()
-            choli = num.linalg.inv(observe.covariance.chol * num.exp(hp) / 2.0)
-            return choli.dot(ydata)
-
-        results = self.assemble_results(point, order="list", chop_bounds=chop_bounds)
-        self.update_weights(point, chop_bounds=chop_bounds)
+        if weights is None:
+            self.update_weights(point, chop_bounds=chop_bounds)
 
         counter = utility.Counter()
         hp_specific = self.config.dataset_specific_residual_noise_estimation
 
-        stdz_res = OrderedDict()
-        for i in range(self.n_t):
-            stdz_res[self.datasets[i].nslcd_id_str] = compute_residuals(
-                self.datasets[i], results[i], hp_specific
-            )
+        stdz_residuals = OrderedDict()
+        for dataset, result, target in zip(self.datasets, results, self.targets):
 
-        return stdz_res
+            hp = get_hypervalue_from_point(
+                point, dataset, counter, hp_specific=hp_specific
+            )
+            ydata = result.processed_res.get_ydata()
+            choli = num.linalg.inv(dataset.covariance.chol(num.exp(hp * 2.0)))
+            stdz_residuals[target.nslcd_id_str] = choli.dot(ydata)
+        return stdz_residuals
 
     def get_variance_reductions(
         self, point, results=None, weights=None, chop_bounds=["a", "d"]
@@ -605,11 +602,15 @@ class SeismicComposite(Composite):
 
         logger.debug("Calculating variance reduction for solution ...")
 
+        counter = utility.Counter()
+        hp_specific = self.config.dataset_specific_residual_noise_estimation
+
         var_reds = OrderedDict()
         for result, tr in zip(results, self.datasets):
             nslcd_id_str = result.processed_obs.nslcd_id_str
 
-            icov = tr.covariance.inverse
+            hp = get_hypervalue_from_point(point, tr, counter, hp_specific=hp_specific)
+            icov = tr.covariance.inverse(num.exp(hp * 2.0))
 
             data = result.processed_obs.get_ydata()
             residual = result.processed_res.get_ydata()
@@ -1258,6 +1259,9 @@ class SeismicDistributerComposite(SeismicComposite):
         wlogpts = []
         for wmap in self.wavemaps:
             wc = wmap.config
+            if wc.domain == "spectrum":
+                raise TypeError("FFI is currently only supported for time-domain!")
+
             # station corrections
             if len(self.hierarchicals) > 0:
                 logger.info("Applying station corrections ...")
