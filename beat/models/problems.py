@@ -7,6 +7,7 @@ import numpy as num
 import theano.tensor as tt
 from pymc3 import Deterministic, Model, Potential, Uniform
 from pyrocko import util
+from pyrocko.model import get_effective_latlon
 from theano import config as tconfig
 
 from beat import config as bconfig
@@ -501,6 +502,35 @@ class Problem(object):
         """
         for composite in self.composites.values():
             self.composites[composite.name].point2sources(point)
+
+    def get_pyrocko_events(self, point=None):
+        """
+        Transform sources to pyrocko events.
+
+        Parameters
+        ----------
+        point : :func:`pymc3.Point`
+            Dictionary with model parameters, for which the events are
+            returned
+
+        Returns
+        -------
+        events : list
+            of :class:`pyrocko.model.Event`
+        """
+
+        for composite in self.composites.values():
+            if hasattr(composite, "get_pyrocko_events"):
+                events = composite.get_pyrocko_events(point)
+            else:
+                events = []
+
+            if events:
+                for event in events:
+                    elat, elon = get_effective_latlon(event)
+                    event.set_origin(elat, elon)
+
+                return events
 
     def update_weights(self, point, n_jobs=1, plot=False):
         """

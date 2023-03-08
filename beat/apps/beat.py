@@ -2316,7 +2316,7 @@ def command_export(args):
 
     var_reds = problem.get_variance_reductions(point)
 
-    events = heart.point_to_events(point, reference_event=problem.config.event)
+    events = problem.point_to_events(point)
     rpoint = heart.ResultPoint(
         events=events,
         point=point,

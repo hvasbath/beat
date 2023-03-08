@@ -557,16 +557,13 @@ class MTQTSource(gf.SourceWithMagnitude):
             **self._dparams_base_repeated(times)
         )
 
-    def pyrocko_moment_tensor(self):
+    def pyrocko_moment_tensor(self, store=None, target=None):
         return mtm.MomentTensor(m=mtm.symmat6(*self.m6_astuple) * self.moment)
 
-    def pyrocko_event(self, **kwargs):
-        mt = self.pyrocko_moment_tensor()
+    def pyrocko_event(self, store=None, target=None, **kwargs):
+        mt = self.pyrocko_moment_tensor(store=store, target=target)
         return Source.pyrocko_event(
-            self,
-            moment_tensor=self.pyrocko_moment_tensor(),
-            magnitude=float(mt.moment_magnitude()),
-            **kwargs
+            self, moment_tensor=mt, magnitude=float(mt.moment_magnitude()), **kwargs
         )
 
     @classmethod

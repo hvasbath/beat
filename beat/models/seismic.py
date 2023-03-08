@@ -714,6 +714,27 @@ class SeismicGeometryComposite(SeismicComposite):
         for i, source in enumerate(self.sources):
             utility.update_source(source, **source_points[i])
 
+    def get_pyrocko_events(self, point=None):
+        """
+        Transform sources to pyrocko events.
+
+        Returns
+        -------
+        events : list
+            of :class:`pyrocko.model.Event`
+        """
+
+        if point is not None:
+            self.point2sources(point)
+
+        events = []
+        target = self.targets[0]
+        store = self.engine.get_store(target.store_id)
+        for source in self.sources:
+            events.append(source.pyrocko_event(store=store, target=target))
+
+        return events
+
     def get_formula(self, input_rvs, fixed_rvs, hyperparams, problem_config):
         """
         Get seismic likelihood formula for the model built. Has to be called

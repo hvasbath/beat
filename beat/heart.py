@@ -431,24 +431,6 @@ class FrequencyFilter(FilterBase):
         trace.set_ydata(new_trace.ydata)
 
 
-def point_to_events(point, reference_event):
-
-    source_points = utility.split_point(point)
-
-    result_events = []
-    for spoint in source_points:
-        event = copy.deepcopy(reference_event)
-        event.east_shift = spoint["east_shift"]
-        event.north_shift = spoint["north_shift"]
-        event.time += spoint["time"]
-
-        elat, elon = get_effective_latlon(event)
-        event.set_origin(elat, elon)
-        result_events.append(event)
-
-    return result_events
-
-
 class ResultPoint(Object):
     """
     Containing point in solution space.
