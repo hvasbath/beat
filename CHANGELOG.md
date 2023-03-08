@@ -4,6 +4,12 @@ All notable changes to BEAT will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## TBD
+Contributors: Hannes Vasyura-Bathke @hvasbath
+
+### Added
+- heart.ResultPoint: extend by event object from MAP
+
 ## [1.2.4] 14 February 2023
 Contributors: Hannes Vasyura-Bathke @hvasbath
 

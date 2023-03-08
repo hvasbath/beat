@@ -2316,8 +2316,12 @@ def command_export(args):
 
     var_reds = problem.get_variance_reductions(point)
 
+    events = heart.point_to_events(point, reference_event=problem.config.event)
     rpoint = heart.ResultPoint(
-        point=point, post_llk=options.post_llk, variance_reductions=var_reds
+        events=events,
+        point=point,
+        post_llk=options.post_llk,
+        variance_reductions=var_reds,
     )
     rpoint.regularize()
     rpoint.validate()

@@ -28,7 +28,7 @@ from pyrocko.guts import (
     Tuple,
 )
 from pyrocko.guts_array import Array
-from pyrocko.model import gnss
+from pyrocko.model import gnss, Event, get_effective_latlon
 from pyrocko.moment_tensor import to6
 from pyrocko.spit import OutOfBounds
 from scipy import linalg
@@ -431,11 +431,29 @@ class FrequencyFilter(FilterBase):
         trace.set_ydata(new_trace.ydata)
 
 
+def point_to_events(point, reference_event):
+
+    source_points = utility.split_point(point)
+
+    result_events = []
+    for spoint in source_points:
+        event = copy.deepcopy(reference_event)
+        event.east_shift = point["east_shift"]
+        event.north_shift = point["north_shift"]
+        event.time += point["time"]
+
+        elat, elon = get_effective_latlon(event)
+        event.set_origin(elat, elon)
+
+    return result_events
+
+
 class ResultPoint(Object):
     """
     Containing point in solution space.
     """
 
+    events = List.T(Event.T(default=Event.D()), optional=True)
     post_llk = String.T(
         optional=True,
         help="describes which posterior likelihood value the point belongs to",
