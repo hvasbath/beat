@@ -2316,7 +2316,7 @@ def command_export(args):
 
     var_reds = problem.get_variance_reductions(point)
 
-    events = problem.point_to_events(point)
+    events = problem.get_pyrocko_events(point)
     rpoint = heart.ResultPoint(
         events=events,
         point=point,
