@@ -563,11 +563,7 @@ class MTQTSource(gf.SourceWithMagnitude):
     def pyrocko_event(self, store=None, target=None, **kwargs):
         mt = self.pyrocko_moment_tensor(store=store, target=target)
         return Source.pyrocko_event(
-            self,
-            moment_tensor=mt,
-            magnitude=float(mt.moment_magnitude()),
-            duration=self.stf.duration,
-            **kwargs
+            self, moment_tensor=mt, magnitude=float(mt.moment_magnitude()), **kwargs
         )
 
     @classmethod
