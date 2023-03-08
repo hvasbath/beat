@@ -264,7 +264,7 @@ class GeodeticComposite(Composite):
             }
 
             outname = os.path.join(results_path, "%s_C_%s" % ("geodetic", cov_mat))
-            logger.info('"%s" to: %s' % (outname))
+            logger.info('"geodetic covariances" to: %s', outname)
             num.savez(outname, **covs)
 
         gc = self.config
