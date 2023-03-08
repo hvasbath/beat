@@ -438,12 +438,13 @@ def point_to_events(point, reference_event):
     result_events = []
     for spoint in source_points:
         event = copy.deepcopy(reference_event)
-        event.east_shift = point["east_shift"]
-        event.north_shift = point["north_shift"]
-        event.time += point["time"]
+        event.east_shift = spoint["east_shift"]
+        event.north_shift = spoint["north_shift"]
+        event.time += spoint["time"]
 
         elat, elon = get_effective_latlon(event)
         event.set_origin(elat, elon)
+        result_events.append(event)
 
     return result_events
 
