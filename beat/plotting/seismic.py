@@ -1339,7 +1339,7 @@ def draw_ray_piercing_points_bb(
             transform=transform,
         )
     else:
-        ax.scatter(x, y, markersize, polarities, transform=transform)
+        ax.scatter(y, x, markersize, polarities, transform=transform)
 
     if stations is not None:
         if len(stations) != x.size:
