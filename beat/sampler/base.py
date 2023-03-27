@@ -533,11 +533,13 @@ def iter_parallel_chains(
 
         if chunksize is None:
             if draws < 10:
-                chunksize = int(np.ceil(float(n_chains) / n_jobs))
-            elif draws > 10 and tps < 0.5:
-                chunksize = int(np.ceil(float(n_chains) / n_jobs))
-            else:
                 chunksize = n_jobs
+            elif draws > 10 and tps < 0.5:
+                chunksize = n_jobs
+            else:
+                chunksize = int(np.ceil(float(n_chains) / n_jobs))
+
+        logger.info("Chunksize per worker is %i" % chunksize)
 
         timeout += int(np.ceil(tps * draws)) * n_jobs + 10
 
