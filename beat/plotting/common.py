@@ -18,6 +18,7 @@ logger = logging.getLogger("plotting.common")
 
 km = 1000.0
 
+u_n = "$[N]$"
 u_nm = "$[Nm]$"
 u_km = "$[km]$"
 u_km_s = "$[km/s]$"
@@ -67,6 +68,9 @@ plot_units = {
     "utens": u_m,
     "durations": u_s,
     "velocities": u_km_s,
+    "fn": u_n,
+    "fe": u_n,
+    "fd": u_n,
     "mnn": u_nm,
     "mee": u_nm,
     "mdd": u_nm,

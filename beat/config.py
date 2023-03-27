@@ -59,6 +59,7 @@ seis_vars = ["time", "duration"]
 source_names = """
     ExplosionSource
     RectangularExplosionSource
+    SFSource
     DCSource
     CLVDSource
     MTSource
@@ -71,6 +72,7 @@ source_names = """
 source_classes = [
     gf.ExplosionSource,
     gf.RectangularExplosionSource,
+    gf.SFSource,
     gf.DCSource,
     gf.CLVDSource,
     MTSourceWithMagnitude,
@@ -110,6 +112,7 @@ voronoi_locations = ["voronoi_strike", "voronoi_dip"]
 
 mt_components = ["mnn", "mee", "mdd", "mne", "mnd", "med"]
 dc_components = ["strike1", "dip1", "rake1", "strike2", "dip2", "rake2"]
+sf_components = ["fn", "fe", "fd"]
 
 kinematic_dist_vars = static_dist_vars + partial_kinematic_vars + hypo_vars
 transd_vars_dist = partial_kinematic_vars + static_dist_vars + voronoi_locations
@@ -143,6 +146,7 @@ derived_variables_mapping = {
 
 hyper_name_laplacian = "h_laplacian"
 
+sf_force = (0, 1e10)
 moffdiag = (-1.0, 1.0)
 mdiag = (-num.sqrt(2), num.sqrt(2))
 
@@ -172,6 +176,9 @@ default_bounds = dict(
     mne=moffdiag,
     mnd=moffdiag,
     med=moffdiag,
+    fn=sf_force,
+    fe=sf_force,
+    fd=sf_force,
     exx=(-200.0, 200.0),
     eyy=(-200.0, 200.0),
     exy=(-200.0, 200.0),
