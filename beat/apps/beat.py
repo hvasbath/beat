@@ -2191,7 +2191,7 @@ def command_check(args):
 
         src_class_name = problem.config.problem_config.source_type
         for source in sources:
-            source.regularize()
+            # source.regularize()
             try:
                 sandbox.addSource(
                     talpa_source_catalog[src_class_name].fromPyrockoSource(

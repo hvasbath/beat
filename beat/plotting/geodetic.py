@@ -925,22 +925,25 @@ def scene_fits(problem, stage, plot_options):
             draw_coastlines(ax, lon, lat, event, scene, po)
 
         # histogram of stdz residual
-        in_ax_res = plot_inset_hist(
-            axs[2],
-            data=make_2d(stdz_residuals[dataset.name]),
-            best_data=None,
-            linewidth=1.0,
-            bbox_to_anchor=(0.0, 0.775, 0.25, 0.225),
-            labelsize=6,
-            color="grey",
-        )
-        # reference gaussian
-        x = num.linspace(*stats.norm.ppf((0.001, 0.999)), 100)
-        gauss = stats.norm.pdf(x)
-        in_ax_res.plot(x, gauss, "k-", lw=0.5, alpha=0.8)
+        if stdz_residuals:
+            in_ax_res = plot_inset_hist(
+                axs[2],
+                data=make_2d(stdz_residuals[dataset.name]),
+                best_data=None,
+                linewidth=1.0,
+                bbox_to_anchor=(0.0, 0.775, 0.25, 0.225),
+                labelsize=6,
+                color="grey",
+            )
+            # reference gaussian
+            x = num.linspace(*stats.norm.ppf((0.001, 0.999)), 100)
+            gauss = stats.norm.pdf(x)
+            in_ax_res.plot(x, gauss, "k-", lw=0.5, alpha=0.8)
 
-        format_axes(in_ax_res, remove=["right", "bottom"], visible=True, linewidth=0.75)
-        in_ax_res.set_xlabel("std. res. [$\sigma$]", fontsize=fontsize - 3)
+            format_axes(
+                in_ax_res, remove=["right", "bottom"], visible=True, linewidth=0.75
+            )
+            in_ax_res.set_xlabel("std. res. [$\sigma$]", fontsize=fontsize - 3)
 
         if po.nensemble > 1:
             in_ax = plot_inset_hist(

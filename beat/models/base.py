@@ -26,7 +26,6 @@ __all__ = [
 
 def get_hypervalue_from_point(point, observe, counter, hp_specific=False):
     hp_name = get_hyper_name(observe)
-
     if hp_name in point:
         if hp_specific:
             hp = point[hp_name][counter(hp_name)]
