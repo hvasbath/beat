@@ -14,7 +14,7 @@ import numpy as num
 from pyrocko import gf, model, trace, util
 from pyrocko.cake import load_model
 from pyrocko.gf import RectangularSource as PyrockoRS
-from pyrocko.gf.seismosizer import Cloneable, LocalEngine, stf_classes
+from pyrocko.gf.seismosizer import Cloneable, LocalEngine
 from pyrocko.guts import (
     ArgumentError,
     Bool,
@@ -84,13 +84,21 @@ stf_names = """
     Boxcar
     Triangular
     HalfSinusoid
+    RegularizedYoffe
     """.split()
+
+stf_classes = [
+    gf.BoxcarSTF,
+    gf.TriangularSTF,
+    gf.HalfSinusoidSTF,
+    gf.RegularizedYoffeSTF,
+]
 
 source_catalog = {
     name: source_class for name, source_class in zip(source_names, source_classes)
 }
 
-stf_catalog = {name: stf_class for name, stf_class in zip(stf_names, stf_classes[1:4])}
+stf_catalog = {name: stf_class for name, stf_class in zip(stf_names, stf_classes)}
 
 interseismic_vars = [
     "east_shift",
@@ -1340,7 +1348,7 @@ class ProblemConfig(Object):
 
         Object.__init__(self, **kwargs)
 
-    def init_vars(self, variables=None, nvars=None):
+    def init_vars(self, variables=None, nvars=None, update=False):
         """
         Initiate priors based on the problem mode and datatypes.
 
@@ -1352,7 +1360,8 @@ class ProblemConfig(Object):
         if variables is None:
             variables = self.select_variables()
 
-        self.priors = OrderedDict()
+        if not update:
+            self.priors = OrderedDict()
 
         for variable in variables:
 
@@ -1396,7 +1405,7 @@ class ProblemConfig(Object):
 
         setattr(self, attribute, upd_dict)
 
-    def select_variables(self):
+    def select_variables(self, request=["stf_type", "source_type"]):
         """
         Return model variables depending on problem config.
         """
@@ -1410,21 +1419,24 @@ class ProblemConfig(Object):
         for datatype in self.datatypes:
             if datatype in vars_catalog.keys():
                 if self.mode == geometry_mode_str:
-                    if self.source_type in vars_catalog[datatype].keys():
-                        source = vars_catalog[datatype][self.source_type]
-                        svars = set(source.keys())
+                    if "source_type" in request:
+                        if self.source_type in vars_catalog[datatype].keys():
+                            source = vars_catalog[datatype][self.source_type]
+                            svars = set(source.keys())
 
-                        if isinstance(source(), (PyrockoRS, gf.ExplosionSource)):
-                            svars.discard("magnitude")
+                            if isinstance(source(), (PyrockoRS, gf.ExplosionSource)):
+                                svars.discard("magnitude")
 
-                        variables += utility.weed_input_rvs(svars, self.mode, datatype)
-                    else:
-                        raise ValueError(
-                            "Source Type not supported for type"
-                            " of problem, and datatype!"
-                        )
+                            variables += utility.weed_input_rvs(
+                                svars, self.mode, datatype
+                            )
+                        else:
+                            raise ValueError(
+                                "Source Type not supported for type"
+                                " of problem, and datatype!"
+                            )
 
-                    if datatype == "seismic":
+                    if datatype == "seismic" and "stf_type" in request:
                         if self.stf_type in stf_catalog.keys():
                             stf = stf_catalog[self.stf_type]
                             variables += utility.weed_input_rvs(
@@ -2044,6 +2056,7 @@ def init_config(
     datatypes=["geodetic"],
     mode="geometry",
     source_type="RectangularSource",
+    stf_type="TriangularSTF",
     n_sources=1,
     waveforms=["any_P"],
     sampler="SMC",
@@ -2230,7 +2243,11 @@ def init_config(
             c.seismic_config.gf_config = lgf_config
 
     c.problem_config = ProblemConfig(
-        n_sources=n_sources, datatypes=datatypes, mode=mode, source_type=source_type
+        n_sources=n_sources,
+        datatypes=datatypes,
+        mode=mode,
+        source_type=source_type,
+        stf_type=stf_type,
     )
     c.problem_config.init_vars()
     c.problem_config.set_decimation_factor()

@@ -267,6 +267,16 @@ def command_init(args):
         )
 
         parser.add_option(
+            "--stf_type",
+            dest="stf_type",
+            choices=bconfig.stf_names,
+            default="HalfSinusoid",
+            help="Source time function type to solve for; %s"
+            '. Default: "HalfSinusoid"'
+            % ('", "'.join(name for name in bconfig.stf_names)),
+        )
+
+        parser.add_option(
             "--n_sources",
             dest="n_sources",
             type="int",
@@ -347,6 +357,7 @@ def command_init(args):
         datatypes=options.datatypes,
         mode=options.mode,
         source_type=options.source_type,
+        stf_type=options.stf_type,
         n_sources=options.n_sources,
         waveforms=options.waveforms,
         sampler=options.sampler,
@@ -842,6 +853,16 @@ def command_clone(args):
         )
 
         parser.add_option(
+            "--stf_type",
+            dest="stf_type",
+            choices=bconfig.stf_names,
+            default=None,
+            help="Source time function type to replace in config; %s"
+            '. Default: "dont change"'
+            % ('", "'.join(name for name in bconfig.stf_names)),
+        )
+
+        parser.add_option(
             "--mode",
             dest="mode",
             choices=mode_choices,
@@ -950,18 +971,37 @@ def command_clone(args):
                 shutil.copytree(linear_gf_dir_name, cloned_linear_gf_dir_name)
                 logger.info("Successfully cloned linear GF libraries.")
 
+        # update source type
         if options.source_type is None:
             old_priors = copy.deepcopy(c.problem_config.priors)
 
-            new_priors = c.problem_config.select_variables()
+            variable_names = c.problem_config.select_variables(request=["source_type"])
+            for variable_name in variable_names:
+                if variable_name in list(old_priors.keys()):
+                    c.problem_config.priors[variable_name] = old_priors[variable_name]
+        else:
+            logger.info('Replacing source with "%s"' % options.source_type)
+
+            c.problem_config.source_type = options.source_type
+            variables = c.problem_config.select_variables(request=["source_type"])
+            c.problem_config.init_vars(variables, update=False)
+            c.problem_config.set_decimation_factor()
+            re_init = False
+
+        # update stf type
+        if options.stf_type is None:
+            old_priors = copy.deepcopy(c.problem_config.priors)
+
+            new_priors = c.problem_config.select_variables(request=["stf_type"])
             for prior in new_priors:
                 if prior in list(old_priors.keys()):
                     c.problem_config.priors[prior] = old_priors[prior]
-
         else:
-            logger.info('Replacing source with "%s"' % options.source_type)
-            c.problem_config.source_type = options.source_type
-            c.problem_config.init_vars()
+            logger.info('Replacing STF with "%s"' % options.stf_type)
+
+            c.problem_config.stf_type = options.stf_type
+            variables = c.problem_config.select_variables(request=["stf_type"])
+            c.problem_config.init_vars(variables, update=True)
             c.problem_config.set_decimation_factor()
             re_init = False
 
