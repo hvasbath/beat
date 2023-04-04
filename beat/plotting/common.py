@@ -83,9 +83,9 @@ plot_units = {
     "omega": u_deg_myr,
     "w": u_rad,
     "v": u_rad,
-    "kappa": u_rad,
-    "sigma": u_rad,
-    "h": u_hyp,
+    "kappa": u_deg,
+    "sigma": u_deg,
+    "h": u_deg,
     "distance": u_km,
     "delta_depth": u_km,
     "delta_time": u_s,
@@ -95,6 +95,27 @@ plot_units = {
     "h_": u_hyp,
     "like": u_hyp,
 }
+
+
+def arccosdeg(x):
+    return num.rad2deg(num.arccos(x))
+
+
+transforms = {
+    "h": arccosdeg,
+    "kappa": num.rad2deg,
+    "sigma": num.rad2deg,
+}
+
+
+def get_transform(varname):
+
+    try:
+        transform = transforms[varname]
+    except KeyError:
+        transform = lambda x: x
+
+    return transform
 
 
 plot_projections = ["latlon", "local", "individual"]

@@ -25,6 +25,7 @@ from .common import (
     hypername,
     kde2plot,
     plot_units,
+    get_transform,
 )
 
 logger = logging.getLogger("plotting.marginals")
@@ -164,8 +165,8 @@ def traceplot(
     trace : result of MCMC run
     varnames : list of variable names
         Variables to be plotted, if None all variable are plotted
-    transform : callable
-        Function to transform data (defaults to identity)
+    transform : function
+        of callable Function to transform data (defaults to identity)
     posterior : str
         To mark posterior value in distribution 'max', 'min', 'mean', 'all'
     lines : dict
@@ -237,7 +238,7 @@ def traceplot(
 
     if posterior != "None":
         llk = trace.get_values("like", combine=combined, chains=chains, squeeze=False)
-        llk = num.squeeze(transform(llk[0]))
+        llk = num.squeeze(llk[0])
         llk = pmp.utils.make_2d(llk)
 
         posterior_idxs = utility.get_fit_indexes(llk)
@@ -317,7 +318,8 @@ def traceplot(
                 for d in trace.get_values(
                     v, combine=combined, chains=chains, squeeze=False
                 ):
-                    d = transform(d)
+
+                    d = transform(v)(d)
                     # iterate over columns in case varsize > 1
 
                     if v in dist_vars:
@@ -558,7 +560,7 @@ def correlation_plot(
 
     d = dict()
     for var in varnames:
-        vals = transform(mtrace.get_values(var, combine=True, squeeze=True))
+        vals = transform(var)(mtrace.get_values(var, combine=True, squeeze=True))
 
         _, nvar_elements = vals.shape
 
@@ -682,7 +684,7 @@ def correlation_plot_hist(
     d = dict()
 
     for var in varnames:
-        vals = transform(
+        vals = transform(var)(
             mtrace.get_values(var, chains=chains, combine=True, squeeze=True)
         )
 
@@ -707,7 +709,7 @@ def correlation_plot_hist(
             if l == k:
                 if point is not None:
                     if v_namea in point.keys():
-                        reference = point[v_namea]
+                        reference = transform(v_namea)(point[v_namea])
                         axs[l, k].axvline(
                             x=reference, color=point_color, lw=point_size / 4.0
                         )
@@ -740,16 +742,18 @@ def correlation_plot_hist(
 
                 if point is not None:
                     if v_namea and v_nameb in point.keys():
+                        value_vara = (transform(v_namea)(point[v_namea]),)
+                        value_varb = (transform(v_nameb)(point[v_nameb]),)
                         axs[l, k].plot(
-                            point[v_namea],
-                            point[v_nameb],
+                            value_vara,
+                            value_varb,
                             color=point_color,
                             marker=point_style,
                             markersize=point_size,
                         )
 
-                        bmin = num.minimum(bmin, point[v_nameb])
-                        bmax = num.maximum(bmax, point[v_nameb])
+                        bmin = num.minimum(bmin, value_varb)
+                        bmax = num.maximum(bmax, value_varb)
 
                 yticker = MaxNLocator(nbins=ntickmarks)
                 axs[l, k].set_xticks(xticks)
@@ -898,6 +902,7 @@ def draw_posteriors(problem, plot_options):
 
             figs, _, _ = traceplot(
                 stage.mtrace,
+                transform=get_transform,
                 varnames=varnames,
                 chains=None,
                 combined=True,
@@ -981,6 +986,7 @@ def draw_correlation_hist(problem, plot_options):
         fig, axs = correlation_plot_hist(
             mtrace=stage.mtrace,
             varnames=varnames,
+            transform=get_transform,
             cmap=plt.cm.gist_earth_r,
             chains=None,
             point=reference,
