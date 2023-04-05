@@ -610,7 +610,7 @@ def correlation_plot_hist(
     varnames=None,
     transform=lambda x: x,
     figsize=None,
-    hist_color="orange",
+    hist_color=None,
     cmap=None,
     grid=50,
     chains=None,
