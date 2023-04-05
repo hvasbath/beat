@@ -679,10 +679,7 @@ def correlation_plot_hist(
         else:
             figsize = mpl_papersize("a4", "landscape")
 
-    fig, axs = plt.subplots(nrows=nvar, ncols=nvar, figsize=figsize)
-
     d = dict()
-
     for var in varnames:
         vals = transform(var)(
             mtrace.get_values(var, chains=chains, combine=True, squeeze=True)
@@ -697,18 +694,29 @@ def correlation_plot_hist(
     for source_i in range(nvar_elements):
         logger.info("for variables of source %i ..." % source_i)
         hist_ylims = []
+        fig, axs = plt.subplots(nrows=nvar, ncols=nvar, figsize=figsize)
+
+        if hist_color is None:
+            if nvar_elements == 1:
+                pcolor = "orange"
+            else:
+                pcolor = mpl_graph_color(source_i)
+        else:
+            pcolor = hist_color
+
         for k in range(nvar):
             v_namea = varnames[k]
             a = d[v_namea][:, source_i]
 
             for l in range(k, nvar):
+                ax = axs[l, k]
                 v_nameb = varnames[l]
                 logger.debug("%s, %s" % (v_namea, v_nameb))
                 if l == k:
                     if point is not None:
                         if v_namea in point.keys():
                             reference = transform(v_namea)(point[v_namea][source_i])
-                            axs[l, k].axvline(
+                            ax.axvline(
                                 x=reference, color=point_color, lw=point_size / 4.0
                             )
                         else:
@@ -717,23 +725,23 @@ def correlation_plot_hist(
                         reference = None
 
                     histplot_op(
-                        axs[l, k],
+                        ax,
                         pmp.utils.make_2d(a),
                         alpha=alpha,
-                        color="orange",
+                        color=pcolor,
                         tstd=0.0,
                         reference=reference,
                     )
 
-                    axs[l, k].get_yaxis().set_visible(False)
-                    format_axes(axs[l, k])
-                    xticks = axs[l, k].get_xticks()
-                    xlim = axs[l, k].get_xlim()
-                    hist_ylims.append(axs[l, k].get_ylim())
+                    ax.get_yaxis().set_visible(False)
+                    format_axes(ax)
+                    xticks = ax.get_xticks()
+                    xlim = ax.get_xlim()
+                    hist_ylims.append(ax.get_ylim())
                 else:
                     b = d[v_nameb][:, source_i]
 
-                    kde2plot(a, b, grid=grid, ax=axs[l, k], cmap=cmap, aspect="auto")
+                    kde2plot(a, b, grid=grid, ax=ax, cmap=cmap, aspect="auto")
 
                     bmin = b.min()
                     bmax = b.max()
@@ -742,7 +750,7 @@ def correlation_plot_hist(
                         if v_namea and v_nameb in point.keys():
                             value_vara = transform(v_namea)(point[v_namea][source_i])
                             value_varb = transform(v_nameb)(point[v_nameb][source_i])
-                            axs[l, k].plot(
+                            ax.plot(
                                 value_vara,
                                 value_varb,
                                 color=point_color,
@@ -754,36 +762,36 @@ def correlation_plot_hist(
                             bmax = num.maximum(bmax, value_varb)
 
                     yticker = MaxNLocator(nbins=ntickmarks)
-                    axs[l, k].set_xticks(xticks)
-                    axs[l, k].set_xlim(xlim)
-                    yax = axs[l, k].get_yaxis()
+                    ax.set_xticks(xticks)
+                    ax.set_xlim(xlim)
+                    yax = ax.get_yaxis()
                     yax.set_major_locator(yticker)
 
                 if l != nvar - 1:
-                    axs[l, k].get_xaxis().set_ticklabels([])
+                    ax.get_xaxis().set_ticklabels([])
 
                 if k == 0:
-                    axs[l, k].set_ylabel(
+                    ax.set_ylabel(
                         v_nameb + "\n " + plot_units[hypername(v_nameb)],
                         fontsize=fontsize,
                     )
                     if utility.is_odd(l):
-                        axs[l, k].tick_params(axis="y", pad=label_pad)
+                        ax.tick_params(axis="y", pad=label_pad)
                 else:
-                    axs[l, k].get_yaxis().set_ticklabels([])
+                    ax.get_yaxis().set_ticklabels([])
 
-                axs[l, k].tick_params(axis="both", direction="in", labelsize=fontsize)
+                ax.tick_params(axis="both", direction="in", labelsize=fontsize)
 
                 try:  # matplotlib version issue workaround
-                    axs[l, k].tick_params(axis="both", labelrotation=50.0)
+                    ax.tick_params(axis="both", labelrotation=50.0)
                 except Exception:
-                    axs[l, k].set_xticklabels(axs[l, k].get_xticklabels(), rotation=50)
-                    axs[l, k].set_yticklabels(axs[l, k].get_yticklabels(), rotation=50)
+                    ax.set_xticklabels(axs[l, k].get_xticklabels(), rotation=50)
+                    ax.set_yticklabels(axs[l, k].get_yticklabels(), rotation=50)
 
                 if utility.is_odd(k):
-                    axs[l, k].tick_params(axis="x", pad=label_pad)
+                    ax.tick_params(axis="x", pad=label_pad)
 
-            axs[l, k].set_xlabel(
+            ax.set_xlabel(
                 v_namea + "\n " + plot_units[hypername(v_namea)], fontsize=fontsize
             )
 
