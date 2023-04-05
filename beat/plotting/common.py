@@ -102,20 +102,21 @@ def arccosdeg(x):
 
 
 transforms = {
-    "h": arccosdeg,
-    "kappa": num.rad2deg,
-    "sigma": num.rad2deg,
+    "h": ("dip", arccosdeg),
+    "kappa": ("strike", num.rad2deg),
+    "sigma": ("rake", num.rad2deg),
 }
 
 
 def get_transform(varname):
 
     try:
-        transform = transforms[varname]
+        new_varname, transform = transforms[varname]
     except KeyError:
         transform = lambda x: x
+        new_varname = varname
 
-    return transform
+    return new_varname, transform
 
 
 plot_projections = ["latlon", "local", "individual"]

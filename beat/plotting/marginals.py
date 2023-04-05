@@ -134,7 +134,6 @@ def apply_unified_axis(
 def traceplot(
     trace,
     varnames=None,
-    transform=lambda x: x,
     lines={},
     chains=None,
     combined=False,
@@ -165,8 +164,6 @@ def traceplot(
     trace : result of MCMC run
     varnames : list of variable names
         Variables to be plotted, if None all variable are plotted
-    transform : function
-        of callable Function to transform data (defaults to identity)
     posterior : str
         To mark posterior value in distribution 'max', 'min', 'mean', 'all'
     lines : dict
@@ -318,8 +315,8 @@ def traceplot(
                 for d in trace.get_values(
                     v, combine=combined, chains=chains, squeeze=False
                 ):
-
-                    d = transform(v)(d)
+                    plot_name, transform = get_transform(v)
+                    d = transform(d)
                     # iterate over columns in case varsize > 1
 
                     if v in dist_vars:
@@ -432,7 +429,9 @@ def traceplot(
                                 except IndexError:
                                     lower, upper = param.lower, param.upper
 
-                                title = "{} {}".format(v, plot_units[hypername(v)])
+                                title = "{} {}".format(
+                                    v, plot_units[hypername(plot_name)]
+                                )
                             else:
                                 lower = num.array2string(param.lower, separator=",")[
                                     1:-1
@@ -442,13 +441,18 @@ def traceplot(
                                 ]
 
                                 title = "{} {} \npriors: ({}; {})".format(
-                                    v, plot_units[hypername(v)], lower, upper
+                                    plot_name,
+                                    plot_units[hypername(plot_name)],
+                                    lower,
+                                    upper,
                                 )
                         except KeyError:
                             try:
-                                title = "{} {}".format(v, float(lines[v]))
+                                title = "{} {}".format(plot_name, float(lines[v]))
                             except KeyError:
-                                title = "{} {}".format(v, plot_units[hypername(v)])
+                                title = "{} {}".format(
+                                    plot_name, plot_units[hypername(plot_name)]
+                                )
 
                         axs[rowi, coli].set_xlabel(title, fontsize=fontsize)
                         if nvar == 1:
@@ -505,7 +509,6 @@ def traceplot(
 def correlation_plot(
     mtrace,
     varnames=None,
-    transform=lambda x: x,
     figsize=None,
     cmap=None,
     grid=200,
@@ -524,8 +527,6 @@ def correlation_plot(
         Mutlitrace instance containing the sampling results
     varnames : list of variable names
         Variables to be plotted, if None all variable are plotted
-    transform : callable
-        Function to transform data (defaults to identity)
     figsize : figure size tuple
         If None, size is (12, num of variables * 2) inch
     cmap : matplotlib colormap
@@ -560,7 +561,8 @@ def correlation_plot(
 
     d = dict()
     for var in varnames:
-        vals = transform(var)(mtrace.get_values(var, combine=True, squeeze=True))
+        plot_name, transform = get_transform(var)
+        vals = transform(mtrace.get_values(var, combine=True, squeeze=True))
 
         _, nvar_elements = vals.shape
 
@@ -608,7 +610,6 @@ def correlation_plot(
 def correlation_plot_hist(
     mtrace,
     varnames=None,
-    transform=lambda x: x,
     figsize=None,
     hist_color=None,
     cmap=None,
@@ -633,8 +634,6 @@ def correlation_plot_hist(
         Mutlitrace instance containing the sampling results
     varnames : list of variable names
         Variables to be plotted, if None all variable are plotted
-    transform : callable
-        Function to transform data (defaults to identity)
     figsize : figure size tuple
         If None, size is (12, num of variables * 2) inch
     cmap : matplotlib colormap
@@ -681,7 +680,8 @@ def correlation_plot_hist(
 
     d = dict()
     for var in varnames:
-        vals = transform(var)(
+        _, transform = get_transform(var)
+        vals = transform(
             mtrace.get_values(var, chains=chains, combine=True, squeeze=True)
         )
 
@@ -711,11 +711,13 @@ def correlation_plot_hist(
             for l in range(k, nvar):
                 ax = axs[l, k]
                 v_nameb = varnames[l]
+                plot_name_a, transform_a = get_transform(v_namea)
+                plot_name_b, transform_b = get_transform(v_nameb)
                 logger.debug("%s, %s" % (v_namea, v_nameb))
                 if l == k:
                     if point is not None:
                         if v_namea in point.keys():
-                            reference = transform(v_namea)(point[v_namea][source_i])
+                            reference = transform_a(point[v_namea][source_i])
                             ax.axvline(
                                 x=reference, color=point_color, lw=point_size / 4.0
                             )
@@ -748,8 +750,8 @@ def correlation_plot_hist(
 
                     if point is not None:
                         if v_namea and v_nameb in point.keys():
-                            value_vara = transform(v_namea)(point[v_namea][source_i])
-                            value_varb = transform(v_nameb)(point[v_nameb][source_i])
+                            value_vara = transform_a(point[v_namea][source_i])
+                            value_varb = transform_b(point[v_nameb][source_i])
                             ax.plot(
                                 value_vara,
                                 value_varb,
@@ -772,7 +774,7 @@ def correlation_plot_hist(
 
                 if k == 0:
                     ax.set_ylabel(
-                        v_nameb + "\n " + plot_units[hypername(v_nameb)],
+                        plot_name_b + "\n " + plot_units[hypername(plot_name_b)],
                         fontsize=fontsize,
                     )
                     if utility.is_odd(l):
@@ -791,8 +793,11 @@ def correlation_plot_hist(
                 if utility.is_odd(k):
                     ax.tick_params(axis="x", pad=label_pad)
 
+            # put transformed varname back to varnames for unification
+            # varnames[k] = plot_name_a
             ax.set_xlabel(
-                v_namea + "\n " + plot_units[hypername(v_namea)], fontsize=fontsize
+                plot_name_a + "\n " + plot_units[hypername(plot_name_a)],
+                fontsize=fontsize,
             )
 
         if unify:
@@ -911,7 +916,6 @@ def draw_posteriors(problem, plot_options):
 
             figs, _, _ = traceplot(
                 stage.mtrace,
-                transform=get_transform,
                 varnames=varnames,
                 chains=None,
                 combined=True,
@@ -990,7 +994,6 @@ def draw_correlation_hist(problem, plot_options):
         figs, _ = correlation_plot_hist(
             mtrace=stage.mtrace,
             varnames=varnames,
-            transform=get_transform,
             cmap=plt.cm.gist_earth_r,
             chains=None,
             point=reference,
