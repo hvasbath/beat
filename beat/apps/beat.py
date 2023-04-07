@@ -1918,7 +1918,7 @@ selected giving a comma separated list.""" % list2string(
             plotting.plots_catalog[plot](problem, po)
         # except Exception as err:
         #    pass
-        except (TypeError, plotting.ModeError) as err:
+        except (TypeError, plotting.ModeError, NotImplementedError) as err:
 
             logger.warning(
                 "Could not plot %s got Error: %s \n %s"

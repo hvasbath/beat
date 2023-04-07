@@ -2366,7 +2366,7 @@ def draw_lune_plot(problem, po):
         raise NotImplementedError("SVG format is not supported for this plot!")
 
     if problem.config.problem_config.source_type != "MTQTSource":
-        TypeError("Lune plot is only supported for the MTQTSource!")
+        raise TypeError("Lune plot is only supported for the MTQTSource!")
 
     if po.load_stage is None:
         po.load_stage = -1
