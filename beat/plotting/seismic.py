@@ -2109,12 +2109,20 @@ def station_variance_reductions(problem, stage, plot_options):
                 idomain = domain_index[domain]
                 ichannel = channel_index[channel]
                 ax = axs[ichannel, 0]
+                centre_x = ones * (idomain + 1)
                 hist2d_plot_op(
                     ax,
-                    ones * (idomain + 1),
+                    centre_x,
                     mean_var_reds,
                     bins=(1, 40),
                     cmap=cmap,
+                )
+                mvr = mean_var_reds.mean()
+                ax.plot(
+                    [centre_x - 0.5, centre_x + 0.5],
+                    [mvr, mvr],
+                    lw=0.5,
+                    color="red",
                 )
 
             format_axes(ax, remove=["top", "right"])
@@ -2155,7 +2163,7 @@ def station_variance_reductions(problem, stage, plot_options):
                     ax.plot(
                         [centre_x - 0.5, centre_x + 0.5],
                         [bvar_red, bvar_red],
-                        lw=0.7,
+                        lw=0.5,
                         color="red",
                     )
                     have_drawn.append(ichannel)
@@ -2178,7 +2186,7 @@ def station_variance_reductions(problem, stage, plot_options):
                     "%s\n%s\n%0.1fkm"
                     % (*target_network_station(target), sorted_dists[istation]),
                     rotation=90,
-                    fontsize=fontsize - 2,
+                    fontsize=fontsize - 3,
                     labelpad=labelpad,
                 )
 
