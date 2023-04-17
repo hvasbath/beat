@@ -1954,8 +1954,8 @@ def station_variance_reductions(problem, stage, plot_options):
 
     cmaps = {
         # "time": plt.get_cmap("Oranges"),
-        "time": get_fuzzy_cmap(colors=[scolor("chocolate1")]),
-        "spectrum": get_fuzzy_cmap(colors=[scolor("plum1")]),
+        "time": (get_fuzzy_cmap(colors=[scolor("chocolate1")]), "red"),
+        "spectrum": (get_fuzzy_cmap(colors=[scolor("plum1")]), "blue"),
     }
 
     problem.init_hierarchicals()
@@ -2105,7 +2105,7 @@ def station_variance_reductions(problem, stage, plot_options):
             cg_domain_var_red, cg_vr_min, cg_vr_max = cg_vr_data
 
             for domain, mean_var_reds in cg_domain_var_red.items():
-                cmap = cmaps[domain]
+                cmap, color = cmaps[domain]
                 idomain = domain_index[domain]
                 ichannel = channel_index[channel]
                 ax = axs[ichannel, 0]
@@ -2122,7 +2122,7 @@ def station_variance_reductions(problem, stage, plot_options):
                     [centre_x - 0.5, centre_x + 0.5],
                     [mvr, mvr],
                     lw=0.5,
-                    color="red",
+                    color=color,
                 )
 
             format_axes(ax, remove=["top", "right"])
@@ -2147,7 +2147,7 @@ def station_variance_reductions(problem, stage, plot_options):
             for target_code in target_codes:
                 domain_targets = target_codes_to_targets[target_code]
                 for target in domain_targets:
-                    cmap = cmaps[target.domain]
+                    cmap, color = cmaps[target.domain]
                     ichannel = channel_index[target.codes[3]]
                     idomain = domain_index[target.domain]
                     ax = axs[ichannel, istation + 1]
@@ -2164,7 +2164,7 @@ def station_variance_reductions(problem, stage, plot_options):
                         [centre_x - 0.5, centre_x + 0.5],
                         [bvar_red, bvar_red],
                         lw=0.5,
-                        color="red",
+                        color=color,
                     )
                     have_drawn.append(ichannel)
 
