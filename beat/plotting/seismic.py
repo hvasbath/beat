@@ -3,6 +3,8 @@ import os
 
 from scipy import stats
 
+from tqdm import tqdm
+
 import numpy as num
 from matplotlib import pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
@@ -27,6 +29,7 @@ from beat.models import Stage, load_stage
 from .common import (
     draw_line_on_array,
     format_axes,
+    hide_ticks,
     get_gmt_config,
     get_result_point,
     plot_inset_hist,
@@ -35,6 +38,7 @@ from .common import (
     str_duration,
     str_unit,
     get_weights_point,
+    hist2d_plot_op,
 )
 
 km = 1000.0
@@ -240,12 +244,10 @@ def draw_earthmodels(problem, plot_options):
                 fig.savefig(outpath, format=po.outformat, dpi=po.dpi)
 
 
-def get_fuzzy_cmap(ncolors=256):
+def get_fuzzy_cmap(ncolors=256, colors=[scolor("chocolate2"), scolor("scarletred2")]):
     from matplotlib.colors import LinearSegmentedColormap
 
-    return LinearSegmentedColormap.from_list(
-        "dummy", ["white", scolor("chocolate2"), scolor("scarletred2")], N=ncolors
-    )
+    return LinearSegmentedColormap.from_list("dummy", ["white"] + colors, N=ncolors)
 
 
 def fuzzy_waveforms(
@@ -393,6 +395,64 @@ def extract_time_shifts(point, hierarchicals, wmap):
     else:
         time_shifts = [0] * wmap.n_t
     return time_shifts
+
+
+def form_result_ensemble(
+    stage, composite, nensemble, chop_bounds, target_index, bresults, bvar_reductions
+):
+
+    logger.info("Collecting ensemble of %i synthetic waveforms ..." % nensemble)
+    nchains = len(stage.mtrace)
+    csteps = float(nchains) / nensemble
+    idxs = num.floor(num.arange(0, nchains, csteps)).astype("int32")
+    ens_results = []
+    points = []
+    ens_var_reductions = []
+    for idx in tqdm(idxs):
+        point = stage.mtrace.point(idx=idx)
+        points.append(point)
+        results = composite.assemble_results(
+            point, chop_bounds=chop_bounds, force=False
+        )
+        ens_results.append(results)
+        ens_var_reductions.append(
+            composite.get_variance_reductions(
+                point,
+                weights=composite.weights,
+                results=results,
+                chop_bounds=chop_bounds,
+            )
+        )
+
+    # collecting results for targets
+    logger.info("Mapping results to targets ...")
+
+    all_syn_trs_target = {}
+    all_var_reductions = {}
+    for target in composite.targets:
+        target_results = []
+        target_synths = []
+        target_var_reductions = []
+
+        i = target_index[target]
+
+        nslcd_id_str = target.nslcd_id_str
+        target_results.append(bresults[i])
+        target_synths.append(bresults[i].processed_syn)
+        target_var_reductions.append(bvar_reductions[nslcd_id_str])
+
+        if nensemble > 1:
+            for results, var_reductions in zip(ens_results, ens_var_reductions):
+                # put all results per target here not only single
+
+                target_results.append(results[i])
+                target_synths.append(results[i].processed_syn)
+                target_var_reductions.append(var_reductions[nslcd_id_str])
+
+        all_syn_trs_target[target] = target_synths
+        all_var_reductions[target] = num.array(target_var_reductions) * 100.0
+
+    return all_syn_trs_target, all_var_reductions, points
 
 
 def subplot_waveforms(
@@ -768,31 +828,6 @@ def seismic_fits(problem, stage, plot_options):
 
     composite.analyse_noise(tpoint, chop_bounds=chop_bounds)
     composite.update_weights(tpoint, chop_bounds=chop_bounds)
-    if plot_options.nensemble > 1:
-        from tqdm import tqdm
-
-        logger.info("Collecting ensemble of %i synthetic waveforms ..." % po.nensemble)
-        nchains = len(stage.mtrace)
-        csteps = float(nchains) / po.nensemble
-        idxs = num.floor(num.arange(0, nchains, csteps)).astype("int32")
-        ens_results = []
-        points = []
-        ens_var_reductions = []
-        for idx in tqdm(idxs):
-            point = stage.mtrace.point(idx=idx)
-            points.append(point)
-            results = composite.assemble_results(
-                point, chop_bounds=chop_bounds, force=False
-            )
-            ens_results.append(results)
-            ens_var_reductions.append(
-                composite.get_variance_reductions(
-                    point,
-                    weights=composite.weights,
-                    results=results,
-                    chop_bounds=chop_bounds,
-                )
-            )
 
     bvar_reductions = composite.get_variance_reductions(
         best_point, weights=composite.weights, results=bresults, chop_bounds=chop_bounds
@@ -805,35 +840,15 @@ def seismic_fits(problem, stage, plot_options):
         weights=composite.weights,
     )
 
-    # collecting results for targets
-    logger.info("Mapping results to targets ...")
-    target_to_results = {}
-    all_syn_trs_target = {}
-    all_var_reductions = {}
-
-    for target in composite.targets:
-        target_results = []
-        target_synths = []
-        target_var_reductions = []
-
-        i = target_index[target]
-
-        nslcd_id_str = target.nslcd_id_str
-        target_results.append(bresults[i])
-        target_synths.append(bresults[i].processed_syn)
-        target_var_reductions.append(bvar_reductions[nslcd_id_str])
-
-        if plot_options.nensemble > 1:
-            for results, var_reductions in zip(ens_results, ens_var_reductions):
-                # put all results per target here not only single
-
-                target_results.append(results[i])
-                target_synths.append(results[i].processed_syn)
-                target_var_reductions.append(var_reductions[nslcd_id_str])
-
-        target_to_results[target] = target_results
-        all_syn_trs_target[target] = target_synths
-        all_var_reductions[target] = num.array(target_var_reductions) * 100.0
+    (all_syn_trs_target, all_var_reductions, points) = form_result_ensemble(
+        stage,
+        composite,
+        po.nensemble,
+        chop_bounds,
+        target_index=target_index,
+        bresults=bresults,
+        bvar_reductions=bvar_reductions,
+    )
 
     # collecting time-shifts:
     station_corr = composite.config.station_corrections
@@ -1931,6 +1946,311 @@ def draw_fuzzy_mt_decomposition(problem, po):
 
     else:
         logger.info("Plot already exists! Please use --force to overwrite!")
+
+
+def station_variance_reductions(problem, stage, plot_options):
+    def target_network_station(target):
+        return (target.codes[0], target.codes[1])
+
+    cmaps = {
+        # "time": plt.get_cmap("Oranges"),
+        "time": get_fuzzy_cmap(colors=[scolor("chocolate1")]),
+        "spectrum": get_fuzzy_cmap(colors=[scolor("plum1")]),
+    }
+
+    problem.init_hierarchicals()
+    composite = problem.composites["seismic"]
+
+    fontsize = 8
+    fontsize_title = 10
+    labelpad = 1  # distance between ticks and label
+
+    target_index = dict((target, i) for (i, target) in enumerate(composite.targets))
+
+    po = plot_options
+
+    if not po.reference:
+        best_point = get_result_point(stage.mtrace, po.post_llk)
+    else:
+        best_point = po.reference
+
+    try:
+        composite.point2sources(best_point)
+        source = composite.sources[0]
+        chop_bounds = ["a", "d"]
+    except AttributeError:
+        logger.info("FFI mode, using reference source ...")
+        source = composite.config.gf_config.reference_sources[0]
+        source.time = composite.event.time
+        chop_bounds = ["b", "c"]
+
+    if best_point:  # for source individual contributions
+        bresults = composite.assemble_results(
+            best_point, outmode="tapered_data", chop_bounds=chop_bounds
+        )
+        synth_plot_flag = True
+    else:
+        # get dummy results for data
+        logger.warning('Got "None" post_llk, still loading MAP for VR calculation')
+        best_point = get_result_point(stage.mtrace, "max")
+        bresults = composite.assemble_results(best_point, chop_bounds=chop_bounds)
+        synth_plot_flag = False
+
+    tpoint = get_weights_point(composite, best_point, problem.config)
+
+    composite.analyse_noise(tpoint, chop_bounds=chop_bounds)
+    composite.update_weights(tpoint, chop_bounds=chop_bounds)
+
+    bvar_reductions = composite.get_variance_reductions(
+        best_point, weights=composite.weights, results=bresults, chop_bounds=chop_bounds
+    )
+
+    (all_syn_trs_target, all_var_reductions, points) = form_result_ensemble(
+        stage,
+        composite,
+        po.nensemble,
+        chop_bounds,
+        target_index=target_index,
+        bresults=bresults,
+        bvar_reductions=bvar_reductions,
+    )
+
+    event_figs = []
+    ones = num.ones((po.nensemble + 1))
+    for event_idx, event in enumerate(composite.events):
+        # gather event related targets
+        event_targets = []
+        for wmap in composite.wavemaps:
+            if event_idx == wmap.config.event_idx:
+                event_targets.extend(wmap.targets)
+
+        target_codes_to_targets = utility.gather(event_targets, lambda t: t.codes)
+        target_domains = list(utility.gather(event_targets, lambda t: t.domain).keys())
+
+        # gather unique target codes
+        unique_target_codes = list(target_codes_to_targets.keys())
+        ns_id_to_target_codes = utility.gather(
+            unique_target_codes, lambda t: (t[0], t[1])
+        )
+
+        cg_to_target_codes = utility.gather(unique_target_codes, lambda t: t[3])
+
+        # get channel group specific mean variance reductions
+        cg_var_reductions = {}
+        for cg, target_codes in cg_to_target_codes.items():
+            cg_domain_data = {}
+            cg_var_reduction = num.array(
+                [
+                    all_var_reductions[target]
+                    for target_code in target_codes
+                    for target in target_codes_to_targets[target_code]
+                ]
+            )
+            cg_vr_min, cg_vr_max = cg_var_reduction.min(), cg_var_reduction.max()
+            for domain in target_domains:
+                cg_domain_var_reduction = num.array(
+                    [
+                        all_var_reductions[target]
+                        for target_code in target_codes
+                        for target in target_codes_to_targets[target_code]
+                        if target.domain == domain
+                    ]
+                )
+                mean_cg_var_red = cg_domain_var_reduction.mean(0)
+                cg_domain_data[domain] = mean_cg_var_red
+
+            cg_var_reductions[cg] = cg_domain_data, cg_vr_min, cg_vr_max
+
+        data = []
+        for target_codes in ns_id_to_target_codes.values():
+            target = target_codes_to_targets[target_codes[0]][0]
+            dist = source.distance_to(target)
+            data.append(dist)
+
+        dists = num.array(data, dtype=num.float)
+        iorder = num.argsort(dists)
+        sorted_dists = dists[iorder] / km
+
+        ns_id_codes_sorted = [list(ns_id_to_target_codes.keys())[ii] for ii in iorder]
+        cgs = cg_to_target_codes.keys()
+        channel_index = dict((channel, i) for (i, channel) in enumerate(cgs))
+        domain_index = dict((domain, i) for (i, domain) in enumerate(target_domains))
+        max_domain_idx = num.max(list(domain_index.values()))
+
+        nrows = len(cgs)
+        ncols = len(ns_id_to_target_codes) + 1  # add total hist
+
+        fig_width, fig_height = mpl_papersize("a5", "landscape")
+        fig_height /= 3
+        figs = []
+        logger.info("Stations variance reductions ... for event number: %i" % event_idx)
+        logger.info(event.__str__())
+
+        fig, axs = plt.subplots(
+            nrows=nrows, ncols=ncols, figsize=(fig_width, fig_height * nrows)
+        )
+
+        fig.subplots_adjust(
+            left=0.09,
+            right=1.0 - 0.02,
+            bottom=0.15,
+            top=0.96,
+            wspace=0.05,
+            hspace=0.02,
+        )
+
+        # draw total mean vrs
+        xbounds = 0.5, max_domain_idx + 1.5
+        for channel, cg_vr_data in cg_var_reductions.items():
+            cg_domain_var_red, cg_vr_min, cg_vr_max = cg_vr_data
+
+            for domain, mean_var_reds in cg_domain_var_red.items():
+                cmap = cmaps[domain]
+                idomain = domain_index[domain]
+                ichannel = channel_index[channel]
+                ax = axs[ichannel, 0]
+                hist2d_plot_op(
+                    ax,
+                    ones * (idomain + 1),
+                    mean_var_reds,
+                    bins=(1, 40),
+                    cmap=cmap,
+                )
+
+            format_axes(ax, remove=["top", "right"])
+            ax.set_ylabel("{} VRs [%]".format(channel), fontsize=fontsize)
+            ax.set_ylim(cg_vr_min, cg_vr_max)
+            ax.set_xlim(*xbounds)
+            ax.set_xlabel("Mean", rotation=90, fontsize=fontsize, labelpad=labelpad)
+            ax.grid(axis="y", color="grey", linestyle="-", linewidth=0.3)
+
+            yax = ax.get_yaxis()
+            yticker = MaxNLocator(nbins=4)
+            yax.set_major_locator(yticker)
+            yax.set_tick_params(labelsize=fontsize)
+            xax = ax.get_xaxis()
+            xax.set_ticklabels([])
+            xax.set_ticks([num.sum(xbounds) / 2])
+
+        # draw station specific var reds
+        for istation, ns_id in enumerate(ns_id_codes_sorted):
+            target_codes = ns_id_to_target_codes[ns_id]
+            have_drawn = []
+            for target_code in target_codes:
+                domain_targets = target_codes_to_targets[target_code]
+                for target in domain_targets:
+                    cmap = cmaps[target.domain]
+                    ichannel = channel_index[target.codes[3]]
+                    idomain = domain_index[target.domain]
+                    ax = axs[ichannel, istation + 1]
+                    centre_x = ones * (idomain + 1)
+                    hist2d_plot_op(
+                        ax,
+                        centre_x,
+                        all_var_reductions[target],
+                        bins=(1, 40),
+                        cmap=cmap,
+                    )
+                    bvar_red = all_var_reductions[target][0]
+                    ax.plot(
+                        [centre_x - 0.5, centre_x + 0.5],
+                        [bvar_red, bvar_red],
+                        lw=0.7,
+                        color="red",
+                    )
+                    have_drawn.append(ichannel)
+
+                format_axes(ax)
+                hide_ticks(ax, axis="yaxis")
+                yax = ax.get_yaxis()
+                yax.set_ticklabels([])
+                yticker = MaxNLocator(nbins=4)
+                yax.set_major_locator(yticker)
+
+                xax = ax.get_xaxis()
+                xax.set_ticks([num.sum(xbounds) / 2])
+                xax.set_ticklabels([])
+
+                _, cg_vr_min, cg_vr_max = cg_var_reductions[target_code[3]]
+                ax.set_xlim(*xbounds)
+                ax.set_ylim(cg_vr_min, cg_vr_max)
+                ax.set_xlabel(
+                    "%s\n%s\n%0.1fkm"
+                    % (*target_network_station(target), sorted_dists[istation]),
+                    rotation=90,
+                    fontsize=fontsize - 2,
+                    labelpad=labelpad,
+                )
+
+                ax.grid(axis="y", color="grey", linestyle="-", linewidth=0.3)
+
+            # remove channels that dont exist
+            for ichannel in channel_index.values():
+                if ichannel not in have_drawn:
+                    ax = axs[ichannel, istation + 1]
+                    fig.delaxes(ax)
+
+        figs.append(fig)
+        event_figs.append((event_idx, figs))
+
+    return event_figs
+
+
+def draw_station_variance_reductions(problem, po):
+
+    if "seismic" not in list(problem.composites.keys()):
+        raise TypeError("No seismic composite defined for this problem!")
+
+    logger.info("Drawing station variance reductions ...")
+
+    stage = Stage(
+        homepath=problem.outfolder, backend=problem.config.sampler_config.backend
+    )
+
+    mode = problem.config.problem_config.mode
+
+    if not po.reference:
+        llk_str = po.post_llk
+        stage.load_results(
+            varnames=problem.varnames,
+            model=problem.model,
+            stage_number=po.load_stage,
+            load="trace",
+            chains=[-1],
+        )
+    else:
+        llk_str = "ref"
+
+    outpath = os.path.join(
+        problem.config.project_dir,
+        mode,
+        po.figure_dir,
+        "station_variance_reductions_%s_%s_%i" % (stage.number, llk_str, po.nensemble),
+    )
+
+    if not os.path.exists(outpath) or po.force:
+        event_figs = station_variance_reductions(problem, stage, po)
+    else:
+        logger.info(
+            "station variance reductions plot exists. Use force=True for replotting!"
+        )
+        return
+
+    if po.outformat == "display":
+        plt.show()
+    else:
+        for event_idx, figs in event_figs:
+            event_outpath = "{}_{}".format(outpath, event_idx)
+            logger.info("saving figures to %s" % event_outpath)
+            if po.outformat == "pdf":
+                with PdfPages(event_outpath + ".pdf") as opdf:
+                    for fig in figs:
+                        opdf.savefig(fig)
+            else:
+                for i, fig in enumerate(figs):
+                    fig.savefig(
+                        event_outpath + "_%i.%s" % (i, po.outformat), dpi=po.dpi
+                    )
 
 
 def draw_hudson(problem, po):

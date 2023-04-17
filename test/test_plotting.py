@@ -6,9 +6,17 @@ from matplotlib import pyplot as plt
 from pyrocko import util
 
 from beat.models.distributions import vonmises_std
-from beat.plotting import draw_line_on_array, lune_plot, spherical_kde_op
+from beat.plotting import (
+    format_axes,
+    draw_line_on_array,
+    lune_plot,
+    spherical_kde_op,
+    hist2d_plot_op,
+)
 
 logger = logging.getLogger("test_distributed")
+
+rng = num.random.default_rng(1001)
 
 
 class TestPlotting(unittest.TestCase):
@@ -64,6 +72,33 @@ class TestPlotting(unittest.TestCase):
 
         gmt = lune_plot(v_tape=v, w_tape=w)
         gmt.save("lune_test.pdf", resolution=300, size=10)
+
+    def test_hist2d_plot_op(self):
+
+        ndraws = 300
+
+        ones = num.ones((ndraws))
+
+        fig, axs = plt.subplots(nrows=1, ncols=10)
+
+        locs = rng.random(10) * 100
+        for i, ax in enumerate(axs):
+            variance_red = rng.normal(loc=locs[i], scale=2, size=ndraws)
+            hist2d_plot_op(ax, ones, variance_red, bins=(1, 40))
+            ax.set_ylim(locs.min() - 4, locs.max() + 4)
+            if i > 0:
+                format_axes(ax)
+                ax.get_yaxis().set_ticklabels([])
+            elif i == 0:
+                format_axes(ax, remove=["top", "right"])
+                ax.set_ylabel("VR [%]")
+
+            xax = ax.get_xaxis()
+            xax.set_ticks([1])
+            xax.set_ticklabels([])
+            ax.set_xlabel("%i0" % i, rotation=90)
+
+        plt.show()
 
 
 if __name__ == "__main__":

@@ -20,6 +20,7 @@ plots_catalog = {
     "fuzzy_mt_decomp": draw_fuzzy_mt_decomposition,
     "moment_rate": draw_moment_rate,
     "station_map": draw_station_map_gmt,
+    "station_variance_reductions": draw_station_variance_reductions,
 }
 
 
@@ -33,6 +34,7 @@ seismic_plots = [
     "hudson",
     "lune",
     "fuzzy_beachball",
+    "station_variance_reductions",
 ]
 
 
