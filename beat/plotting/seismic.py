@@ -401,28 +401,31 @@ def form_result_ensemble(
     stage, composite, nensemble, chop_bounds, target_index, bresults, bvar_reductions
 ):
 
-    logger.info("Collecting ensemble of %i synthetic waveforms ..." % nensemble)
-    nchains = len(stage.mtrace)
-    csteps = float(nchains) / nensemble
-    idxs = num.floor(num.arange(0, nchains, csteps)).astype("int32")
-    ens_results = []
-    points = []
-    ens_var_reductions = []
-    for idx in tqdm(idxs):
-        point = stage.mtrace.point(idx=idx)
-        points.append(point)
-        results = composite.assemble_results(
-            point, chop_bounds=chop_bounds, force=False
-        )
-        ens_results.append(results)
-        ens_var_reductions.append(
-            composite.get_variance_reductions(
-                point,
-                weights=composite.weights,
-                results=results,
-                chop_bounds=chop_bounds,
+    if nensemble > 1:
+        logger.info("Collecting ensemble of %i synthetic waveforms ..." % nensemble)
+        nchains = len(stage.mtrace)
+        csteps = float(nchains) / nensemble
+        idxs = num.floor(num.arange(0, nchains, csteps)).astype("int32")
+        ens_results = []
+        points = []
+        ens_var_reductions = []
+        for idx in tqdm(idxs):
+            point = stage.mtrace.point(idx=idx)
+            points.append(point)
+            results = composite.assemble_results(
+                point, chop_bounds=chop_bounds, force=False
             )
-        )
+            ens_results.append(results)
+            ens_var_reductions.append(
+                composite.get_variance_reductions(
+                    point,
+                    weights=composite.weights,
+                    results=results,
+                    chop_bounds=chop_bounds,
+                )
+            )
+    else:
+        points = []
 
     # collecting results for targets
     logger.info("Mapping results to targets ...")
