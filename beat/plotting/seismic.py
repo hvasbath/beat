@@ -492,6 +492,18 @@ def subplot_waveforms(
         axes.fill(t2, y2, **kwargs)
 
     skey = lambda tr: tr.channel
+    inset_axs_width, inset_axs_height = 0.2, 0.18
+
+    plot_taper(
+        axes2,
+        result.processed_obs.get_xdata(),
+        result.taper,
+        mode=mode,
+        fc="None",
+        ec=tap_color_edge,
+        zorder=0,
+        alpha=0.6,
+    )
 
     if po.nensemble > 1:
         xmin, xmax = trace.minmaxtime(traces, key=skey)[target.codes[3]]
@@ -507,7 +519,7 @@ def subplot_waveforms(
             axes,
             data=make_2d(var_reductions),
             best_data=best_data,
-            bbox_to_anchor=(0.9, 0.75, 0.2, 0.2),
+            bbox_to_anchor=(0.9, 0.75, inset_axs_width, inset_axs_height),
             background_alpha=0.7,
         )
         in_ax.set_title("VR [%]", fontsize=5)
@@ -517,7 +529,7 @@ def subplot_waveforms(
         axes,
         data=make_2d(stdz_residual),
         best_data=None,
-        bbox_to_anchor=(0.65, 0.75, 0.2, 0.2),
+        bbox_to_anchor=(0.65, 0.75, inset_axs_width, inset_axs_height),
         color="grey",
         background_alpha=0.7,
     )
@@ -526,17 +538,6 @@ def subplot_waveforms(
     gauss = stats.norm.pdf(x)
     in_ax_res.plot(x, gauss, "k-", lw=0.5, alpha=0.8)
     in_ax_res.set_title("std. res. [$\sigma$]", fontsize=5)
-
-    plot_taper(
-        axes2,
-        result.processed_obs.get_xdata(),
-        result.taper,
-        mode=mode,
-        fc="None",
-        ec=tap_color_edge,
-        zorder=4,
-        alpha=0.6,
-    )
 
     if synth_plot_flag:
         # only plot if highlighted point exists
@@ -569,7 +570,7 @@ def subplot_waveforms(
                 axes,
                 data=make_2d(time_shifts),
                 best_data=best_data,
-                bbox_to_anchor=(-0.0985, 0.16, 0.2, 0.2),
+                bbox_to_anchor=(-0.0985, 0.16, inset_axs_width, inset_axs_height),
                 # cmap=plt.cm.get_cmap('seismic'),
                 # cbounds=time_shift_bounds,
                 color=time_shift_color,
@@ -653,6 +654,8 @@ def subplot_spectrum(
 
     from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
+    inset_axs_width, inset_axs_height = 0.2, 0.18
+
     if not only_spectrum:
         axes = inset_axes(
             axes2,
@@ -691,7 +694,7 @@ def subplot_spectrum(
             axes2,
             data=make_2d(var_reductions),
             best_data=best_data,
-            bbox_to_anchor=(0.9, bbox_y, 0.2, 0.2),
+            bbox_to_anchor=(0.9, bbox_y, inset_axs_width, inset_axs_height),
         )
         in_ax.set_title("SPC_VR [%]", fontsize=5)
 
@@ -700,7 +703,7 @@ def subplot_spectrum(
         axes2,
         data=make_2d(stdz_residual),
         best_data=None,
-        bbox_to_anchor=(0.65, bbox_y, 0.2, 0.2),
+        bbox_to_anchor=(0.65, bbox_y, inset_axs_width, inset_axs_height),
         color="grey",
         background_alpha=0.7,
     )
@@ -794,7 +797,7 @@ def seismic_fits(problem, stage, plot_options):
     composite = problem.composites["seismic"]
 
     fontsize = 8
-    fontsize_title = 10
+    fontsize_title = 12
 
     target_index = dict((target, i) for (i, target) in enumerate(composite.targets))
 
@@ -906,93 +909,50 @@ def seismic_fits(problem, stage, plot_options):
 
         # gather unique target codes
         unique_target_codes = list(target_codes_to_targets.keys())
+        ns_id_to_target_codes = utility.gather(
+            unique_target_codes, lambda t: (t[0], t[1])
+        )
         cg_to_target_codes = utility.gather(unique_target_codes, lambda t: t[3])
+        cgs = cg_to_target_codes.keys()
+        target_domains = list(utility.gather(event_targets, lambda t: t.domain).keys())
+
+        channel_index = dict((channel, i) for (i, channel) in enumerate(cgs))
 
         skey = lambda tr: tr.channel
-        cgs = cg_to_target_codes.keys()
 
         figs = []
         logger.info("Plotting waveforms ... for event number: %i" % event_idx)
         logger.info(event.__str__())
-        for cg in cgs:
-            target_codes = cg_to_target_codes[cg]
 
-            nframes = len(target_codes)
+        nxmax = 3
+        nymax = 5
 
-            nx = int(num.ceil(num.sqrt(nframes)))
-            ny = (nframes - 1) // nx + 1
+        data = []
+        for target_codes in ns_id_to_target_codes.values():
+            target = target_codes_to_targets[target_codes[0]][0]
+            dist = source.distance_to(target)
+            data.append(dist)
 
-            logger.debug("nx %i, ny %i" % (nx, ny))
+        dists = num.array(data, dtype=num.float)
+        iorder = num.argsort(dists)
 
-            nxmax = 4
-            nymax = 4
+        ns_id_codes_sorted = [list(ns_id_to_target_codes.keys())[ii] for ii in iorder]
 
-            nxx = (nx - 1) // nxmax + 1
-            nyy = (ny - 1) // nymax + 1
-
-            xs = num.arange(nx) // ((max(2, nx) - 1.0) / 2.0)
-            ys = num.arange(ny) // ((max(2, ny) - 1.0) / 2.0)
-
-            xs -= num.mean(xs)
-            ys -= num.mean(ys)
-
-            fxs = num.tile(xs, ny)
-            fys = num.repeat(ys, nx)
-
-            data = []
+        figures = {}
+        # draw station specific data-fits
+        for istation, ns_id in enumerate(ns_id_codes_sorted):
+            target_codes = ns_id_to_target_codes[ns_id]
+            have_drawn = []
             for target_code in target_codes:
-                targets = target_codes_to_targets[target_code]
-                target = targets[0]
-                azi = source.azibazi_to(target)[0]
-                dist = source.distance_to(target)
-                x = dist * num.sin(num.deg2rad(azi))
-                y = dist * num.cos(num.deg2rad(azi))
-                data.append((x, y, dist))
+                domain_targets = target_codes_to_targets[target_code]
+                for target in domain_targets:
+                    ichannel = channel_index[target.codes[3]]
 
-            gxs, gys, dists = num.array(data, dtype=num.float).T
-
-            iorder = num.argsort(dists)
-
-            gxs = gxs[iorder]
-            gys = gys[iorder]
-            target_codes_sorted = [target_codes[ii] for ii in iorder]
-
-            gxs -= num.mean(gxs)
-            gys -= num.mean(gys)
-
-            gmax = max(num.max(num.abs(gys)), num.max(num.abs(gxs)))
-            if gmax == 0.0:
-                gmax = 1.0
-
-            gxs /= gmax
-            gys /= gmax
-
-            dists = num.sqrt(
-                (fxs[num.newaxis, :] - gxs[:, num.newaxis]) ** 2
-                + (fys[num.newaxis, :] - gys[:, num.newaxis]) ** 2
-            )
-
-            distmax = num.max(dists)
-
-            availmask = num.ones(dists.shape[1], dtype=num.bool)
-            frame_to_target_code = {}
-            for itarget, target_code in enumerate(target_codes_sorted):
-                iframe = num.argmin(num.where(availmask, dists[itarget], distmax + 1.0))
-                availmask[iframe] = False
-                iy, ix = num.unravel_index(iframe, (ny, nx))
-                frame_to_target_code[iy, ix] = target_code
-
-            figures = {}
-            for iy in range(ny):
-                for ix in range(nx):
-                    if (iy, ix) not in frame_to_target_code:
-                        continue
-
-                    ixx = ix // nxmax
-                    iyy = iy // nymax
+                    iyy, row_idx = utility.mod_i(istation, nymax)
+                    ixx = ichannel // nxmax
                     if (iyy, ixx) not in figures:
                         figures[iyy, ixx] = plt.figure(
-                            figsize=mpl_papersize("a4", "landscape")
+                            figsize=mpl_papersize("a4", "portrait")
                         )
 
                         figures[iyy, ixx].subplots_adjust(
@@ -1007,11 +967,8 @@ def seismic_fits(problem, stage, plot_options):
                         figs.append(figures[iyy, ixx])
 
                     logger.debug("iyy %i, ixx %i" % (iyy, ixx))
-                    logger.debug("iy %i, ix %i" % (iy, ix))
                     fig = figures[iyy, ixx]
 
-                    target_code = frame_to_target_code[iy, ix]
-                    domain_targets = target_codes_to_targets[target_code]
                     if len(domain_targets) > 1:
                         only_spectrum = False
                     else:
@@ -1029,9 +986,7 @@ def seismic_fits(problem, stage, plot_options):
                         # need target specific minmax
                         absmax = max(abs(amin), abs(amax))
 
-                        ny_this = nymax  # min(ny, nymax)
-                        nx_this = nxmax  # min(nx, nxmax)
-                        i_this = (iy % ny_this) * nx_this + (ix % nx_this) + 1
+                        i_this = row_idx * nxmax + (ichannel % nxmax) + 1
                         logger.debug("i_this %i" % i_this)
                         logger.debug(
                             "Station {}".format(utility.list2string(target.codes))
@@ -1039,7 +994,7 @@ def seismic_fits(problem, stage, plot_options):
 
                         if k_subf == 0:
                             # only create axes instances for first target
-                            axes2 = fig.add_subplot(ny_this, nx_this, i_this)
+                            axes2 = fig.add_subplot(nymax, nxmax, i_this)
 
                             space = 0.4
                             space_factor = 0.7 + space
@@ -1132,11 +1087,12 @@ def seismic_fits(problem, stage, plot_options):
 
                     axes2.set_zorder(10)
 
-            for (iyy, ixx), fig in figures.items():
-                title = ".".join(x for x in cg if x)
-                if len(figures) > 1:
-                    title += " (%i/%i, %i/%i)" % (iyy + 1, nyy, ixx + 1, nxx)
+            title_channels = [""] * 3
+            for i, channel in enumerate(cgs):
+                title_channels[i] = channel
 
+            for (iyy, ixx), fig in figures.items():
+                title = "".ljust(50).join(x for x in title_channels)
                 fig.suptitle(title, fontsize=fontsize_title)
 
         event_figs.append((event_idx, figs))
