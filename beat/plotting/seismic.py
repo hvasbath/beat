@@ -945,7 +945,7 @@ def seismic_fits(problem, stage, plot_options):
             have_drawn = []
             for target_code in target_codes:
                 domain_targets = target_codes_to_targets[target_code]
-                for target in domain_targets:
+                for k_subf, target in enumerate(domain_targets):
                     ichannel = channel_index[target.codes[3]]
 
                     iyy, row_idx = utility.mod_i(istation, nymax)
@@ -974,91 +974,87 @@ def seismic_fits(problem, stage, plot_options):
                     else:
                         only_spectrum = True
 
-                    for k_subf, target in enumerate(domain_targets):
+                    syn_traces = all_syn_trs_target[target]
+                    itarget = target_index[target]
+                    result = bresults[itarget]
 
-                        syn_traces = all_syn_trs_target[target]
-                        itarget = target_index[target]
-                        result = bresults[itarget]
+                    # get min max of all traces
+                    key = target.codes[3]
+                    amin, amax = trace.minmax(syn_traces, key=skey)[key]
+                    # need target specific minmax
+                    absmax = max(abs(amin), abs(amax))
 
-                        # get min max of all traces
-                        key = target.codes[3]
-                        amin, amax = trace.minmax(syn_traces, key=skey)[key]
-                        # need target specific minmax
-                        absmax = max(abs(amin), abs(amax))
+                    i_this = row_idx * nxmax + (ichannel % nxmax) + 1
+                    logger.debug("i_this %i" % i_this)
+                    logger.debug("Station {}".format(utility.list2string(target.codes)))
 
-                        i_this = row_idx * nxmax + (ichannel % nxmax) + 1
-                        logger.debug("i_this %i" % i_this)
-                        logger.debug(
-                            "Station {}".format(utility.list2string(target.codes))
+                    if k_subf == 0:
+                        # only create axes instances for first target
+                        axes2 = fig.add_subplot(nymax, nxmax, i_this)
+
+                        space = 0.4
+                        space_factor = 0.7 + space
+                        axes2.set_axis_off()
+                        axes2.set_ylim(-1.05 * space_factor, 1.05)
+
+                        axes = axes2.twinx()
+                        axes.set_axis_off()
+
+                    if target.domain == "time":
+                        ymin, ymax = -absmax * 1.5 * space_factor, absmax * 1.5
+                        try:
+                            axes.set_ylim(ymin, ymax)
+                        except ValueError:
+                            logger.debug(
+                                "These traces contain NaN or Inf open in snuffler?"
+                            )
+                            input("Press enter! Otherwise Ctrl + C")
+                            from pyrocko.trace import snuffle
+
+                            snuffle(syn_traces)
+
+                        subplot_waveforms(
+                            axes=axes,
+                            axes2=axes2,
+                            po=po,
+                            result=result,
+                            stdz_residual=stdz_residuals[target.nslcd_id_str],
+                            target=target,
+                            traces=syn_traces,
+                            source=source,
+                            var_reductions=all_var_reductions[target],
+                            time_shifts=all_time_shifts[target],
+                            time_shift_bounds=time_shift_bounds,
+                            synth_plot_flag=synth_plot_flag,
+                            absmax=absmax,
+                            mode=composite._mode,
+                            fontsize=fontsize,
+                            syn_color=syn_color,
+                            obs_color=obs_color,
+                            time_shift_color=time_shift_color,
+                            tap_color_edge=tap_color_edge,
+                            tap_color_annot=tap_color_annot,
                         )
 
-                        if k_subf == 0:
-                            # only create axes instances for first target
-                            axes2 = fig.add_subplot(nymax, nxmax, i_this)
-
-                            space = 0.4
-                            space_factor = 0.7 + space
-                            axes2.set_axis_off()
-                            axes2.set_ylim(-1.05 * space_factor, 1.05)
-
-                            axes = axes2.twinx()
-                            axes.set_axis_off()
-
-                        if target.domain == "time":
-                            ymin, ymax = -absmax * 1.5 * space_factor, absmax * 1.5
-                            try:
-                                axes.set_ylim(ymin, ymax)
-                            except ValueError:
-                                logger.debug(
-                                    "These traces contain NaN or Inf open in snuffler?"
-                                )
-                                input("Press enter! Otherwise Ctrl + C")
-                                from pyrocko.trace import snuffle
-
-                                snuffle(syn_traces)
-
-                            subplot_waveforms(
-                                axes=axes,
-                                axes2=axes2,
-                                po=po,
-                                result=result,
-                                stdz_residual=stdz_residuals[target.nslcd_id_str],
-                                target=target,
-                                traces=syn_traces,
-                                source=source,
-                                var_reductions=all_var_reductions[target],
-                                time_shifts=all_time_shifts[target],
-                                time_shift_bounds=time_shift_bounds,
-                                synth_plot_flag=synth_plot_flag,
-                                absmax=absmax,
-                                mode=composite._mode,
-                                fontsize=fontsize,
-                                syn_color=syn_color,
-                                obs_color=obs_color,
-                                time_shift_color=time_shift_color,
-                                tap_color_edge=tap_color_edge,
-                                tap_color_annot=tap_color_annot,
-                            )
-
-                        if target.domain == "spectrum":
-                            subplot_spectrum(
-                                axes=axes,
-                                axes2=axes2,
-                                po=po,
-                                target=target,
-                                traces=syn_traces,
-                                result=result,
-                                stdz_residual=stdz_residuals[target.nslcd_id_str],
-                                synth_plot_flag=synth_plot_flag,
-                                only_spectrum=only_spectrum,
-                                var_reductions=all_var_reductions[target],
-                                fontsize=fontsize,
-                                syn_color=syn_color,
-                                obs_color=obs_color,
-                                misfit_color=misfit_color,
-                                tap_color_annot=tap_color_annot,
-                                ypad_factor=1.2,
-                            )
+                    if target.domain == "spectrum":
+                        subplot_spectrum(
+                            axes=axes,
+                            axes2=axes2,
+                            po=po,
+                            target=target,
+                            traces=syn_traces,
+                            result=result,
+                            stdz_residual=stdz_residuals[target.nslcd_id_str],
+                            synth_plot_flag=synth_plot_flag,
+                            only_spectrum=only_spectrum,
+                            var_reductions=all_var_reductions[target],
+                            fontsize=fontsize,
+                            syn_color=syn_color,
+                            obs_color=obs_color,
+                            misfit_color=misfit_color,
+                            tap_color_annot=tap_color_annot,
+                            ypad_factor=1.2,
+                        )
 
                     scale_string = None
 
