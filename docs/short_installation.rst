@@ -45,6 +45,10 @@ In the activated environment we install the latest release of *beat* through the
 Install beat from source (github)
 ---------------------------------
 
+Please make sure to activate your virtual environment! e.g.::
+
+    source ~/virtualenvs/beat_env/bin/activate
+
 Get the development version through the github repository::
 
     cd ~/src  # or wherever you keep the packages

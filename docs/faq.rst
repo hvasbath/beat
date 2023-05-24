@@ -3,14 +3,12 @@ Frequently asked questions
 --------------------------
 | Below you find a list for known errors, that may occur and how to work around:
 |
-| **1. HDF5surrogate escape**
+| **1. Sample covariance contains Nan or Inf**
 
-NameError: global name 'exc' is not defined
+The variations in the likelihood space are too large. When normalising the space this may result in inf or Nan.
+Please reduce the potential search interval for hyper parameters "h_*", i.e. reduce and/or increase the upper and/or lower bounds in the
+project config_*.yaml, respectively.
 
-| add:
-| export LC_ALL=en_AU.utf8
-| to your .bashrc
-|
 | **2. Theano MKL support**
 
 RuntimeError: To use MKL 2018 with Theano you MUST set "MKL_THREADING_LAYER=GNU" in your environment.
@@ -66,3 +64,11 @@ X forwarding needs to be activated in the ssh config! For linux:
 3. in the shell run::
 
     systemctl restart sshd   # could require sudo rights
+
+| **9. HDF5surrogate escape**
+
+NameError: global name 'exc' is not defined
+
+| add:
+| export LC_ALL=en_AU.utf8
+| to your .bashrc
