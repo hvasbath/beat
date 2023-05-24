@@ -4,11 +4,23 @@ All notable changes to BEAT will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## TBD
+## [1.2.5]  June 2023
 Contributors: Hannes Vasyura-Bathke @hvasbath
 
 ### Added
 - heart.ResultPoint: extend by event object from MAP
+- plotting.seismic,geodetic: add standardized residuals to fit plots
+- plotting.marginals: add transforms to MTQT parameters plotting marginals
+- plotting.marginals: multi-source support for correlation_hist
+- plotting.seismic: "station_variance_reductions" plot
+- added new source_type: "SFSource"
+
+### Changed
+- plotting.seismic.seismic_fits: subplots are ordered row wise distance based, channels in cols
+
+### Fixed
+- sampler.base.iter_parallel_chains: fix chunksize determination
+- minor logging messages
 
 ## [1.2.4] 14 February 2023
 Contributors: Hannes Vasyura-Bathke @hvasbath
