@@ -4,7 +4,7 @@ All notable changes to BEAT will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [1.2.5]  June 2023
+## [1.2.5]  24 Mai 2023
 Contributors: Hannes Vasyura-Bathke @hvasbath
 
 ### Added
