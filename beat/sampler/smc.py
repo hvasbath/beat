@@ -186,7 +186,10 @@ class SMC(Metropolis):
 
         cov = utility.ensure_cov_psd(cov)
         if np.isnan(cov).any() or np.isinf(cov).any():
-            raise ValueError("Sample covariances contains Inf or NaN!")
+            raise ValueError(
+                "Sample covariances contains Inf or NaN! Please try reducing the"
+                " upper and lower bounds of hyper parameters!"
+            )
         return cov
 
     def select_end_points(self, mtrace):

@@ -25,6 +25,7 @@ from .common import (
     hypername,
     kde2plot,
     plot_units,
+    get_transform,
 )
 
 logger = logging.getLogger("plotting.marginals")
@@ -133,7 +134,6 @@ def apply_unified_axis(
 def traceplot(
     trace,
     varnames=None,
-    transform=lambda x: x,
     lines={},
     chains=None,
     combined=False,
@@ -164,8 +164,6 @@ def traceplot(
     trace : result of MCMC run
     varnames : list of variable names
         Variables to be plotted, if None all variable are plotted
-    transform : callable
-        Function to transform data (defaults to identity)
     posterior : str
         To mark posterior value in distribution 'max', 'min', 'mean', 'all'
     lines : dict
@@ -237,7 +235,7 @@ def traceplot(
 
     if posterior != "None":
         llk = trace.get_values("like", combine=combined, chains=chains, squeeze=False)
-        llk = num.squeeze(transform(llk[0]))
+        llk = num.squeeze(llk[0])
         llk = pmp.utils.make_2d(llk)
 
         posterior_idxs = utility.get_fit_indexes(llk)
@@ -317,6 +315,7 @@ def traceplot(
                 for d in trace.get_values(
                     v, combine=combined, chains=chains, squeeze=False
                 ):
+                    plot_name, transform = get_transform(v)
                     d = transform(d)
                     # iterate over columns in case varsize > 1
 
@@ -430,7 +429,9 @@ def traceplot(
                                 except IndexError:
                                     lower, upper = param.lower, param.upper
 
-                                title = "{} {}".format(v, plot_units[hypername(v)])
+                                title = "{} {}".format(
+                                    v, plot_units[hypername(plot_name)]
+                                )
                             else:
                                 lower = num.array2string(param.lower, separator=",")[
                                     1:-1
@@ -440,13 +441,18 @@ def traceplot(
                                 ]
 
                                 title = "{} {} \npriors: ({}; {})".format(
-                                    v, plot_units[hypername(v)], lower, upper
+                                    plot_name,
+                                    plot_units[hypername(plot_name)],
+                                    lower,
+                                    upper,
                                 )
                         except KeyError:
                             try:
-                                title = "{} {}".format(v, float(lines[v]))
+                                title = "{} {}".format(plot_name, float(lines[v]))
                             except KeyError:
-                                title = "{} {}".format(v, plot_units[hypername(v)])
+                                title = "{} {}".format(
+                                    plot_name, plot_units[hypername(plot_name)]
+                                )
 
                         axs[rowi, coli].set_xlabel(title, fontsize=fontsize)
                         if nvar == 1:
@@ -503,7 +509,6 @@ def traceplot(
 def correlation_plot(
     mtrace,
     varnames=None,
-    transform=lambda x: x,
     figsize=None,
     cmap=None,
     grid=200,
@@ -522,8 +527,6 @@ def correlation_plot(
         Mutlitrace instance containing the sampling results
     varnames : list of variable names
         Variables to be plotted, if None all variable are plotted
-    transform : callable
-        Function to transform data (defaults to identity)
     figsize : figure size tuple
         If None, size is (12, num of variables * 2) inch
     cmap : matplotlib colormap
@@ -558,6 +561,7 @@ def correlation_plot(
 
     d = dict()
     for var in varnames:
+        plot_name, transform = get_transform(var)
         vals = transform(mtrace.get_values(var, combine=True, squeeze=True))
 
         _, nvar_elements = vals.shape
@@ -606,9 +610,8 @@ def correlation_plot(
 def correlation_plot_hist(
     mtrace,
     varnames=None,
-    transform=lambda x: x,
     figsize=None,
-    hist_color="orange",
+    hist_color=None,
     cmap=None,
     grid=50,
     chains=None,
@@ -631,8 +634,6 @@ def correlation_plot_hist(
         Mutlitrace instance containing the sampling results
     varnames : list of variable names
         Variables to be plotted, if None all variable are plotted
-    transform : callable
-        Function to transform data (defaults to identity)
     figsize : figure size tuple
         If None, size is (12, num of variables * 2) inch
     cmap : matplotlib colormap
@@ -677,150 +678,167 @@ def correlation_plot_hist(
         else:
             figsize = mpl_papersize("a4", "landscape")
 
-    fig, axs = plt.subplots(nrows=nvar, ncols=nvar, figsize=figsize)
-
     d = dict()
-
     for var in varnames:
+        _, transform = get_transform(var)
         vals = transform(
             mtrace.get_values(var, chains=chains, combine=True, squeeze=True)
         )
 
         _, nvar_elements = vals.shape
 
-        if nvar_elements > 1:
-            raise ValueError(
-                "Correlation plot can only be displayed for variables "
-                " with size 1! %s is %i! " % (var, nvar_elements)
-            )
-
         d[var] = vals
 
-    hist_ylims = []
-    for k in range(nvar):
-        v_namea = varnames[k]
-        a = d[v_namea]
+    figs = []
+    axes = []
+    for source_i in range(nvar_elements):
+        logger.info("for variables of source %i ..." % source_i)
+        hist_ylims = []
+        fig, axs = plt.subplots(nrows=nvar, ncols=nvar, figsize=figsize)
 
-        for l in range(k, nvar):
-            v_nameb = varnames[l]
-            logger.debug("%s, %s" % (v_namea, v_nameb))
-            if l == k:
-                if point is not None:
-                    if v_namea in point.keys():
-                        reference = point[v_namea]
-                        axs[l, k].axvline(
-                            x=reference, color=point_color, lw=point_size / 4.0
-                        )
+        if hist_color is None:
+            if nvar_elements == 1:
+                pcolor = "orange"
+            else:
+                pcolor = mpl_graph_color(source_i)
+        else:
+            pcolor = hist_color
+
+        for k in range(nvar):
+            v_namea = varnames[k]
+            a = d[v_namea][:, source_i]
+
+            for l in range(k, nvar):
+                ax = axs[l, k]
+                v_nameb = varnames[l]
+                plot_name_a, transform_a = get_transform(v_namea)
+                plot_name_b, transform_b = get_transform(v_nameb)
+                logger.debug("%s, %s" % (v_namea, v_nameb))
+                if l == k:
+                    if point is not None:
+                        if v_namea in point.keys():
+                            reference = transform_a(point[v_namea][source_i])
+                            ax.axvline(
+                                x=reference, color=point_color, lw=point_size / 4.0
+                            )
+                        else:
+                            reference = None
                     else:
                         reference = None
+
+                    histplot_op(
+                        ax,
+                        pmp.utils.make_2d(a),
+                        alpha=alpha,
+                        color=pcolor,
+                        tstd=0.0,
+                        reference=reference,
+                    )
+
+                    ax.get_yaxis().set_visible(False)
+                    format_axes(ax)
+                    xticks = ax.get_xticks()
+                    xlim = ax.get_xlim()
+                    hist_ylims.append(ax.get_ylim())
                 else:
-                    reference = None
+                    b = d[v_nameb][:, source_i]
 
-                histplot_op(
-                    axs[l, k],
-                    pmp.utils.make_2d(a),
-                    alpha=alpha,
-                    color="orange",
-                    tstd=0.0,
-                    reference=reference,
-                )
+                    kde2plot(a, b, grid=grid, ax=ax, cmap=cmap, aspect="auto")
 
-                axs[l, k].get_yaxis().set_visible(False)
-                format_axes(axs[l, k])
-                xticks = axs[l, k].get_xticks()
-                xlim = axs[l, k].get_xlim()
-                hist_ylims.append(axs[l, k].get_ylim())
-            else:
-                b = d[v_nameb]
+                    bmin = b.min()
+                    bmax = b.max()
 
-                kde2plot(a, b, grid=grid, ax=axs[l, k], cmap=cmap, aspect="auto")
+                    if point is not None:
+                        if v_namea and v_nameb in point.keys():
+                            value_vara = transform_a(point[v_namea][source_i])
+                            value_varb = transform_b(point[v_nameb][source_i])
+                            ax.plot(
+                                value_vara,
+                                value_varb,
+                                color=point_color,
+                                marker=point_style,
+                                markersize=point_size,
+                            )
 
-                bmin = b.min()
-                bmax = b.max()
+                            bmin = num.minimum(bmin, value_varb)
+                            bmax = num.maximum(bmax, value_varb)
 
-                if point is not None:
-                    if v_namea and v_nameb in point.keys():
-                        axs[l, k].plot(
-                            point[v_namea],
-                            point[v_nameb],
-                            color=point_color,
-                            marker=point_style,
-                            markersize=point_size,
-                        )
+                    yticker = MaxNLocator(nbins=ntickmarks)
+                    ax.set_xticks(xticks)
+                    ax.set_xlim(xlim)
+                    yax = ax.get_yaxis()
+                    yax.set_major_locator(yticker)
 
-                        bmin = num.minimum(bmin, point[v_nameb])
-                        bmax = num.maximum(bmax, point[v_nameb])
+                if l != nvar - 1:
+                    ax.get_xaxis().set_ticklabels([])
 
-                yticker = MaxNLocator(nbins=ntickmarks)
-                axs[l, k].set_xticks(xticks)
-                axs[l, k].set_xlim(xlim)
-                yax = axs[l, k].get_yaxis()
-                yax.set_major_locator(yticker)
+                if k == 0:
+                    ax.set_ylabel(
+                        plot_name_b + "\n " + plot_units[hypername(plot_name_b)],
+                        fontsize=fontsize,
+                    )
+                    if utility.is_odd(l):
+                        ax.tick_params(axis="y", pad=label_pad)
+                else:
+                    ax.get_yaxis().set_ticklabels([])
 
-            if l != nvar - 1:
-                axs[l, k].get_xaxis().set_ticklabels([])
+                ax.tick_params(axis="both", direction="in", labelsize=fontsize)
 
-            if k == 0:
-                axs[l, k].set_ylabel(
-                    v_nameb + "\n " + plot_units[hypername(v_nameb)], fontsize=fontsize
-                )
-                if utility.is_odd(l):
-                    axs[l, k].tick_params(axis="y", pad=label_pad)
-            else:
-                axs[l, k].get_yaxis().set_ticklabels([])
+                try:  # matplotlib version issue workaround
+                    ax.tick_params(axis="both", labelrotation=50.0)
+                except Exception:
+                    ax.set_xticklabels(axs[l, k].get_xticklabels(), rotation=50)
+                    ax.set_yticklabels(axs[l, k].get_yticklabels(), rotation=50)
 
-            axs[l, k].tick_params(axis="both", direction="in", labelsize=fontsize)
+                if utility.is_odd(k):
+                    ax.tick_params(axis="x", pad=label_pad)
 
-            try:  # matplotlib version issue workaround
-                axs[l, k].tick_params(axis="both", labelrotation=50.0)
-            except Exception:
-                axs[l, k].set_xticklabels(axs[l, k].get_xticklabels(), rotation=50)
-                axs[l, k].set_yticklabels(axs[l, k].get_yticklabels(), rotation=50)
+            # put transformed varname back to varnames for unification
+            # varnames[k] = plot_name_a
+            ax.set_xlabel(
+                plot_name_a + "\n " + plot_units[hypername(plot_name_a)],
+                fontsize=fontsize,
+            )
 
-            if utility.is_odd(k):
-                axs[l, k].tick_params(axis="x", pad=label_pad)
-
-        axs[l, k].set_xlabel(
-            v_namea + "\n " + plot_units[hypername(v_namea)], fontsize=fontsize
-        )
-
-    if unify:
-        varnames_repeat_x = [
-            var_reap for varname in varnames for var_reap in (varname,) * nvar
-        ]
-        varnames_repeat_y = varnames * nvar
-        unitiesx = unify_tick_intervals(
-            axs, varnames_repeat_x, ntickmarks_max=ntickmarks_max, axis="x"
-        )
-
-        apply_unified_axis(
-            axs,
-            varnames_repeat_x,
-            unitiesx,
-            axis="x",
-            scale_factor=1.0,
-            ntickmarks_max=ntickmarks_max,
-        )
-        apply_unified_axis(
-            axs,
-            varnames_repeat_y,
-            unitiesx,
-            axis="y",
-            scale_factor=1.0,
-            ntickmarks_max=ntickmarks_max,
-        )
-
-    for k in range(nvar):
         if unify:
-            # reset histogram ylims after unify
-            axs[k, k].set_ylim(hist_ylims[k])
+            varnames_repeat_x = [
+                var_reap for varname in varnames for var_reap in (varname,) * nvar
+            ]
+            varnames_repeat_y = varnames * nvar
+            unitiesx = unify_tick_intervals(
+                axs, varnames_repeat_x, ntickmarks_max=ntickmarks_max, axis="x"
+            )
 
-        for l in range(k):
-            fig.delaxes(axs[l, k])
+            apply_unified_axis(
+                axs,
+                varnames_repeat_x,
+                unitiesx,
+                axis="x",
+                scale_factor=1.0,
+                ntickmarks_max=ntickmarks_max,
+            )
+            apply_unified_axis(
+                axs,
+                varnames_repeat_y,
+                unitiesx,
+                axis="y",
+                scale_factor=1.0,
+                ntickmarks_max=ntickmarks_max,
+            )
 
-    fig.tight_layout()
-    fig.subplots_adjust(wspace=0.05, hspace=0.05)
-    return fig, axs
+        for k in range(nvar):
+            if unify:
+                # reset histogram ylims after unify
+                axs[k, k].set_ylim(hist_ylims[k])
+
+            for l in range(k):
+                fig.delaxes(axs[l, k])
+
+        fig.tight_layout()
+        fig.subplots_adjust(wspace=0.05, hspace=0.05)
+        figs.append(fig)
+        axes.append(axs)
+    return figs, axes
 
 
 def draw_posteriors(problem, plot_options):
@@ -933,11 +951,6 @@ def draw_correlation_hist(problem, plot_options):
     Only feasible for 'geometry' problem.
     """
 
-    if problem.config.problem_config.n_sources > 1:
-        raise NotImplementedError(
-            "correlation_hist plot not working (yet) for n_sources > 1"
-        )
-
     po = plot_options
     mode = problem.config.problem_config.mode
 
@@ -974,11 +987,11 @@ def draw_correlation_hist(problem, plot_options):
     outpath = os.path.join(
         problem.outfolder,
         po.figure_dir,
-        "corr_hist_%s_%s.%s" % (stage.number, llk_str, po.outformat),
+        "corr_hist_%s_%s" % (stage.number, llk_str),
     )
 
     if not os.path.exists(outpath) or po.force:
-        fig, axs = correlation_plot_hist(
+        figs, _ = correlation_plot_hist(
             mtrace=stage.mtrace,
             varnames=varnames,
             cmap=plt.cm.gist_earth_r,
@@ -994,5 +1007,11 @@ def draw_correlation_hist(problem, plot_options):
     if po.outformat == "display":
         plt.show()
     else:
-        logger.info("saving figure to %s" % outpath)
-        fig.savefig(outpath, format=po.outformat, dpi=po.dpi)
+        logger.info("saving figures to %s" % outpath)
+        if po.outformat == "pdf":
+            with PdfPages(outpath + ".pdf") as opdf:
+                for fig in figs:
+                    opdf.savefig(fig)
+        else:
+            for i, fig in enumerate(figs):
+                fig.savefig("%s_%i.%s" % (outpath, i, po.outformat), dpi=po.dpi)

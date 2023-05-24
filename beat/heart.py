@@ -28,7 +28,7 @@ from pyrocko.guts import (
     Tuple,
 )
 from pyrocko.guts_array import Array
-from pyrocko.model import gnss
+from pyrocko.model import gnss, Event, get_effective_latlon
 from pyrocko.moment_tensor import to6
 from pyrocko.spit import OutOfBounds
 from scipy import linalg
@@ -436,6 +436,7 @@ class ResultPoint(Object):
     Containing point in solution space.
     """
 
+    events = List.T(Event.T(default=Event.D()), optional=True)
     post_llk = String.T(
         optional=True,
         help="describes which posterior likelihood value the point belongs to",
@@ -576,6 +577,9 @@ physical_bounds = dict(
     diameter=(0.0, 100.0),
     sign=(-1.0, 1.0),
     volume_change=(-1e12, 1e12),
+    fn=(-1e20, 1e20),
+    fe=(-1e20, 1e20),
+    fd=(-1e20, 1e20),
     mnn=(-sqrt2, sqrt2),
     mee=(-sqrt2, sqrt2),
     mdd=(-sqrt2, sqrt2),

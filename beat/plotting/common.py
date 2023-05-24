@@ -18,6 +18,7 @@ logger = logging.getLogger("plotting.common")
 
 km = 1000.0
 
+u_n = "$[N]$"
 u_nm = "$[Nm]$"
 u_km = "$[km]$"
 u_km_s = "$[km/s]$"
@@ -67,6 +68,9 @@ plot_units = {
     "utens": u_m,
     "durations": u_s,
     "velocities": u_km_s,
+    "fn": u_n,
+    "fe": u_n,
+    "fd": u_n,
     "mnn": u_nm,
     "mee": u_nm,
     "mdd": u_nm,
@@ -83,9 +87,9 @@ plot_units = {
     "omega": u_deg_myr,
     "w": u_rad,
     "v": u_rad,
-    "kappa": u_rad,
-    "sigma": u_rad,
-    "h": u_hyp,
+    "kappa": u_deg,
+    "sigma": u_deg,
+    "h": u_deg,
     "distance": u_km,
     "delta_depth": u_km,
     "delta_time": u_s,
@@ -95,6 +99,28 @@ plot_units = {
     "h_": u_hyp,
     "like": u_hyp,
 }
+
+
+def arccosdeg(x):
+    return num.rad2deg(num.arccos(x))
+
+
+transforms = {
+    "h": ("dip", arccosdeg),
+    "kappa": ("strike", num.rad2deg),
+    "sigma": ("rake", num.rad2deg),
+}
+
+
+def get_transform(varname):
+
+    try:
+        new_varname, transform = transforms[varname]
+    except KeyError:
+        transform = lambda x: x
+        new_varname = varname
+
+    return new_varname, transform
 
 
 plot_projections = ["latlon", "local", "individual"]
@@ -297,6 +323,20 @@ def get_result_point(mtrace, point_llk="max"):
     return point
 
 
+def hist_binning(mind, maxd, nbins=40):
+
+    step = ((maxd - mind) / nbins).astype(tconfig.floatX)
+
+    if step == 0:
+        step = num.finfo(tconfig.floatX).eps
+
+    bins = int(num.ceil((maxd - mind) / step))
+    if bins == 0:
+        bins = 10
+
+    return bins
+
+
 def histplot_op(
     ax,
     data,
@@ -349,14 +389,7 @@ def histplot_op(
             tstd = num.std(d)
 
         if bins is None:
-            step = ((maxd - mind) / 40).astype(tconfig.floatX)
-
-            if step == 0:
-                step = num.finfo(tconfig.floatX).eps
-
-            bins = int(num.ceil((maxd - mind) / step))
-            if bins == 0:
-                bins = 10
+            bins = hist_binning(mind, maxd, nbins=40)
 
         major, minor = get_matplotlib_version()
         if major < 3:
@@ -437,6 +470,53 @@ def histplot_op(
                         horizontalalignment="left",
                         verticalalignment="bottom",
                     )
+
+
+def hist2d_plot_op(ax, data_x, data_y, bins=(None, None), cmap=None):
+
+    if cmap is None:
+        cmap = plt.get_cmap("afmhot_r")
+
+    dmax_y = data_y.max()
+    dmin_y = data_y.min()
+    dmax_x = data_x.max()
+    dmin_x = data_x.min()
+
+    if bins[0] is None:
+        bins[0] = hist_binning(dmin_x, dmax_x, nbins=40)
+
+    if bins[1] is None:
+        bins[1] = hist_binning(dmin_y, dmax_y, nbins=40)
+
+    ax.hist2d(data_x, data_y, bins=bins, cmap=cmap, density=True)
+
+
+def variance_reductions_hist_plot(axs, variance_reductions, labels):
+
+    n_vrs = len(variance_reductions)
+
+    if n_vrs != len(labels):
+        raise ValueError(
+            "Number of labels must be equal to number of variance reductions"
+        )
+
+    ones = num.ones((variance_reductions[0].size))
+
+    for i, ax in enumerate(axs):
+        variance_red = variance_reductions[i]
+        hist2d_plot_op(ax, ones, variance_red, bins=(1, 40))
+        # ax.set_ylim(locs.min() - 4, locs.max() + 4)
+        if i > 0:
+            format_axes(ax)
+            ax.get_yaxis().set_ticklabels([])
+        elif i == 0:
+            format_axes(ax, remove=["top", "right"])
+            ax.set_ylabel("VR [%]")
+
+        xax = ax.get_xaxis()
+        xax.set_ticks([1])
+        xax.set_ticklabels([])
+        ax.set_xlabel("%i0" % i, rotation=90)
 
 
 def kde2plot_op(ax, x, y, grid=200, **kwargs):
@@ -529,6 +609,22 @@ def format_axes(ax, remove=["right", "top", "left"], linewidth=None, visible=Fal
         ax.spines[rm].set_visible(visible)
         if linewidth is not None:
             ax.spines[rm].set_linewidth(linewidth)
+
+
+def hide_ticks(ax, axis="yaxis"):
+    """
+    Hide ticks from plot axes. Still draws grid.
+    """
+    if axis == "xaxis":
+        xax = ax.get_xaxis()
+    elif axis == "yaxis":
+        xax = ax.get_yaxis()
+    else:
+        raise TypeError("axis must be 'yaxis' or 'xaxis'")
+
+    for tick in xax.get_major_ticks():
+        tick.tick1line.set_visible(False)
+        tick.tick2line.set_visible(False)
 
 
 def scale_axes(axis, scale, offset=0.0):

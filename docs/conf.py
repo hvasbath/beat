@@ -65,7 +65,7 @@ master_doc = "index"
 
 # General information about the project.
 project = "beat"
-copyright = "2022, Hannes Vasyura-Bathke"
+copyright = "2023, Hannes Vasyura-Bathke"
 author = "Hannes Vasyura-Bathke"
 
 # The version info for the project you're documenting, acts as replacement for

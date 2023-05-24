@@ -385,6 +385,9 @@ def weed_input_rvs(input_rvs, mode, datatype):
                 "nucleation_y",
                 "length",
                 "width",
+                "fn",
+                "fe",
+                "fd",
             ] + burian
 
     elif mode == "interseismic":

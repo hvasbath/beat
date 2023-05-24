@@ -264,7 +264,7 @@ class GeodeticComposite(Composite):
             }
 
             outname = os.path.join(results_path, "%s_C_%s" % ("geodetic", cov_mat))
-            logger.info('"%s" to: %s' % (outname))
+            logger.info('"geodetic covariances" to: %s', outname)
             num.savez(outname, **covs)
 
         gc = self.config
@@ -626,6 +626,27 @@ class GeodeticSourceComposite(GeodeticComposite):
             utility.update_source(source, **source_points[i])
             # reset source time may result in store error otherwise
             source.time = 0.0
+
+    def get_pyrocko_events(self, point=None):
+        """
+        Transform sources to pyrocko events.
+
+        Returns
+        -------
+        events : list
+            of :class:`pyrocko.model.Event`
+        """
+
+        if point is not None:
+            self.point2sources(point)
+
+        events = []
+        target = self.targets[0]
+        store = self.engine.get_store(target.store_id)
+        for source in self.sources:
+            events.append(source.pyrocko_event(store=store, target=target))
+
+        return events
 
     def get_formula(self, input_rvs, fixed_rvs, hyperparams, problem_config):
         """

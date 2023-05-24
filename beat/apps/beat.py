@@ -1918,7 +1918,7 @@ selected giving a comma separated list.""" % list2string(
             plotting.plots_catalog[plot](problem, po)
         # except Exception as err:
         #    pass
-        except (TypeError, plotting.ModeError) as err:
+        except (TypeError, plotting.ModeError, NotImplementedError) as err:
 
             logger.warning(
                 "Could not plot %s got Error: %s \n %s"
@@ -2191,7 +2191,7 @@ def command_check(args):
 
         src_class_name = problem.config.problem_config.source_type
         for source in sources:
-            source.regularize()
+            # source.regularize()
             try:
                 sandbox.addSource(
                     talpa_source_catalog[src_class_name].fromPyrockoSource(
@@ -2316,8 +2316,12 @@ def command_export(args):
 
     var_reds = problem.get_variance_reductions(point)
 
+    events = problem.get_pyrocko_events(point)
     rpoint = heart.ResultPoint(
-        point=point, post_llk=options.post_llk, variance_reductions=var_reds
+        events=events,
+        point=point,
+        post_llk=options.post_llk,
+        variance_reductions=var_reds,
     )
     rpoint.regularize()
     rpoint.validate()
