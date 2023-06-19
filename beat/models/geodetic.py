@@ -60,7 +60,6 @@ class GeodeticComposite(Composite):
     weights = None
 
     def __init__(self, gc, project_dir, events, hypers=False):
-
         super(GeodeticComposite, self).__init__(events)
 
         logger.debug("Setting up geodetic structure ...\n")
@@ -71,6 +70,18 @@ class GeodeticComposite(Composite):
 
         self.datasets = utility.load_objects(geodetic_data_path)
         logger.info("Number of geodetic datasets: %i " % self.n_t)
+
+        # initialise local coordinate system and corrections
+        if gc.corrections_config.has_enabled_corrections:
+            correction_configs = gc.corrections_config.iter_corrections()
+            logger.info("Initialising corrections ...")
+            for data in self.datasets:
+                data.setup_corrections(
+                    event=self.event, correction_configs=correction_configs
+                )
+        else:
+            for data in self.datasets:
+                data.update_local_coords(self.event)
 
         # init geodetic targets
         self.targets = heart.init_geodetic_targets(
@@ -94,14 +105,6 @@ class GeodeticComposite(Composite):
         self.noise_analyser = cov.GeodeticNoiseAnalyser(
             config=gc.noise_estimator, events=self.events
         )
-
-        if gc.corrections_config.has_enabled_corrections:
-            correction_configs = gc.corrections_config.iter_corrections()
-            logger.info("Initialising corrections ...")
-            for data in self.datasets:
-                data.setup_corrections(
-                    event=self.event, correction_configs=correction_configs
-                )
 
         self.config = gc
 
@@ -247,7 +250,6 @@ class GeodeticComposite(Composite):
         force=False,
         update=False,
     ):
-
         from kite.scene import Scene, UserIOWarning
         from pyrocko.guts import dump
 
@@ -328,7 +330,6 @@ class GeodeticComposite(Composite):
                             continue
 
                         for attr in ["processed_obs", "processed_syn", "processed_res"]:
-
                             filename = get_filename(attr, ending="csv")
                             displacements = getattr(result, attr)
                             dataset.export_to_csv(filename, displacements)
@@ -375,7 +376,6 @@ class GeodeticComposite(Composite):
 
                     for hierarchical_name in hierarchical_names:
                         if not corr.enabled and hierarchical_name in hierarchicals:
-
                             raise ConfigInconsistentError(
                                 "%s %s disabled, but they are defined"
                                 " in the problem configuration"
@@ -505,7 +505,6 @@ class GeodeticComposite(Composite):
 
         var_reds = OrderedDict()
         for dataset, weight, result in zip(self.datasets, weights, results):
-
             hp = get_hypervalue_from_point(
                 point, dataset, counter, hp_specific=hp_specific
             )
@@ -588,7 +587,6 @@ class GeodeticSourceComposite(GeodeticComposite):
     """
 
     def __init__(self, gc, project_dir, sources, events, hypers=False):
-
         super(GeodeticSourceComposite, self).__init__(
             gc, project_dir, events, hypers=hypers
         )
@@ -708,7 +706,6 @@ class GeodeticSourceComposite(GeodeticComposite):
 
 class GeodeticGeometryComposite(GeodeticSourceComposite):
     def __init__(self, gc, project_dir, sources, events, hypers=False):
-
         super(GeodeticGeometryComposite, self).__init__(
             gc, project_dir, sources, events, hypers=hypers
         )
@@ -818,7 +815,6 @@ class GeodeticGeometryComposite(GeodeticSourceComposite):
 
 class GeodeticInterseismicComposite(GeodeticSourceComposite):
     def __init__(self, gc, project_dir, sources, events, hypers=False):
-
         super(GeodeticInterseismicComposite, self).__init__(
             gc, project_dir, sources, events, hypers=hypers
         )
@@ -876,7 +872,6 @@ class GeodeticInterseismicComposite(GeodeticSourceComposite):
         return synths
 
     def update_weights(self, point, n_jobs=1, plot=False):
-
         if not self.weights:
             self.init_weights()
 
@@ -891,7 +886,6 @@ class GeodeticDistributerComposite(GeodeticComposite):
     """
 
     def __init__(self, gc, project_dir, events, hypers=False):
-
         super(GeodeticDistributerComposite, self).__init__(
             gc, project_dir, events, hypers=hypers
         )

@@ -157,7 +157,6 @@ class Covariance(Object):
 
     @property
     def c_total(self):
-
         self.check_matrix_init("data")
         self.check_matrix_init("pred_g")
         self.check_matrix_init("pred_v")
@@ -166,7 +165,6 @@ class Covariance(Object):
 
     @property
     def p_total(self):
-
         self.check_matrix_init("pred_g")
         self.check_matrix_init("pred_v")
 
@@ -255,7 +253,6 @@ class Covariance(Object):
         self.slog_pdet.astype(tconfig.floatX)
 
     def get_min_max_components(self):
-
         covmats = []
         for comp in self.covs_supported():
             covmats.append(getattr(self, comp))
@@ -343,7 +340,6 @@ class Trace(Object):
 
 
 class FilterBase(Object):
-
     lower_corner = Float.T(default=0.001, help="Lower corner frequency")
     upper_corner = Float.T(default=0.1, help="Upper corner frequency")
     ffactor = Float.T(
@@ -417,7 +413,6 @@ class BandstopFilter(FilterBase):
 
 
 class FrequencyFilter(FilterBase):
-
     tfade = Float.T(
         default=20.0,
         help="Rise/fall time in seconds of taper applied in timedomain at both"
@@ -515,7 +510,6 @@ class SeismicResult(Object):
 
 
 class PolarityResult(Object):
-
     point = ResultPoint.T(default=ResultPoint.D())
     processed_obs = Array.T(optional=True)
     llk = Float.T(default=0.0, optional=True)
@@ -533,7 +527,6 @@ class PolarityResult(Object):
 
 
 def results_for_export(results, datatype=None, attributes=None):
-
     if attributes is None:
         if datatype is None:
             raise ValueError("Either datatype or attributes need to be defined!")
@@ -631,7 +624,6 @@ physical_bounds = dict(
 
 
 def list_repeat(arr, repeat=1):
-
     if isinstance(repeat, list):
         if len(repeat) != arr.size:
             raise ValueError(
@@ -678,7 +670,6 @@ class Parameter(Object):
     )
 
     def validate_bounds(self):
-
         supported_vars = list(physical_bounds.keys())
 
         if self.name not in supported_vars:
@@ -835,7 +826,6 @@ class PolarityTarget(gf.meta.Receiver):
         return self._phase
 
     def get_takeoff_angle_table(self, source, store):
-
         takeoff_angle = store.get_stored_attribute(
             phase_id_mapping[self.phase_id],
             "takeoff_angle",
@@ -848,7 +838,6 @@ class PolarityTarget(gf.meta.Receiver):
         return takeoff_angle
 
     def get_takeoff_angle_cake(self, source, store):
-
         mod = store.config.earthmodel_1d
         rays = mod.arrivals(
             phases=self.get_phase_definition(store).phases,
@@ -865,7 +854,6 @@ class PolarityTarget(gf.meta.Receiver):
         return takeoff_angle
 
     def update_target(self, engine, source, always_raytrace=False, check=False):
-
         self.azimuth_rad = self.azibazi_to(source)[1] * d2r
         self.distance = self.distance_to(source)
         logger.debug("source distance %f and depth %f", self.distance, source.depth)
@@ -1026,7 +1014,6 @@ class SpectrumDataset(SeismicDataset):
         fmax=5.0,
         deltaf=0.1,
     ):
-
         super(SpectrumDataset, self).__init__(
             network=network,
             station=station,
@@ -1093,7 +1080,6 @@ class SpectrumDataset(SeismicDataset):
 
 
 class DynamicTarget(gf.Target):
-
     response = trace.PoleZeroResponse.T(default=None, optional=True)
     domain = StringChoice.T(
         default="time",
@@ -1358,7 +1344,6 @@ class GNSSCompoundComponent(GeodeticDataset):
 
     @classmethod
     def from_pyrocko_gnss_campaign(cls, campaign, components=["north", "east", "up"]):
-
         valid_components = ["north", "east", "up"]
 
         compounds = []
@@ -1403,7 +1388,6 @@ class GNSSCompoundComponent(GeodeticDataset):
 
 
 class ResultReport(Object):
-
     solution_point = Dict.T(help="result point")
     post_llk = StringChoice.T(
         choices=["max", "mean", "min"],
@@ -1732,6 +1716,8 @@ def init_geodetic_targets(
         gf.StaticTarget(
             lons=d.lons,
             lats=d.lats,
+            east_shifts=d.east_shifts,
+            north_shifts=d.north_shifts,
             interpolation=interpolation,
             quantity="displacement",
             store_id=get_store_id("statics", em_name, sample_rate, crust_ind),
@@ -1751,7 +1737,6 @@ def init_polarity_targets(
     reference_location=None,
     wavename="any_P",
 ):
-
     if reference_location is None:
         store_prefixes = [copy.deepcopy(station.station) for station in stations]
     else:
@@ -2677,7 +2662,6 @@ def get_phase_taperer(
 
 class BaseMapping(object):
     def __init__(self, stations, targets, mapnumber=0):
-
         self.name = "base"
         self.mapnumber = mapnumber
         self.stations = stations
@@ -2755,7 +2739,6 @@ class BaseMapping(object):
         return len(self.datasets)
 
     def get_target_idxs(self, channels=["Z"]):
-
         t2i = self.target_index_mapping()
         dtargets = utility.gather(self.targets, lambda t: t.codes[3])
 
@@ -2777,7 +2760,6 @@ class BaseMapping(object):
 
 class PolarityMapping(BaseMapping):
     def __init__(self, config, stations, targets, mapnumber=0):
-
         BaseMapping.__init__(self, stations, targets, mapnumber)
 
         self.config = config
@@ -2787,7 +2769,6 @@ class PolarityMapping(BaseMapping):
         self._radiation_weights = None
 
     def get_station_names_data(self):
-
         if self.datasets is None:
             self.datasets = self._load_phase_markers(self.config.polarities_marker_path)
 
@@ -2799,7 +2780,6 @@ class PolarityMapping(BaseMapping):
         return station_names
 
     def get_polarities(self):
-
         if self.datasets is None:
             self.datasets = self._load_phase_markers(self.config.polarities_marker_path)
 
@@ -2809,7 +2789,6 @@ class PolarityMapping(BaseMapping):
         )
 
     def get_station_names_without_data(self):
-
         blacklist = []
         station_names = self.get_station_names()
         dataset_station_names = self.get_station_names_data()
@@ -2894,7 +2873,6 @@ class PolarityMapping(BaseMapping):
             return shared(self._prepared_data, name="%s_data" % self.name, borrow=True)
 
     def update_targets(self, engine, source, always_raytrace=False, check=False):
-
         for target in self.targets:
             target.update_target(
                 engine, source, always_raytrace=always_raytrace, check=check
@@ -2975,7 +2953,6 @@ class WaveformMapping(BaseMapping):
         deltat=None,
         mapnumber=0,
     ):
-
         BaseMapping.__init__(self, stations, targets, mapnumber)
 
         self.name = name
@@ -3041,7 +3018,6 @@ class WaveformMapping(BaseMapping):
         self.check_consistency()
 
     def get_station_names_without_data(self):
-
         blacklist = []
         station_names = self.get_station_names()
         dataset_station_names = [utility.get_ns_id(tr.nslc_id) for tr in self.datasets]
@@ -3085,7 +3061,6 @@ class WaveformMapping(BaseMapping):
             )
 
     def get_marker_arrival_times(self):
-
         if self._phase_markers is None:
             try:
                 self._load_phase_markers(self.config.arrivals_marker_path)
@@ -3172,14 +3147,12 @@ class WaveformMapping(BaseMapping):
         return nsamples
 
     def get_nsamples_spectrum(self, chop_bounds=["b", "c"], pad_to_pow2=True):
-
         lower_idx, upper_idx = self.get_valid_spectrum_indices(
             chop_bounds=chop_bounds, pad_to_pow2=pad_to_pow2
         )
         return upper_idx - lower_idx
 
     def get_valid_spectrum_indices(self, chop_bounds=["b", "c"], pad_to_pow2=True):
-
         valid_spectrum_indices = utility.get_valid_spectrum_data(
             deltaf=self.get_deltaf(chop_bounds, pad_to_pow2),
             taper_frequencies=self.get_taper_frequencies(),
@@ -3200,7 +3173,6 @@ class WaveformMapping(BaseMapping):
             return shared(self._prepared_data, name="%s_data" % self.name, borrow=True)
 
     def _check_specific_consistency(self):
-
         if self.n_t == 0:
             raise CollectionError(
                 'No data left in mapping "%s" after applying the distance '
@@ -3258,7 +3230,6 @@ class DataWaveformCollection(object):
         self._station2index = None
 
     def adjust_sampling_datasets(self, deltat, snap=False, force=False):
-
         for tr in self._raw_datasets.values():
             if tr.nslc_id not in self._datasets or force:
                 self._datasets[tr.nslc_id] = utility.downsample_trace(
@@ -3322,7 +3293,6 @@ class DataWaveformCollection(object):
             self.waveforms.append(waveform)
 
     def add_responses(self, responses, location=None):
-
         self._responses = OrderedDict()
 
         for k, v in responses.items():
@@ -3334,7 +3304,6 @@ class DataWaveformCollection(object):
             self._responses[k] = v
 
     def add_targets(self, targets, replace=False, force=False):
-
         if replace:
             self._targets = OrderedDict()
 
@@ -3346,7 +3315,6 @@ class DataWaveformCollection(object):
                 logger.warn("Target %s already in collection!" % str(target.codes))
 
     def add_datasets(self, datasets, location=None, replace=False, force=False):
-
         if replace:
             self._datasets = OrderedDict()
             self._raw_datasets = OrderedDict()
@@ -3367,7 +3335,6 @@ class DataWaveformCollection(object):
         return len(self._datasets.keys())
 
     def get_waveform_mapping(self, waveform, config):
-
         ### Mahdi, need to sort domain stuff
         self._check_collection(waveform, errormode="not_in")
 
@@ -3905,7 +3872,6 @@ def seis_derivative(
     n_stencil_steps = len(stencil)
     tmp = num.zeros((n_stencil_steps, ntargets, nsamples), dtype="float64")
     for i, hstep in enumerate(stencil.hsteps):
-
         if parameter in spatial_derivative_parameters:
             target_param_name = spatial_derivative_parameters[parameter]
             diff_targets = []
@@ -4166,7 +4132,6 @@ def pol_synthetics(
 def fft_transforms(
     time_domain_signals, valid_spectrum_indices, outmode="array", pad_to_pow2=True
 ):
-
     if outmode not in stackmodes:
         raise StackingError(
             'Outmode "%s" not available! Available: %s'
@@ -4184,7 +4149,6 @@ def fft_transforms(
         spec_signals = [None] * n_data
 
     for i, tr in enumerate(time_domain_signals):
-
         if outmode == "array":
             n_samples = len(tr)
             ydata = tr
@@ -4198,7 +4162,6 @@ def fft_transforms(
             spec_signals[i] = num.abs(fydata)[lower_idx:upper_idx]
 
         elif outmode in ["data", "tapered_data", "stacked_traces"]:
-
             if outmode == "tapered_data":
                 tr = tr[0]
 
@@ -4462,7 +4425,6 @@ def velocities_from_pole(
 
 
 class StrainRateTensor(Object):
-
     exx = Float.T(default=10)
     eyy = Float.T(default=0)
     exy = Float.T(default=0)

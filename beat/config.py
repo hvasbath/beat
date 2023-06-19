@@ -51,6 +51,7 @@ logger = logging.getLogger("config")
 
 ffi_mode_str = "ffi"
 geometry_mode_str = "geometry"
+bem_mode_str = "bem"
 
 
 block_vars = ["bl_azimuth", "bl_amplitude"]
@@ -262,7 +263,7 @@ _quantity_choices = ["displacement", "velocity", "acceleration"]
 _interpolation_choices = ["nearest_neighbor", "multilinear"]
 _structure_choices = available_noise_structures()
 _structure_choices_2d = available_noise_structures_2d()
-_mode_choices = [geometry_mode_str, ffi_mode_str]
+_mode_choices = [geometry_mode_str, ffi_mode_str, bem_mode_str]
 _regularization_choices = ["laplacian", "none"]
 _correlation_function_choices = ["nearest_neighbor", "gaussian", "exponential"]
 _discretization_choices = ["uniform", "resolution"]
@@ -270,6 +271,7 @@ _initialization_choices = ["random", "lsq"]
 _backend_choices = ["csv", "bin"]
 _datatype_choices = ["geodetic", "seismic", "polarity"]
 _sampler_choices = ["PT", "SMC", "Metropolis"]
+_slip_component_choices = ("strike", "dip", "tensile")
 
 
 class InconsistentParameterNaming(Exception):
@@ -467,7 +469,6 @@ class DiscretizationConfig(Object):
 
 
 class UniformDiscretizationConfig(DiscretizationConfig):
-
     patch_widths = List.T(
         Float.T(),
         default=[5.0],
@@ -585,7 +586,6 @@ class LinearGFConfig(GFConfig):
     )
 
     def __init__(self, **kwargs):
-
         kwargs = _init_kwargs(
             method_config_name="discretization_config",
             method_name="discretization",
@@ -620,7 +620,6 @@ class SeismicLinearGFConfig(LinearGFConfig):
     )
 
     def __init__(self, **kwargs):
-
         Object.__init__(self, **kwargs)
 
         if self.discretization == "resolution":
@@ -686,7 +685,6 @@ class WaveformFitConfig(Object):
 
 
 class SeismicNoiseAnalyserConfig(Object):
-
     structure = StringChoice.T(
         choices=_structure_choices,
         default="variance",
@@ -700,7 +698,6 @@ class SeismicNoiseAnalyserConfig(Object):
 
 
 class GeodeticNoiseAnalyserConfig(Object):
-
     structure = StringChoice.T(
         choices=_structure_choices_2d,
         default="import",
@@ -743,7 +740,6 @@ class SeismicConfig(Object):
     gf_config = GFConfig.T(default=SeismicGFConfig.D())
 
     def __init__(self, **kwargs):
-
         waveforms = "waveforms"
         wavenames = kwargs.pop("wavenames", ["any_P"])
         wavemaps = []
@@ -807,7 +803,6 @@ class SeismicConfig(Object):
 
 
 class PolarityGFConfig(NonlinearGFConfig):
-
     code = String.T(
         default="cake", help="Raytracing code to use for takeoff-angle computations."
     )
@@ -827,7 +822,6 @@ class PolarityGFConfig(NonlinearGFConfig):
 
 
 class PolarityFitConfig(Object):
-
     name = String.T(default="any_P", help="Seismic phase name for picked polarities")
     include = Bool.T(
         default=True, help="Whether to include this FitConfig to the estimation."
@@ -851,7 +845,6 @@ class PolarityFitConfig(Object):
 
 
 class PolarityConfig(Object):
-
     datadir = String.T(default="./")
     waveforms = List.T(
         PolarityFitConfig.T(default=PolarityFitConfig.D()),
@@ -860,7 +853,6 @@ class PolarityConfig(Object):
     gf_config = GFConfig.T(default=PolarityGFConfig.D())
 
     def __init__(self, **kwargs):
-
         waveforms = "waveforms"
         wavenames = kwargs.pop("wavenames", ["any_P"])
         wavemaps = []
@@ -912,7 +904,6 @@ class PolarityConfig(Object):
 
 
 class CorrectionConfig(Object):
-
     dataset_names = List.T(
         String.T(), default=[], help="Datasets to include in the correction."
     )
@@ -939,7 +930,6 @@ class CorrectionConfig(Object):
 
 
 class GNSSCorrectionConfig(CorrectionConfig):
-
     station_blacklist = List.T(
         String.T(), default=[], help="GNSS station names to apply no correction."
     )
@@ -1051,7 +1041,6 @@ class SARDatasetConfig(DatasetConfig):
 
 
 class GNSSDatasetConfig(DatasetConfig):
-
     components = List.T(String.T(), default=["north", "east", "up"])
     blacklist = List.T(
         String.T(),
@@ -1123,7 +1112,6 @@ class GeodeticConfig(Object):
     gf_config = GFConfig.T(default=GeodeticGFConfig.D())
 
     def __init__(self, **kwargs):
-
         mode = kwargs.pop("mode", geometry_mode_str)
 
         if mode == geometry_mode_str:
@@ -1140,7 +1128,6 @@ class GeodeticConfig(Object):
         return ["_".join(("h", typ)) for typ in self.types]
 
     def get_hierarchical_names(self, datasets=None):
-
         out_names = []
         for number, corr_conf in enumerate(self.corrections_config.iter_corrections()):
             if corr_conf.enabled:
@@ -1230,7 +1217,6 @@ def _init_kwargs(method_config_name, method_name, method_catalog, kwargs):
 
 
 class FFIConfig(ModeConfig):
-
     regularization = StringChoice.T(
         default="none",
         choices=_regularization_choices,
@@ -1266,7 +1252,6 @@ class FFIConfig(ModeConfig):
     )
 
     def __init__(self, **kwargs):
-
         kwargs = _init_kwargs(
             method_config_name="regularization_config",
             method_name="regularization",
@@ -1275,6 +1260,51 @@ class FFIConfig(ModeConfig):
         )
 
         Object.__init__(self, **kwargs)
+
+
+class BoundaryCondition(Object):
+    slip_component = StringChoice.T(
+        choices=_slip_component_choices,
+        default="tensile",
+        help="Slip-component for Green's Function calculation, maybe %s "
+        % list2string(_slip_component_choices),
+    )
+    source_idxs = List.T(
+        Int.T(),
+        default=[0],
+        optional=True,
+        help="Indices for the sources that are causing the stress.",
+    )
+    receiver_idxs = List.T(
+        Int.T(), default=[0], help="Indices for the sources that receive the stress."
+    )
+
+
+class BEMBoundaryConditions(Object):
+    conditions = Dict.T(
+        String.T(),
+        BoundaryCondition.T(),
+        default={
+            "strike": BoundaryCondition.D(slip_component="strike"),
+            "dip": BoundaryCondition.D(slip_component="dip"),
+            "tensile": BoundaryCondition.D(slip_component="tensile"),
+        },
+    )
+
+    def get_traction_field(self, discretized_sources):
+        if len(self.conditions) != 3:
+            raise ValueError(
+                "One boundary condition for each slip component needs to be defined."
+            )
+
+        traction_vecs = []
+        for slip_comp in _slip_component_choices:
+            bcond = self.conditions[slip_comp]
+            for receiver_idx in bcond.receiver_idxs:
+                receiver_mesh = discretized_sources[receiver_idx]
+                traction_vecs.append(receiver_mesh.get_traction_vector(slip_comp))
+
+        return num.hstack(traction_vecs)
 
 
 def get_parameter(variable, nvars=1, lower=1, upper=2):
@@ -1335,7 +1365,6 @@ class ProblemConfig(Object):
     )
 
     def __init__(self, **kwargs):
-
         mode = "mode"
         mode_config = "mode_config"
         if mode in kwargs:
@@ -1362,7 +1391,6 @@ class ProblemConfig(Object):
         self.priors = OrderedDict()
 
         for variable in variables:
-
             if nvars is None:
                 if variable in block_vars:
                     nvars = 1
@@ -1475,7 +1503,6 @@ class ProblemConfig(Object):
         fixed_params = dict()
         for param in self.priors.values():
             if not num.array_equal(param.lower, param.upper):
-
                 shape = self.get_parameter_shape(param)
 
                 kwargs = dict(
@@ -1616,7 +1643,6 @@ class ProblemConfig(Object):
         return shape
 
     def get_derived_variables_shapes(self):
-
         source_type = self.source_type
 
         tpoint = self.get_test_point()
@@ -1652,7 +1678,6 @@ class ProblemConfig(Object):
 
 
 class SamplerParameters(Object):
-
     tune_interval = Int.T(
         default=50, help="Tune interval for adaptive tuning of Metropolis step size."
     )
@@ -1670,7 +1695,6 @@ class SamplerParameters(Object):
 
 
 class ParallelTemperingConfig(SamplerParameters):
-
     n_samples = Int.T(
         default=int(1e5),
         help="Number of samples of the posterior distribution."
@@ -1823,7 +1847,6 @@ class SamplerConfig(Object):
     )
 
     def __init__(self, **kwargs):
-
         kwargs = _init_kwargs(
             method_config_name="parameters",
             method_name="name",
@@ -2097,7 +2120,6 @@ def init_config(
     """
 
     def init_dataset_config(config, datatype):
-
         dconfig = datatype_catalog[datatype]()
 
         if hasattr(dconfig.gf_config, "reference_location"):
@@ -2149,7 +2171,6 @@ def init_config(
             init_dataset_config(c, datatype=datatype)
 
     elif mode == ffi_mode_str:
-
         if source_type != "RectangularSource":
             raise TypeError(
                 "Distributed slip is so far only supported" " for RectangularSource(s)"
