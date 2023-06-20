@@ -332,7 +332,6 @@ class Ellipse(BEMSource):
                 "lower_minor",
                 "origin",
             ):
-                print(ellipse_prefix)
                 node_name = get_node_name(ellipse_prefix, node_suffix)
                 node = getattr(self, node_name)
 

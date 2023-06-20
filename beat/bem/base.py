@@ -5,7 +5,9 @@ import logging
 import numpy as num
 
 from pyrocko.moment_tensor import symmat6
-from pyrocko.gf import StaticResult, Response
+from pyrocko.gf import StaticResult, Response, Request
+from pyrocko.guts_array import Array
+from pyrocko.guts import Int, Object, List
 
 from .sources import DiscretizedBEMSource, slip_comp_to_idx
 
@@ -18,52 +20,97 @@ except ImportError:
 
 
 logger = logging.getLogger("bem")
+km = 1.0e3
 
 
-class BEMResponse(object):
-    def __init__(
-        self, displacements: num.ndarray, ordering: list, n_sources: int
-    ) -> None:
-        displacements = displacements
-        ordering = ordering
-        n_sources = n_sources
+class BEMResponse(Object):
+    sources = List.T(default=[])
+    targets = List.T(default=[])
+    discretized_sources = List.T()
+    displacements = Array.T(shape=(None,), dtype=num.float32, serialize_as="base64")
+    target_ordering = Array.T(shape=(None,), dtype=num.int64)
+    source_ordering = Array.T(shape=(None,), dtype=num.int64)
+    inverted_slip_vectors = Array.T(shape=(None, 3), dtype=num.float32)
 
-    def static_results(self):
+    @property
+    def n_sources(self):
+        return len(self.sources)
+
+    @property
+    def n_targets(self):
+        return len(self.targets)
+
+    def static_results(self) -> list[StaticResult]:
+        """
+        Get target specific surface displacements in NED coordinates.
+        """
         results = []
-        for src_idx in range(self.n_sources):
-            start_idx = self.ordering[src_idx]
-            end_idx = self.ordering[src_idx + 1]
+        for target_idx in range(self.n_targets):
+            start_idx = self.target_ordering[target_idx]
+            end_idx = self.target_ordering[target_idx + 1]
+
             result = {
                 "displacement.n": self.displacements[start_idx:end_idx, 1],
                 "displacement.e": self.displacements[start_idx:end_idx, 0],
-                "displacement.d": self.displacements[start_idx:end_idx, 2],
+                "displacement.d": -self.displacements[start_idx:end_idx, 2],
             }
-            results.append(StaticResult(result))
+            results.append(StaticResult(result=result))
+
+        return results
+
+    def source_slips(self) -> list[num.ndarray]:
+        """
+        Get inverted slip vectors for sources
+
+        Returns
+        -------
+        array_like: [n_triangles, 3]
+            where columns are: strike, dip and tensile slip-components"""
+        slips = []
+        for src_idx in range(self.n_sources):
+            start_idx = self.source_ordering[src_idx]
+            end_idx = self.source_ordering[src_idx + 1]
+            slips.append(self.inverted_slip_vectors[start_idx:end_idx, :])
+
+        return slips
 
 
 class BEMEngine(object):
     def __init__(self, config) -> None:
         self.config = config
         self._obs_points = None
+        self._ncoords_targets = None
 
     def cache_target_coords3(self, targets, dtype="float32"):
-        if self._obs_points is not None:
-            coords5 = num.vstack([target.coords5() for target in targets])
+        ncoords_targets = num.array([0] + [target.ncoords for target in targets])
+        if self._ncoords_targets is None:
+            self._ncoords_targets = ncoords_targets
+            coords_diff = 0
+        else:
+            coords_diff = self._ncoords_targets.sum() - ncoords_targets.sum()
+
+        if self._obs_points is None or coords_diff:
+            coords5 = num.vstack([target.coords5 for target in targets])
             obs_pts = num.zeros((coords5.shape[0], 3))
             obs_pts[:, 0] = coords5[:, 3]
             obs_pts[:, 1] = coords5[:, 2]
             self._obs_points = obs_pts.astype(dtype)
+            self._ncoords_targets = ncoords_targets
 
         return self._obs_points
 
+    def clear_target_cache(self):
+        self._obs_points = None
+        self._ncoords_targets = None
+
     def process(self, sources: list, targets: list) -> num.ndarray:
         discretized_sources = [
-            source.discretize_basesource(mesh_size=self.config.mesh_size)
+            source.discretize_basesource(mesh_size=self.config.mesh_size * km)
             for source in sources
         ]
         obs_points = self.cache_target_coords3(targets, dtype="float32")
 
-        coefficient_matrix = self.get_interaction_matrix(self, discretized_sources)
+        coefficient_matrix = self.get_interaction_matrix(discretized_sources)
         tractions = self.config.boundary_conditions.get_traction_field(
             discretized_sources
         )
@@ -72,7 +119,7 @@ class BEMEngine(object):
 
         result_sources = [
             discretized_sources[src_idx]
-            for bcond in self.config.boundary_conditions
+            for bcond in self.config.boundary_conditions.iter_conditions()
             for src_idx in bcond.source_idxs
         ]
 
@@ -82,32 +129,38 @@ class BEMEngine(object):
         )
 
         n_all_triangles = all_triangles.shape[0]
-        slips = num.ones((n_all_triangles, 3))
+        slips = num.zeros((n_all_triangles, 3))
 
         start_idx = 0
-        n_triangles_result_sources = [0]
-        for bcond in self.config.boundary_conditions:
+        sources_ntriangles = num.cumsum(
+            [start_idx] + [source.n_triangles for source in discretized_sources]
+        )
+        for bcond in self.config.boundary_conditions.iter_conditions():
             for source_idx in bcond.source_idxs:
                 source_mesh = discretized_sources[source_idx]
-                end_idx = start_idx + source_mesh.n_triangles - 1
+                end_idx = start_idx + source_mesh.n_triangles
 
                 slips[
-                    start_idx:end_idx,
+                    sources_ntriangles[source_idx] : sources_ntriangles[source_idx + 1],
                     slip_comp_to_idx[bcond.slip_component],
                 ] = inv_slips[start_idx:end_idx]
-                start_idx += source_mesh.n_triangles
-                n_triangles_result_sources.append(source_mesh.n_triangles)
 
-        displacements = disp_mat.reshape((-1, n_all_triangles * 3)).dot(slips.flatten())
-        return Response(
-            displacements=displacements,
-            source_ordering=n_triangles_result_sources,
-            n_sources=len(result_sources),
+                start_idx += source_mesh.n_triangles
+
+        displacements = disp_mat.reshape((-1, n_all_triangles * 3)).dot(slips.ravel())
+        return BEMResponse(
+            sources=sources,
+            targets=targets,
+            discretized_sources=discretized_sources,
+            displacements=displacements.reshape((-1, 3)),
+            target_ordering=self._ncoords_targets,
+            source_ordering=sources_ntriangles,
+            inverted_slip_vectors=slips,
         )
 
     def get_interaction_matrix(self, discretized_sources: list) -> num.ndarray:
         G_slip_components = [[], [], []]
-        for bcond in self.config.boundary_conditions:
+        for bcond in self.config.boundary_conditions.iter_conditions():
             for source_idx in bcond.source_idxs:
                 source_mesh = discretized_sources[source_idx]
 

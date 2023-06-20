@@ -1272,7 +1272,6 @@ class BoundaryCondition(Object):
     source_idxs = List.T(
         Int.T(),
         default=[0],
-        optional=True,
         help="Indices for the sources that are causing the stress.",
     )
     receiver_idxs = List.T(
@@ -1280,7 +1279,7 @@ class BoundaryCondition(Object):
     )
 
 
-class BEMBoundaryConditions(Object):
+class BoundaryConditions(Object):
     conditions = Dict.T(
         String.T(),
         BoundaryCondition.T(),
@@ -1290,6 +1289,10 @@ class BEMBoundaryConditions(Object):
             "tensile": BoundaryCondition.D(slip_component="tensile"),
         },
     )
+
+    def iter_conditions(self):
+        for cond in self.conditions.values():
+            yield cond
 
     def get_traction_field(self, discretized_sources):
         if len(self.conditions) != 3:
@@ -1305,6 +1308,19 @@ class BEMBoundaryConditions(Object):
                 traction_vecs.append(receiver_mesh.get_traction_vector(slip_comp))
 
         return num.hstack(traction_vecs)
+
+
+class BEMConfig(Object):
+    nu = Float.T(default=0.25, help="Poisson's ratio")
+    mu = Float.T(default=33e9, help="Shear modulus [Pa]")
+    mesh_size = Float.T(
+        default=0.5,
+        help="Determines the size of triangles [km], the smaller the finer the discretization.",
+    )
+    boundary_conditions = BoundaryConditions.T(
+        default=BoundaryConditions.D(),
+        help="Boundary conditions for the interaction matrix and imposed traction field.",
+    )
 
 
 def get_parameter(variable, nvars=1, lower=1, upper=2):
