@@ -6,6 +6,7 @@ So far there are configuration files for the three main optimization problems
 implemented. Solving the fault geometry, the static distributed slip and the
 kinematic distributed slip.
 """
+
 import logging
 import os
 from collections import OrderedDict
@@ -14,7 +15,7 @@ import numpy as num
 from pyrocko import gf, model, trace, util
 from pyrocko.cake import load_model
 from pyrocko.gf import RectangularSource as PyrockoRS
-from pyrocko.gf.seismosizer import Cloneable, LocalEngine, stf_classes
+from pyrocko.gf.seismosizer import Cloneable, LocalEngine
 from pyrocko.guts import (
     ArgumentError,
     Bool,
@@ -31,7 +32,7 @@ from pyrocko.guts import (
 )
 from theano import config as tconfig
 
-from beat import utility
+from beat import utility, bem
 from beat.covariance import available_noise_structures, available_noise_structures_2d
 from beat.heart import (
     ArrivalTaper,
@@ -41,68 +42,28 @@ from beat.heart import (
     ReferenceLocation,
     _domain_choices,
 )
-from beat.sources import MTQTSource, MTSourceWithMagnitude, RectangularSource
+from beat.sources import RectangularSource, source_catalog, stf_catalog
 from beat.utility import check_point_keys, list2string
 
+try:
+    from beat.bem import source_catalog as bem_source_catalog
+
+    bem_catalog = {"geodetic": bem_source_catalog}
+except ImportError:
+    bem_catalog = {}
 
 guts_prefix = "beat"
 
 logger = logging.getLogger("config")
 
+stf_names = stf_catalog.keys()
+all_source_names = list(source_catalog.keys()) + list(bem_source_catalog.keys())
+
 ffi_mode_str = "ffi"
 geometry_mode_str = "geometry"
 bem_mode_str = "bem"
 
-
-block_vars = ["bl_azimuth", "bl_amplitude"]
 seis_vars = ["time", "duration"]
-
-source_names = """
-    ExplosionSource
-    RectangularExplosionSource
-    SFSource
-    DCSource
-    CLVDSource
-    MTSource
-    MTQTSource
-    RectangularSource
-    DoubleDCSource
-    RingfaultSource
-    """.split()
-
-source_classes = [
-    gf.ExplosionSource,
-    gf.RectangularExplosionSource,
-    gf.SFSource,
-    gf.DCSource,
-    gf.CLVDSource,
-    MTSourceWithMagnitude,
-    MTQTSource,
-    PyrockoRS,
-    gf.DoubleDCSource,
-    gf.RingfaultSource,
-]
-
-stf_names = """
-    Boxcar
-    Triangular
-    HalfSinusoid
-    """.split()
-
-source_catalog = {
-    name: source_class for name, source_class in zip(source_names, source_classes)
-}
-
-stf_catalog = {name: stf_class for name, stf_class in zip(stf_names, stf_classes[1:4])}
-
-interseismic_vars = [
-    "east_shift",
-    "north_shift",
-    "strike",
-    "dip",
-    "length",
-    "locking_depth",
-] + block_vars
 
 static_dist_vars = ["uparr", "uperp", "utens"]
 derived_dist_vars = ["coupling"]
@@ -119,8 +80,6 @@ kinematic_dist_vars = static_dist_vars + partial_kinematic_vars + hypo_vars
 transd_vars_dist = partial_kinematic_vars + static_dist_vars + voronoi_locations
 dist_vars = static_dist_vars + partial_kinematic_vars + derived_dist_vars
 
-interseismic_catalog = {"geodetic": interseismic_vars}
-
 geometry_catalog = {
     "polarity": source_catalog,
     "geodetic": source_catalog,
@@ -133,7 +92,7 @@ modes_catalog = OrderedDict(
     [
         [geometry_mode_str, geometry_catalog],
         [ffi_mode_str, ffi_catalog],
-        ["interseismic", interseismic_catalog],
+        [bem_mode_str, bem_catalog],
     ]
 )
 
@@ -235,14 +194,11 @@ def multi_event_seismic_data_name(nevent=0):
     if nevent == 0:
         return seismic_data_name
     else:
-        return "seismic_data_subevent_{}.pkl".format(nevent)
+        return f"seismic_data_subevent_{nevent}.pkl"
 
 
 def multi_event_stations_name(nevent=0):
-    if nevent == 0:
-        return stations_name
-    else:
-        return "stations_subevent_{}.txt".format(nevent)
+    return stations_name if nevent == 0 else f"stations_subevent_{nevent}.txt"
 
 
 linear_gf_dir_name = "linear_gfs"
@@ -666,8 +622,7 @@ class WaveformFitConfig(Object):
     interpolation = StringChoice.T(
         choices=_interpolation_choices,
         default="multilinear",
-        help="GF interpolation scheme. Choices: %s"
-        % utility.list2string(_interpolation_choices),
+        help=f"GF interpolation scheme. Choices: {utility.list2string(_interpolation_choices)}",
     )
     arrival_taper = trace.Taper.T(
         default=ArrivalTaper.D(),
@@ -744,9 +699,7 @@ class SeismicConfig(Object):
         wavenames = kwargs.pop("wavenames", ["any_P"])
         wavemaps = []
         if waveforms not in kwargs:
-            for wavename in wavenames:
-                wavemaps.append(WaveformFitConfig(name=wavename))
-
+            wavemaps.extend(WaveformFitConfig(name=wavename) for wavename in wavenames)
             kwargs[waveforms] = wavemaps
 
         mode = kwargs.pop("mode", geometry_mode_str)
@@ -775,10 +728,7 @@ class SeismicConfig(Object):
         hids = []
         for i, wc in enumerate(self.waveforms):
             if wc.include:
-                for c in wc.channels:
-                    hypername = "_".join(("h", wc.name, str(i), c))
-                    hids.append(hypername)
-
+                hids.extend("_".join(("h", wc.name, str(i), c)) for c in wc.channels)
         return hids
 
     def get_station_blacklist(self):
@@ -789,10 +739,7 @@ class SeismicConfig(Object):
         return list(set(blacklist))
 
     def get_hierarchical_names(self):
-        if self.station_corrections:
-            return ["time_shift"]
-        else:
-            return []
+        return ["time_shift"] if self.station_corrections else []
 
     def init_waveforms(self, wavenames=["any_P"]):
         """
@@ -938,7 +885,7 @@ class GNSSCorrectionConfig(CorrectionConfig):
     )
 
     def get_hierarchical_names(self, name=None, number=0):
-        return ["{}_{}".format(number, suffix) for suffix in self.get_suffixes()]
+        return [f"{number}_{suffix}" for suffix in self.get_suffixes()]
 
 
 class EulerPoleConfig(GNSSCorrectionConfig):
@@ -984,7 +931,7 @@ class RampConfig(CorrectionConfig):
 
     def get_hierarchical_names(self, name, number=0):
         return [
-            "{}_{}".format(name, suffix)
+            f"{name}_{suffix}"
             for suffix in self.get_suffixes()
             if name in self.dataset_names
         ]
@@ -1008,17 +955,13 @@ class GeodeticCorrectionsConfig(Object):
     def iter_corrections(self):
         out_corr = [self.ramp]
 
-        for euler_pole_conf in self.euler_poles:
-            out_corr.append(euler_pole_conf)
-
-        for strain_conf in self.strain_rates:
-            out_corr.append(strain_conf)
-
+        out_corr.extend(iter(self.euler_poles))
+        out_corr.extend(iter(self.strain_rates))
         return out_corr
 
     @property
     def has_enabled_corrections(self):
-        return any([corr.enabled for corr in self.iter_corrections()])
+        return any(corr.enabled for corr in self.iter_corrections())
 
 
 class DatasetConfig(Object):
@@ -1053,7 +996,7 @@ class GNSSDatasetConfig(DatasetConfig):
 
         all_targets = []
         for filename in self.names:
-            logger.info("Loading file %s ..." % filename)
+            logger.info(f"Loading file {filename} ...")
             try:
                 targets = load_and_blacklist_gnss(
                     self.datadir,
@@ -1063,14 +1006,14 @@ class GNSSDatasetConfig(DatasetConfig):
                     components=self.components,
                 )
                 if targets:
-                    logger.info("Successfully loaded GNSS data from file %s" % filename)
+                    logger.info(f"Successfully loaded GNSS data from file {filename}")
                     if campaign:
                         all_targets.append(targets)
                     else:
                         all_targets.extend(targets)
             except OSError:
                 logger.warning(
-                    "GNSS of file %s not conform with ascii format!" % filename
+                    f"GNSS of file {filename} not conform with ascii format!"
                 )
 
             return all_targets
@@ -1200,12 +1143,10 @@ def _init_kwargs(method_config_name, method_name, method_catalog, kwargs):
 
     if method and not method_config:
         kwargs[method_config_name] = method_catalog[method]()
-    elif method and method_config:
+    elif method:
         wanted_config = method_catalog[method]
         if not isinstance(method_config, wanted_config):
-            logger.info(
-                "%s method changed!" " Initializing new config..." % method_name
-            )
+            logger.info(f"{method_name} method changed! Initializing new config...")
             kwargs[method_config_name] = wanted_config()
         else:
             kwargs[method_config_name] = method_config
@@ -1266,8 +1207,7 @@ class BoundaryCondition(Object):
     slip_component = StringChoice.T(
         choices=_slip_component_choices,
         default="tensile",
-        help="Slip-component for Green's Function calculation, maybe %s "
-        % list2string(_slip_component_choices),
+        help=f"Slip-component for Green's Function calculation, maybe {list2string(_slip_component_choices)} ",
     )
     source_idxs = List.T(
         Int.T(),
@@ -1291,8 +1231,7 @@ class BoundaryConditions(Object):
     )
 
     def iter_conditions(self):
-        for cond in self.conditions.values():
-            yield cond
+        yield from self.conditions.values()
 
     def get_traction_field(self, discretized_sources):
         if len(self.conditions) != 3:
@@ -1347,11 +1286,13 @@ class ProblemConfig(Object):
     mode_config = ModeConfig.T(
         optional=True, help="Global optimization mode specific parameters."
     )
-    source_type = StringChoice.T(
-        default="RectangularSource",
-        choices=source_names,
-        help="Source type to optimize for. Choices: %s"
-        % (", ".join(name for name in source_names)),
+    source_types = List.T(
+        StringChoice.T(
+            default="RectangularSource",
+            choices=all_source_names,
+            help="Source types to optimize for. BEMSources and Sources cannot be mixed. Choices: %s"
+            % (", ".join(name for name in all_source_names)),
+        ),
     )
     stf_type = StringChoice.T(
         default="HalfSinusoid",
@@ -1382,17 +1323,17 @@ class ProblemConfig(Object):
 
     def __init__(self, **kwargs):
         mode = "mode"
-        mode_config = "mode_config"
         if mode in kwargs:
             omode = kwargs[mode]
 
             if omode == ffi_mode_str:
+                mode_config = "mode_config"
                 if mode_config not in kwargs:
                     kwargs[mode_config] = FFIConfig()
 
         Object.__init__(self, **kwargs)
 
-    def init_vars(self, variables=None, nvars=None):
+    def init_vars(self, variables=None, sizes=None):
         """
         Initiate priors based on the problem mode and datatypes.
 
@@ -1402,20 +1343,22 @@ class ProblemConfig(Object):
             of str of variable names to initialise
         """
         if variables is None:
-            variables = self.select_variables()
+            variables, sizes = self.select_variables()
+
+        n_vars = len(variables)
+        n_sizes = len(sizes)
+        if n_vars != n_sizes:
+            ValueError(
+                f"Number variables {n_vars} and number sizes {n_sizes} are inconsisten!"
+            )
 
         self.priors = OrderedDict()
 
-        for variable in variables:
-            if nvars is None:
-                if variable in block_vars:
-                    nvars = 1
-                else:
-                    nvars = self.n_sources
+        for variable, size in zip(variables, sizes):
 
             lower = default_bounds[variable][0]
             upper = default_bounds[variable][1]
-            self.priors[variable] = get_parameter(variable, nvars, lower, upper)
+            self.priors[variable] = get_parameter(variable, size, lower, upper)
 
     def set_vars(self, bounds_dict, attribute="priors", init=False):
         """
@@ -1425,9 +1368,7 @@ class ProblemConfig(Object):
             upd_dict = getattr(self, attribute)
             if variable in list(upd_dict.keys()) or init:
                 if init:
-                    logger.info(
-                        'Initialising new variable "%s" in %s' % (variable, attribute)
-                    )
+                    logger.info(f"Initialising new variable {variable} in {attribute}")
                     param = get_parameter(variable, nvars=len(bounds[0]))
                     upd_dict[variable] = param
                 else:
@@ -1453,52 +1394,56 @@ class ProblemConfig(Object):
         """
 
         if self.mode not in modes_catalog.keys():
-            raise ValueError("Problem mode %s not implemented" % self.mode)
+            raise ValueError(f"Problem mode {self.mode} not implemented")
 
-        vars_catalog = modes_catalog[self.mode]
-
-        variables = []
         for datatype in self.datatypes:
-            if datatype in vars_catalog.keys():
-                if self.mode == geometry_mode_str:
-                    if self.source_type in vars_catalog[datatype].keys():
-                        source = vars_catalog[datatype][self.source_type]
-                        svars = set(source.keys())
+            if datatype not in vars_catalog.keys():
+                raise ValueError(
+                    f"""Datatype {datatype} not supported for type of problem!
+                    Supported datatype are: {list2string(vars_catalog.keys())}"""
+                )
 
-                        if isinstance(source(), (PyrockoRS, gf.ExplosionSource)):
-                            svars.discard("magnitude")
-
-                        variables += utility.weed_input_rvs(svars, self.mode, datatype)
-                    else:
+        unique_variables = {}
+        vars_catalog = modes_catalog[self.mode]
+        for datatype in self.datatypes:
+            variables = {}
+            if self.mode in [geometry_mode_str, bem_mode_str]:
+                for source_type, n_source in zip(self.source_types, self.n_sources):
+                    if source_type not in vars_catalog[datatype].keys():
                         raise ValueError(
                             "Source Type not supported for type"
                             " of problem, and datatype!"
                         )
 
-                    if datatype == "seismic":
-                        if self.stf_type in stf_catalog.keys():
-                            stf = stf_catalog[self.stf_type]
-                            variables += utility.weed_input_rvs(
-                                set(stf.keys()), self.mode, datatype
-                            )
-                else:
-                    variables += vars_catalog[datatype]
+                    source = vars_catalog[datatype][source_type]
+                    if datatype == "seismic" and self.stf_type in stf_catalog.keys():
+                        stf = stf_catalog[self.stf_type]
+                    else:
+                        stf = {}
+
+                    source_varnames = set(source.keys() + stf.keys())
+                    if isinstance(source(), (PyrockoRS, gf.ExplosionSource)):
+                        source_varnames.discard("magnitude")
+
+                    for varname in source_varnames:
+                        if varname in variables:
+                            variables[varname] += n_source
+                        else:
+                            variables[varname] = n_source
+
+                    variables = utility.weed_input_rvs(variables, self.mode, datatype)
+                    unique_variables |= variables
             else:
-                raise ValueError(
-                    "Datatype %s not supported for type of"
-                    " problem! Supported datatype are: %s"
-                    % (datatype, ", ".join('"%s"' % d for d in vars_catalog.keys()))
-                )
+                for varname in vars_catalog[datatype]:
+                    variables[varname] = self.n_sources[0]
 
-        unique_variables = utility.unique_list(variables)
-
-        if len(unique_variables) == 0:
-            raise Exception(
+        if len(variables) == 0:
+            raise ValueError(
                 "Mode and datatype combination not implemented"
                 " or not resolvable with given datatypes."
             )
 
-        return unique_variables
+        return variables
 
     def get_random_variables(self):
         """
@@ -1515,8 +1460,8 @@ class ProblemConfig(Object):
 
         logger.debug("Optimization for %i sources", self.n_sources)
 
-        rvs = dict()
-        fixed_params = dict()
+        rvs = {}
+        fixed_params = {}
         for param in self.priors.values():
             if not num.array_equal(param.lower, param.upper):
                 shape = self.get_parameter_shape(param)
@@ -1539,8 +1484,7 @@ class ProblemConfig(Object):
 
             else:
                 logger.info(
-                    "not solving for %s, got fixed at %s"
-                    % (param.name, utility.list2string(param.lower.flatten()))
+                    f"not solving for {param.name}, got fixed at {utility.list2string(param.lower.flatten())}"
                 )
                 fixed_params[param.name] = param.lower
 
@@ -1562,10 +1506,11 @@ class ProblemConfig(Object):
         Determines the reduction of discretization of an extended source.
         Influences yet only the RectangularSource.
         """
-        if self.source_type == "RectangularSource":
-            self.decimation_factors = {}
-            for datatype in self.datatypes:
-                self.decimation_factors[datatype] = default_decimation_factors[datatype]
+        if "RectangularSource" in self.source_types:
+            self.decimation_factors = {
+                datatype: default_decimation_factors[datatype]
+                for datatype in self.datatypes
+            }
         else:
             self.decimation_factors = None
 
@@ -1580,8 +1525,8 @@ class ProblemConfig(Object):
         """
 
         d = getattr(self, dict_name)
-        double_check = []
         if d is not None:
+            double_check = []
             for name, param in d.items():
                 param.validate_bounds()
                 if name not in double_check:
@@ -1593,9 +1538,9 @@ class ProblemConfig(Object):
                         "Parameter %s not unique in %s!".format(name, dict_name)
                     )
 
-            logger.info("All {} ok!".format(dict_name))
+            logger.info(f"All {dict_name} ok!")
         else:
-            logger.info("No {} defined!".format(dict_name))
+            logger.info(f"No {dict_name} defined!")
 
     def validate_all(self):
         """
@@ -1641,55 +1586,59 @@ class ProblemConfig(Object):
         return test_point
 
     def get_parameter_shape(self, param):
-        if self.mode == ffi_mode_str:
-            if param.name in hypo_vars:
-                shape = self.n_sources
-            elif param.name not in hypo_vars and self.mode_config.npatches:
-                shape = self.mode_config.subfault_npatches
-                if len(shape) == 0:
-                    shape = self.mode_config.npatches
-            else:
-                shape = param.dimension
-
-        elif self.mode == geometry_mode_str:
+        if self.mode == ffi_mode_str and param.name in hypo_vars:
+            shape = self.n_sources
+        elif self.mode == ffi_mode_str and self.mode_config.npatches:
+            shape = self.mode_config.subfault_npatches
+            if len(shape) == 0:
+                shape = self.mode_config.npatches
+        elif self.mode in [ffi_mode_str, geometry_mode_str]:
             shape = param.dimension
+
         else:
-            raise TypeError("Mode not implemented: %s" % self.mode)
+            raise TypeError(f"Mode not implemented: {self.mode}")
 
         return shape
 
     def get_derived_variables_shapes(self):
-        source_type = self.source_type
+        """
+        TODO adjust to sources list!
+
+        Returns:
+            _type_: _description_
+        """
 
         tpoint = self.get_test_point()
         has_pole, _ = check_point_keys(tpoint, phrase="*_pole_lat")
 
-        if has_pole:
-            source_type += "Pole"
+        derived = {}
+        for source_type, n_source in zip(self.source_types, self.n_sources):
+            if has_pole:
+                source_type += "Pole"
 
-        try:
-            varnames = derived_variables_mapping[source_type]
-            shapes = []
-            for varname in varnames:
-                if self.mode == geometry_mode_str:
-                    shape = (self.n_sources,)
-                elif self.mode == ffi_mode_str:
-                    if varname == "magnitude":
-                        shape = (1,)
+            try:
+                shapes = []
+                source_varnames = derived_variables_mapping[source_type]
+                for varname in source_varnames:
+                    if self.mode == geometry_mode_str:
+                        shape = n_source
+                    elif self.mode == ffi_mode_str:
+                        shape = (
+                            1 if varname == "magnitude" else self.mode_config.npatches
+                        )
+                    if varname in derived:
+                        derived[varname] += shape
                     else:
-                        shape = (self.mode_config.npatches,)
+                        derived[varname] = shape
 
-                shapes.append(shape)
+            except KeyError:
+                logger.info(f"No derived variables for {source_type}")
 
-            logger.info(
-                "Adding derived variables %s with shapes %s to "
-                "trace." % (list2string(varnames), list2string(shapes))
-            )
-        except KeyError:
-            logger.info("No derived variables for %s" % source_type)
-            varnames = []
-            shapes = []
-
+        shapes = [(shape,) for shape in derived.values()]
+        varnames = list(derived.keys())
+        logger.info(
+            f"Adding derived variables {list2string(varnames)} with shapes {list2string(shapes)} to trace."
+        )
         return varnames, shapes
 
 
@@ -1911,11 +1860,10 @@ class SeismicGFLibraryConfig(GFLibaryConfig):
 
     @property
     def _mapid(self):
-        if hasattr(self, "mapnumber"):
-            if self.mapnumber is not None:
-                return "_".join((self.wave_config.name, str(self.mapnumber)))
-        else:
+        if not hasattr(self, "mapnumber"):
             return self.wave_config.name
+        if self.mapnumber is not None:
+            return "_".join((self.wave_config.name, str(self.mapnumber)))
 
 
 datatype_catalog = {
@@ -1958,19 +1906,21 @@ class BEATconfig(Object, Cloneable):
 
         hypernames = []
         for datatype in _datatype_choices:
-            datatype_conf = getattr(self, "%s_config" % datatype)
+            datatype_conf = getattr(self, f"{datatype}_config")
             if datatype_conf is not None:
                 hypernames.extend(datatype_conf.get_hypernames())
 
-        if self.problem_config.mode == ffi_mode_str:
-            if self.problem_config.mode_config.regularization == "laplacian":
-                hypernames.append(hyper_name_laplacian)
+        if (
+            self.problem_config.mode == ffi_mode_str
+            and self.problem_config.mode_config.regularization == "laplacian"
+        ):
+            hypernames.append(hyper_name_laplacian)
 
         hypers = OrderedDict()
+        defaultb_name = "hypers"
         for name in hypernames:
-            logger.info("Added hyperparameter %s to config and " "model setup!" % name)
+            logger.info(f"Added hyperparameter {name} to config and model setup!")
 
-            defaultb_name = "hypers"
             hypers[name] = Parameter(
                 name=name,
                 lower=num.ones(1, dtype=tconfig.floatX)
@@ -2017,7 +1967,7 @@ class BEATconfig(Object, Cloneable):
         shp = 1
         for name in hierarnames:
             logger.info(
-                "Added hierarchical parameter %s to config and " "model setup!" % name
+                f"Added hierarchical parameter {name} to config and model setup!"
             )
 
             if name == "time_shift":
@@ -2063,8 +2013,7 @@ def init_reference_sources(source_points, n_sources, source_type, stf_type, even
             rf = RectangularSource(stf=stf, anchor="top")
             utility.update_source(rf, **source_points[i])
         else:
-            kwargs = {}
-            kwargs["stf"] = stf
+            kwargs = {"stf": stf}
             rf = RectangularSource.from_kite_source(source_points[i], kwargs=kwargs)
 
         rf.nucleation_x = None
@@ -2089,8 +2038,8 @@ def init_config(
     main_path="./",
     datatypes=["geodetic"],
     mode="geometry",
-    source_type="RectangularSource",
-    n_sources=1,
+    source_types=["RectangularSource"],
+    n_sources=[1],
     waveforms=["any_P"],
     sampler="SMC",
     hyper_sampler="Metropolis",
@@ -2157,14 +2106,14 @@ def init_config(
             dconfig.gf_config.use_crust2 = False
             dconfig.gf_config.replace_water = False
 
-        config["%s_config" % datatype] = dconfig
+        config[f"{datatype}_config"] = dconfig
         return config
 
     c = BEATconfig(name=name, date=date)
     c.project_dir = os.path.join(os.path.abspath(main_path), name)
 
-    if mode == geometry_mode_str or mode == "interseismic":
-        if date is not None and not mode == "interseismic":
+    if mode in [geometry_mode_str, "interseismic"]:
+        if date is not None and mode != "interseismic":
             c.event = utility.search_catalog(date=date, min_magnitude=min_magnitude)
 
         elif mode == "interseismic":
@@ -2187,7 +2136,10 @@ def init_config(
             init_dataset_config(c, datatype=datatype)
 
     elif mode == ffi_mode_str:
-        if source_type != "RectangularSource":
+        if len(source_types) > 1:
+            raise TypeError("FFI is not supported with mixed source types, yet.")
+
+        if "RectangularSource" not in source_types:
             raise TypeError(
                 "Distributed slip is so far only supported" " for RectangularSource(s)"
             )
@@ -2202,16 +2154,16 @@ def init_config(
                 " stores for the non-linear problem." % geometry_mode_str
             )
 
+        geometry_source_type = gmc.problem_config.source_types[0]
         logger.info("Taking information from geometry_config ...")
-        if source_type != gmc.problem_config.source_type:
+        if source_types[0] != geometry_source_type:
             raise ValueError(
                 'Specified reference source: "%s" differs from the'
                 " source that has been used previously in"
-                ' "geometry" mode: "%s"!'
-                % (source_type, gmc.problem_config.source_type)
+                ' "geometry" mode: "%s"!' % (source_types[0], geometry_source_type)
             )
 
-        n_sources = gmc.problem_config.n_sources
+        n_sources = gmc.problem_config.n_sources[0]
         point = {k: v.testvalue for k, v in gmc.problem_config.priors.items()}
         point = utility.adjust_point_units(point)
         source_points = utility.split_point(point)
@@ -2219,7 +2171,7 @@ def init_config(
         reference_sources = init_reference_sources(
             source_points,
             n_sources,
-            gmc.problem_config.source_type,
+            geometry_source_type,
             gmc.problem_config.stf_type,
             event=gmc.event,
         )
@@ -2274,7 +2226,7 @@ def init_config(
             c.seismic_config.gf_config = lgf_config
 
     c.problem_config = ProblemConfig(
-        n_sources=n_sources, datatypes=datatypes, mode=mode, source_type=source_type
+        n_sources=n_sources, datatypes=datatypes, mode=mode, source_types=source_types
     )
     c.problem_config.init_vars()
     c.problem_config.set_decimation_factor()
@@ -2303,7 +2255,7 @@ def dump_config(config):
     ----------
     config : :class:`BEATConfig`
     """
-    config_file_name = "config_" + config.problem_config.mode + ".yaml"
+    config_file_name = f"config_{config.problem_config.mode}.yaml"
     conf_out = os.path.join(config.project_dir, config_file_name)
     dump(config, filename=conf_out)
 
@@ -2326,14 +2278,14 @@ def load_config(project_dir, mode):
     -------
     :class:`BEATconfig`
     """
-    config_file_name = "config_" + mode + ".yaml"
+    config_file_name = f"config_{mode}.yaml"
 
     config_fn = os.path.join(project_dir, config_file_name)
 
     try:
         config = load(filename=config_fn)
     except IOError:
-        raise IOError("Cannot load config, file %s" " does not exist!" % config_fn)
+        raise IOError(f"Cannot load config, file {config_fn} does not exist!")
     except (ArgumentError, TypeError):
         raise ConfigNeedsUpdatingError()
 

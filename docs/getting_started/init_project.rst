@@ -5,7 +5,7 @@ Each modeling project is initiated with the "beat init" command. There are many 
 
 For example to optimize for a Full Moment Tensor for the Landers EQ by using seismic data, with station dependent Greens Functions for P and S waves with the default sampling algorithm (Sequential Monte Carlo) run::
 
-    beat init LandersEQ 1992-06-28 --datatypes='seismic' --individual_gfs --n_sources=1 --source_type=MTSource --min_mag=7
+    beat init LandersEQ 1992-06-28 --datatypes='seismic' --individual_gfs --n_sources=1 --source_types=MTSource --min_mag=7
 
 This will create project directory called LandersEQ in the current directory.
 Within the directory you will see that there have been two files created:
@@ -63,7 +63,7 @@ This example configuration file looks like this::
     project_dir: /home/vasyurhm/BEATS/LandersEQ
     problem_config: !beat.ProblemConfig
       mode: geometry
-      source_type: MTSource
+      source_types: [MTSource]
       stf_type: HalfSinusoid
       n_sources: 1
       datatypes: [seismic]
@@ -252,7 +252,7 @@ Initialize modeling project of an unlisted earthquake
 To create a customizable moment tensor project for an earthquake not included in any moment tensor
 catalog, run::
 
-    beat init newEQ --datatypes='seismic' --mode='geometry' --source_type='MTSource' --waveforms='any_P, any_S, slowest' --use_custom
+    beat init newEQ --datatypes='seismic' --mode='geometry' --source_types='MTSource' --waveforms='any_P, any_S, slowest' --use_custom
 
 This creates the folder “newEQ” with a *config_geometry.yaml* file inside. Some parameters should be
 manually edited and filled up. These are some suggested initial changes in the configuration file:

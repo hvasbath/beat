@@ -257,21 +257,29 @@ def command_init(args):
         )
 
         parser.add_option(
-            "--source_type",
-            dest="source_type",
-            choices=bconfig.source_names,
-            default="RectangularSource",
-            help="Source type to solve for; %s"
-            '. Default: "RectangularSource"'
-            % ('", "'.join(name for name in bconfig.source_names)),
+            "--source_types",
+            dest="source_types",
+            type="string",
+            action="callback",
+            callback=list_callback,
+            default=["RectangularSource"],
+            help="Source types to solve for. Can be any combination of the "
+            "following for mode: geometry - %s; bem - %s; "
+            "Default: 'RectangularSource'"
+            % (
+                list2string(bconfig.source_catalog.keys()),
+                list2string(bconfig.bem_source_catalog.keys()),
+            ),
         )
 
         parser.add_option(
             "--n_sources",
             dest="n_sources",
-            type="int",
+            type="string",
             default=1,
-            help="Integer Number of sources to invert for. Default: 1",
+            action="callback",
+            callback=list_callback,
+            help="List integer Number of sources per source type to invert for. Default: [1]",
         )
 
         parser.add_option(

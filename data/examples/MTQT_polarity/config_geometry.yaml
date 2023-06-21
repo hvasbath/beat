@@ -30,7 +30,7 @@ event: !pf.Event
 project_dir: /home/vasyurhm/BEATS/Polarity_tutorial
 problem_config: !beat.ProblemConfig
   mode: geometry
-  source_type: MTQTSource
+  source_types: [MTQTSource]
   stf_type: Triangular
   n_sources: 1
   datatypes:

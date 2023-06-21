@@ -3,6 +3,7 @@ import numpy as num
 
 from pyrocko.guts import Object, Float, StringChoice, List, Int, Bool
 from pyrocko.model import Location
+from pyrocko.gf.seismosizer import Cloneable
 
 try:
     import pygmsh
@@ -34,17 +35,21 @@ slip_comp_to_idx = {
 }
 
 
+__all__ = [
+    "DiscretizedBEMSource",
+    "RingfaultBEMSource",
+    "DiskBEMSource",
+    "source_catalog",
+]
+
+
 def get_node_name(ellipse_prefix, node_suffix):
-    return "%s_%s_node" % (ellipse_prefix, node_suffix)
+    return f"{ellipse_prefix}_{node_suffix}_node"
 
 
 class DiscretizedBEMSource(object):
     def __init__(self, mesh, dtype=None, tractions=(0, 0, 0)):
-        if dtype is not None:
-            self._points = mesh.points.astype(dtype)
-        else:
-            self._points = mesh.points
-
+        self._points = mesh.points.astype(dtype) if dtype is not None else mesh.points
         self._mesh = mesh
         self._centroids = None
         self._tdcs = None
@@ -120,106 +125,8 @@ class DiscretizedBEMSource(object):
             self._e_normal = normal_vec
         return self._e_normal
 
-    @property
-    def triangles_xyz(self):
-        return self.vertices[self.triangles_idxs]
 
-    @property
-    def n_triangles(self):
-        return self.triangles_xyz.shape[0]
-
-    @property
-    def centroids(self):
-        if self._centroids is None:
-            self._centroids = num.mean(self.triangles_xyz, axis=1)
-
-        return self._centroids
-
-    @property
-    def vectors_tdcs(self):
-        """
-        Unit vectors in Triangular Dislocation Coordinate System
-        """
-        if self._tdcs is None:
-            self._tdcs = compute_efcs_to_tdcs_rotations(self.triangles_xyz)
-
-        return self._tdcs
-
-    @property
-    def unit_strike_vectors(self):
-        if self._e_strike is None:
-            strike_vec = self.vectors_tdcs[:, 0, :]
-            strike_vec /= num.linalg.norm(strike_vec, axis=1)[:, None]
-            self._e_strike = strike_vec
-        return self._e_strike
-
-    @property
-    def unit_dip_vectors(self):
-        if self._e_dip is None:
-            dip_vec = self.vectors_tdcs[:, 1, :]
-            dip_vec /= num.linalg.norm(dip_vec, axis=1)[:, None]
-            self._e_dip = dip_vec
-        return self._e_dip
-
-    @property
-    def unit_normal_vectors(self):
-        if self._e_normal is None:
-            normal_vec = self.vectors_tdcs[:, 2, :]
-            normal_vec /= num.linalg.norm(normal_vec, axis=1)[:, None]
-            self._e_normal = normal_vec
-        return self._e_normal
-
-    @property
-    def triangles_xyz(self):
-        return self.vertices[self.triangles_idxs]
-
-    @property
-    def n_triangles(self):
-        return self.triangles_xyz.shape[0]
-
-    @property
-    def centroids(self):
-        if self._centroids is None:
-            self._centroids = num.mean(self.triangles_xyz, axis=1)
-
-        return self._centroids
-
-    @property
-    def vectors_tdcs(self):
-        """
-        Unit vectors in Triangular Dislocation Coordinate System
-        """
-        if self._tdcs is None:
-            self._tdcs = compute_efcs_to_tdcs_rotations(self.triangles_xyz)
-
-        return self._tdcs
-
-    @property
-    def unit_strike_vectors(self):
-        if self._e_strike is None:
-            strike_vec = self.vectors_tdcs[:, 0, :]
-            strike_vec /= num.linalg.norm(strike_vec, axis=1)[:, None]
-            self._e_strike = strike_vec
-        return self._e_strike
-
-    @property
-    def unit_dip_vectors(self):
-        if self._e_dip is None:
-            dip_vec = self.vectors_tdcs[:, 1, :]
-            dip_vec /= num.linalg.norm(dip_vec, axis=1)[:, None]
-            self._e_dip = dip_vec
-        return self._e_dip
-
-    @property
-    def unit_normal_vectors(self):
-        if self._e_normal is None:
-            normal_vec = self.vectors_tdcs[:, 2, :]
-            normal_vec /= num.linalg.norm(normal_vec, axis=1)[:, None]
-            self._e_normal = normal_vec
-        return self._e_normal
-
-
-class BEMSource(Location):
+class BEMSource(Location, Cloneable):
     strike_traction = Float.T(
         default=0.0, help="Traction in strike-direction of the Triangles"
     )
@@ -231,7 +138,7 @@ class BEMSource(Location):
     )
 
 
-class Ellipse(BEMSource):
+class EllipseBEMSource(BEMSource):
     major_axis = Float.T(default=0.5 * km)
     minor_axis = Float.T(default=0.3 * km)
 
@@ -341,12 +248,12 @@ class Ellipse(BEMSource):
                     raise ValueError("Geometry needs to be initialized first!")
 
 
-class Disk(Ellipse):
+class DiskBEMSource(EllipseBEMSource):
     plunge = Float.T(default=0.0)
     dip = Float.T(default=0.0)
 
     def __init__(self, **kwargs):
-        Ellipse.__init__(self, **kwargs)
+        EllipseBEMSource.__init__(self, **kwargs)
 
     def discretize_basesource(self, mesh_size, target=None, optimize=False, plot=False):
         with pygmsh.geo.Geometry() as geom:
@@ -398,7 +305,7 @@ class Disk(Ellipse):
             )
 
 
-class Ringfault(Ellipse):
+class RingfaultBEMSource(EllipseBEMSource):
     delta_east_shift_bottom = Float.T(default=0.0 * km)
     delta_north_shift_bottom = Float.T(default=0.0 * km)
     delta_depth_bottom = Float.T(default=1.0 * km)
@@ -409,7 +316,7 @@ class Ringfault(Ellipse):
     minor_axis_bottom = Float.T(default=0.35 * km)
 
     def __init__(self, **kwargs):
-        Ellipse.__init__(self, **kwargs)
+        EllipseBEMSource.__init__(self, **kwargs)
 
     @property
     def bottom_origin_node(self):
@@ -581,3 +488,13 @@ class Ringfault(Ellipse):
                     self.tensile_traction,
                 ),
             )
+
+
+source_names = """
+    DiskBEMSource
+    RingfaultBEMSource
+    """.split()
+
+source_classes = [DiskBEMSource, RingfaultBEMSource]
+
+source_catalog = dict(zip(source_names, source_classes))

@@ -7,8 +7,8 @@ from numpy.testing import assert_allclose
 from pyrocko import util
 from pyrocko.gf.targets import StaticTarget
 
-from beat.bem import BEMEngine, Ringfault, Disk, slip_comp_to_idx
-from beat.config import BEMConfig, BoundaryConditions
+from beat.bem import BEMEngine, RingfaultBEMSource, DiskBEMSource, slip_comp_to_idx
+from beat.config import BEMConfig
 from matplotlib import pyplot as plt
 
 km = 1.0e3
@@ -27,7 +27,7 @@ def plot_static_result(result, target, npoints=100):
     fig, axs = plt.subplots(1, 3, figsize=(17, 5), dpi=300)
     for i, comp in enumerate(["n", "e", "d"]):
         ax = axs[i]
-        disp_grid = result["displacement.%s" % comp].reshape((npoints, npoints))
+        disp_grid = result[f"displacement.{comp}"].reshape((npoints, npoints))
         grd_e = target.east_shifts.reshape((npoints, npoints))
         grd_n = target.north_shifts.reshape((npoints, npoints))
         cntf = ax.contourf(grd_e, grd_n, disp_grid, levels=21)
@@ -112,7 +112,7 @@ def plot_sources_3d(discretized_sources, slip_vectors):
 def get_disk_setup():
     targets = [get_static_target([-10 * km, 10 * km], 100)]
     sources = [
-        Disk(
+        DiskBEMSource(
             tensile_traction=2.15e9,
             north_shift=0.5 * km,
             depth=3.5 * km,
@@ -127,7 +127,7 @@ def get_disk_setup():
 def get_disk_ringfault_setup():
     targets = [get_static_target([-10 * km, 10 * km], 100)]
     sources = [
-        Disk(
+        DiskBEMSource(
             tensile_traction=2.15e9,
             north_shift=0.5 * km,
             depth=4.0 * km,
@@ -135,7 +135,7 @@ def get_disk_ringfault_setup():
             dip=10,
             strike=40,
         ),
-        Ringfault(
+        RingfaultBEMSource(
             north_shift=0.0,
             delta_north_shift_bottom=0.5 * km,
             depth=0.5 * km,

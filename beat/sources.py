@@ -16,6 +16,7 @@ from pyrocko.guts import Float
 
 from beat.utility import get_rotation_matrix
 
+
 # MTQT constants
 pi = num.pi
 pi4 = pi / 4.0
@@ -691,3 +692,41 @@ class MTSourceWithMagnitude(gf.SourceWithMagnitude):
     def get_derived_parameters(self, point=None, store=None, target=None, event=None):
         mt = mtm.MomentTensor.from_values(self.scaled_m6)
         return num.hstack(mt.both_strike_dip_rake())
+
+
+source_names = """
+    ExplosionSource
+    RectangularExplosionSource
+    SFSource
+    DCSource
+    CLVDSource
+    MTSource
+    MTQTSource
+    RectangularSource
+    DoubleDCSource
+    RingfaultSource
+    """.split()
+
+
+source_classes = [
+    gf.ExplosionSource,
+    gf.RectangularExplosionSource,
+    gf.SFSource,
+    gf.DCSource,
+    gf.CLVDSource,
+    MTSourceWithMagnitude,
+    MTQTSource,
+    gf.RectangularSource,
+    gf.DoubleDCSource,
+    gf.RingfaultSource,
+]
+
+source_catalog = dict(zip(source_names, source_classes))
+
+stf_names = """
+    Boxcar
+    Triangular
+    HalfSinusoid
+    """.split()
+
+stf_catalog = dict(zip(stf_names, gf.seismosizer.stf_classes[1:4]))

@@ -1177,84 +1177,91 @@ def extract_mt_components(problem, po, include_magnitude=False):
     """
     Extract Moment Tensor components from problem results for plotting.
     """
-    source_type = problem.config.problem_config.source_type
+    source_types = problem.config.problem_config.source_types
     n_sources = problem.config.problem_config.n_sources
 
-    if source_type in ["MTSource", "MTQTSource"]:
-        varnames = ["mnn", "mee", "mdd", "mne", "mnd", "med"]
-    elif source_type in ["DCSource", "RectangularSource"]:
-        varnames = ["strike", "dip", "rake"]
-    else:
-        raise ValueError('Plot is only supported for point "MTSource" and "DCSource"')
-
-    if include_magnitude:
-        varnames += ["magnitude"]
-
-    if not po.reference:
-        rpoint = None
-        llk_str = po.post_llk
-        stage = load_stage(
-            problem, stage_number=po.load_stage, load="trace", chains=[-1]
-        )
-
-        list_m6s = []
-        list_best_mts = []
-        for idx_source in range(n_sources):
-            n_mts = len(stage.mtrace)
-            m6s = num.empty((n_mts, len(varnames)), dtype="float64")
-            for i, varname in enumerate(varnames):
-                try:
-                    m6s[:, i] = (
-                        stage.mtrace.get_values(varname, combine=True, squeeze=True)
-                        .T[idx_source]
-                        .ravel()
-                    )
-
-                except ValueError:  # if fixed value add that to the ensemble
-                    rpoint = problem.get_random_point()
-                    mtfield = num.full_like(
-                        num.empty((n_mts), dtype=num.float64),
-                        rpoint[varname][idx_source],
-                    )
-                    m6s[:, i] = mtfield
-
-            if po.nensemble:
-                logger.info("Drawing %i solutions from ensemble ..." % po.nensemble)
-                csteps = float(n_mts) / po.nensemble
-                idxs = num.floor(num.arange(0, n_mts, csteps)).astype("int32")
-                m6s = m6s[idxs, :]
-            else:
-                logger.info("Drawing full ensemble ...")
-
-            point = get_result_point(stage.mtrace, po.post_llk)
-            best_mt = point2array(
-                point, varnames=varnames, rpoint=rpoint, idx_source=idx_source
+    list_m6s = []
+    list_best_mts = []
+    for n_source, source_type in zip(n_sources, source_types):
+        if source_type in ["MTSource", "MTQTSource"]:
+            varnames = ["mnn", "mee", "mdd", "mne", "mnd", "med"]
+        elif source_type in ["DCSource", "RectangularSource"]:
+            varnames = ["strike", "dip", "rake"]
+        else:
+            raise ValueError(
+                'Plot is only supported for point "MTSource" and "DCSource"'
             )
 
-            list_m6s.append(m6s)
-            list_best_mts.append(best_mt)
-    else:
-        llk_str = "ref"
-        point = po.reference
-        list_best_mts = []
-        list_m6s = []
-        if source_type == "MTQTSource":
-            composite = problem.composites[problem.config.problem_config.datatypes[0]]
-            composite.point2sources(po.reference)
-            for source in composite.sources:
-                list_m6s.append([source.get_derived_parameters()[0:6]])
-                list_best_mts.append(None)
+        if include_magnitude:
+            varnames += ["magnitude"]
 
-        else:
-            for idx_source in range(n_sources):
-                list_m6s.append(
-                    [
-                        point2array(
-                            point=po.reference, varnames=varnames, idx_source=idx_source
+        if not po.reference:
+            rpoint = None
+            llk_str = po.post_llk
+            stage = load_stage(
+                problem, stage_number=po.load_stage, load="trace", chains=[-1]
+            )
+
+            for idx_source in range(n_source):
+                n_mts = len(stage.mtrace)
+                m6s = num.empty((n_mts, len(varnames)), dtype="float64")
+                for i, varname in enumerate(varnames):
+                    try:
+                        m6s[:, i] = (
+                            stage.mtrace.get_values(varname, combine=True, squeeze=True)
+                            .T[idx_source]
+                            .ravel()
                         )
-                    ]
+
+                    except ValueError:  # if fixed value add that to the ensemble
+                        rpoint = problem.get_random_point()
+                        mtfield = num.full_like(
+                            num.empty((n_mts), dtype=num.float64),
+                            rpoint[varname][idx_source],
+                        )
+                        m6s[:, i] = mtfield
+
+                if po.nensemble:
+                    logger.info("Drawing %i solutions from ensemble ..." % po.nensemble)
+                    csteps = float(n_mts) / po.nensemble
+                    idxs = num.floor(num.arange(0, n_mts, csteps)).astype("int32")
+                    m6s = m6s[idxs, :]
+                else:
+                    logger.info("Drawing full ensemble ...")
+
+                point = get_result_point(stage.mtrace, po.post_llk)
+                best_mt = point2array(
+                    point, varnames=varnames, rpoint=rpoint, idx_source=idx_source
                 )
-                list_best_mts.append(None)
+
+                list_m6s.append(m6s)
+                list_best_mts.append(best_mt)
+        else:
+            llk_str = "ref"
+            point = po.reference
+            list_best_mts = []
+            list_m6s = []
+            if source_type == "MTQTSource":
+                composite = problem.composites[
+                    problem.config.problem_config.datatypes[0]
+                ]
+                composite.point2sources(po.reference)
+                for source in composite.sources:
+                    list_m6s.append([source.get_derived_parameters()[0:6]])
+                    list_best_mts.append(None)
+
+            else:
+                for idx_source in range(n_sources):
+                    list_m6s.append(
+                        [
+                            point2array(
+                                point=po.reference,
+                                varnames=varnames,
+                                idx_source=idx_source,
+                            )
+                        ]
+                    )
+                    list_best_mts.append(None)
 
     return list_m6s, list_best_mts, llk_str, point
 
@@ -2648,7 +2655,9 @@ def draw_lune_plot(problem, po):
     if po.outformat == "svg":
         raise NotImplementedError("SVG format is not supported for this plot!")
 
-    if problem.config.problem_config.source_type != "MTQTSource":
+    try:
+        idx = problem.config.problem_config.source_types.index("MTQTSource")
+    except ValueError:
         raise TypeError("Lune plot is only supported for the MTQTSource!")
 
     if po.load_stage is None:
@@ -2657,9 +2666,9 @@ def draw_lune_plot(problem, po):
     stage = load_stage(problem, stage_number=po.load_stage, load="trace", chains=[-1])
     n_mts = len(stage.mtrace)
 
-    n_sources = problem.config.problem_config.n_sources
+    n_source = problem.config.problem_config.n_sources[idx]
 
-    for idx_source in range(n_sources):
+    for idx_source in range(n_source):
         result_ensemble = {}
         for varname in ["v", "w"]:
             try:

@@ -123,7 +123,7 @@ Under the *problem_config* we find the parameters that we need to adjust::
         regularization: none
         npatches: 121
         initialization: random
-      source_type: RectangularSource
+      source_types: [RectangularSource]
       stf_type: HalfSinusoid
       decimation_factors:
         geodetic: 1

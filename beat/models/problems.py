@@ -629,7 +629,7 @@ class SourceOptimizer(Problem):
 
         pc = config.problem_config
 
-        if self.nevents != pc.n_sources and self.nevents != 1:
+        if self.nevents != num.sum(pc.n_sources) and self.nevents != 1:
             raise ValueError(
                 "Number of events and sources have to be equal or only one "
                 "event has to be used! Number if events %i and number of "
@@ -638,20 +638,21 @@ class SourceOptimizer(Problem):
 
         # Init sources
         self.sources = []
-        for i in range(pc.n_sources):
-            if self.nevents > 1:
-                event = self.events[i]
-            else:
-                event = self.event
+        for source_type, n_source in zip(pc.source_types, pc.n_sources):
+            for i in range(n_source):
+                if self.nevents > 1:
+                    event = self.events[i]
+                else:
+                    event = self.event
 
-            source = bconfig.source_catalog[pc.source_type].from_pyrocko_event(event)
-            source.stf = bconfig.stf_catalog[pc.stf_type](duration=event.duration)
+                source = bconfig.source_catalog[source_type].from_pyrocko_event(event)
+                source.stf = bconfig.stf_catalog[pc.stf_type](duration=event.duration)
 
-            # hardcoded inversion for hypocentral time
-            if source.stf is not None:
-                source.stf.anchor = -1.0
+                # hardcoded inversion for hypocentral time
+                if source.stf is not None:
+                    source.stf.anchor = -1.0
 
-            self.sources.append(source)
+                self.sources.append(source)
 
 
 class GeometryOptimizer(SourceOptimizer):

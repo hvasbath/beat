@@ -29,7 +29,7 @@ event: !pf.Event
 project_dir: /home/vasyurhm/BEATS/LaquilaJointPonlyUPDATE
 problem_config: !beat.ProblemConfig
   mode: geometry
-  source_type: RectangularSource
+  source_types: [RectangularSource]
   stf_type: HalfSinusoid
   decimation_factors:
     geodetic: 4

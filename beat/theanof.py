@@ -15,6 +15,7 @@ import theano
 import theano.tensor as tt
 from pymc3.model import FreeRV
 from pyrocko.trace import nextpow2
+from pyrocko.gf import LocalEngine
 
 from beat import heart, interseismic, utility
 from beat.fast_sweeping import fast_sweep
@@ -41,10 +42,17 @@ class GeoSynthesizer(theano.Op):
     __props__ = ("engine", "sources", "targets")
 
     def __init__(self, engine, sources, targets):
+        if isinstance(engine, LocalEngine):
+            self.outmode = "stacked_array"
+        else:
+            self.outmode = "array"
+
         self.engine = engine
         self.sources = tuple(sources)
         self.targets = tuple(targets)
         self.nobs = sum([target.lats.size for target in self.targets])
+
+        # add source to point mapping here for mixed source setups
 
     def __getstate__(self):
         self.engine.close_cashed_stores()
@@ -96,6 +104,7 @@ class GeoSynthesizer(theano.Op):
 
         mpoint = utility.adjust_point_units(point)
 
+        # TODO Mapping
         source_points = utility.split_point(mpoint)
 
         for i, source in enumerate(self.sources):
@@ -107,7 +116,7 @@ class GeoSynthesizer(theano.Op):
             engine=self.engine,
             targets=self.targets,
             sources=self.sources,
-            outmode="stacked_array",
+            outmode=self.outmode,
         )
 
     def infer_shape(self, node, input_shapes):
@@ -286,7 +295,7 @@ class GeoInterseismicSynthesizer(theano.Op):
             lons=num.array(self.lons),
             lats=num.array(self.lats),
             reference=self.reference,
-            **bpoint
+            **bpoint,
         )
 
         def infer_shape(self, node, input_shapes):
@@ -463,7 +472,6 @@ class SeisSynthesizer(theano.Op):
 
 
 class PolaritySynthesizer(theano.Op):
-
     __props__ = ("engine", "source", "pmap", "is_location_fixed", "always_raytrace")
 
     def __init__(self, engine, source, pmap, is_location_fixed, always_raytrace):
@@ -569,7 +577,6 @@ class Sweeper(theano.Op):
     __props__ = ("patch_size", "n_patch_dip", "n_patch_strike", "implementation")
 
     def __init__(self, patch_size, n_patch_dip, n_patch_strike, implementation):
-
         self.patch_size = num.float64(patch_size)
         self.n_patch_dip = n_patch_dip
         self.n_patch_strike = n_patch_strike
@@ -664,7 +671,6 @@ class EulerPole(theano.Op):
     __props__ = ("lats", "lons", "data_mask")
 
     def __init__(self, lats, lons, data_mask):
-
         self.lats = tuple(lats)
         self.lons = tuple(lons)
         self.data_mask = tuple(data_mask)
@@ -688,7 +694,6 @@ class EulerPole(theano.Op):
         return theano.Apply(self, inlist, outlist)
 
     def perform(self, node, inputs, output):
-
         z = output[0]
         point = {vname: i for vname, i in zip(self.varnames, inputs)}
         point.update(self.fixed_values)
@@ -727,7 +732,6 @@ class StrainRateTensor(theano.Op):
     __props__ = ("lats", "lons", "data_mask")
 
     def __init__(self, lats, lons, data_mask):
-
         self.lats = tuple(lats)
         self.lons = tuple(lons)
         self.data_mask = tuple(data_mask)
@@ -760,7 +764,6 @@ class StrainRateTensor(theano.Op):
         return theano.Apply(self, inlist, outlist)
 
     def perform(self, node, inputs, output):
-
         z = output[0]
 
         point = {vname: i for vname, i in zip(self.varnames, inputs)}
