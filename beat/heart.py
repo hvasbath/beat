@@ -36,6 +36,7 @@ from theano import config as tconfig
 from theano import shared
 
 from beat import utility
+from beat.defaults import defaults
 
 # from pyrocko.fomosto import qseis2d
 
@@ -553,76 +554,6 @@ def results_for_export(results, datatype=None, attributes=None):
 sqrt2 = num.sqrt(2.0)
 
 
-physical_bounds = dict(
-    east_shift=(-500.0, 500.0),
-    north_shift=(-500.0, 500.0),
-    depth=(0.0, 1000.0),
-    strike=(-90.0, 420.0),
-    strike1=(-90.0, 420.0),
-    strike2=(-90.0, 420.0),
-    dip=(-45.0, 135.0),
-    dip1=(-45.0, 135.0),
-    dip2=(-45.0, 135.0),
-    rake=(-180.0, 270.0),
-    rake1=(-180.0, 270.0),
-    rake2=(-180.0, 270.0),
-    mix=(0, 1),
-    diameter=(0.0, 100.0),
-    sign=(-1.0, 1.0),
-    volume_change=(-1e12, 1e12),
-    fn=(-1e20, 1e20),
-    fe=(-1e20, 1e20),
-    fd=(-1e20, 1e20),
-    mnn=(-sqrt2, sqrt2),
-    mee=(-sqrt2, sqrt2),
-    mdd=(-sqrt2, sqrt2),
-    mne=(-1.0, 1.0),
-    mnd=(-1.0, 1.0),
-    med=(-1.0, 1.0),
-    exx=(-500.0, 500.0),
-    eyy=(-500.0, 500.0),
-    exy=(-500.0, 500.0),
-    rotation=(-500.0, 500.0),
-    w=(-3.0 / 8.0 * num.pi, 3.0 / 8.0 * num.pi),
-    v=(-1.0 / 3, 1.0 / 3.0),
-    kappa=(0.0, 2 * num.pi),
-    sigma=(-num.pi / 2.0, num.pi / 2.0),
-    h=(0.0, 1.0),
-    length=(0.0, 7000.0),
-    width=(0.0, 500.0),
-    slip=(0.0, 150.0),
-    nucleation_x=(-1.0, 1.0),
-    nucleation_y=(-1.0, 1.0),
-    opening_fraction=(-1.0, 1.0),
-    magnitude=(-5.0, 10.0),
-    time=(-300.0, 300.0),
-    time_shift=(-40.0, 40.0),
-    delta_time=(0.0, 100.0),
-    delta_depth=(0.0, 300.0),
-    distance=(0.0, 300.0),
-    duration=(0.0, 600.0),
-    peak_ratio=(0.0, 1.0),
-    durations=(0.0, 600.0),
-    uparr=(-1.0, 150.0),
-    uperp=(-150.0, 150.0),
-    utens=(-150.0, 150.0),
-    nucleation_strike=(0.0, num.inf),
-    nucleation_dip=(0.0, num.inf),
-    velocities=(0.0, 20.0),
-    azimuth=(0, 360),
-    amplitude=(1.0, 10e25),
-    bl_azimuth=(0, 360),
-    bl_amplitude=(0.0, 0.2),
-    locking_depth=(0.1, 100.0),
-    hypers=(-20.0, 20.0),
-    ramp=(-0.01, 0.01),
-    offset=(-1.0, 1.0),
-    lat=(-90.0, 90.0),
-    lon=(-180.0, 180.0),
-    omega=(-10.0, 10.0),
-)
-
-
 def list_repeat(arr, repeat=1):
     if isinstance(repeat, list):
         if len(repeat) != arr.size:
@@ -670,7 +601,7 @@ class Parameter(Object):
     )
 
     def validate_bounds(self):
-        supported_vars = list(physical_bounds.keys())
+        supported_vars = list(defaults.parameters.keys())
 
         if self.name not in supported_vars:
             candidate = self.name.split("_")[-1]
@@ -687,7 +618,7 @@ class Parameter(Object):
         else:
             name = self.name
 
-        phys_b = physical_bounds[name]
+        pb_lower, pb_upper = defaults[name].physical_bounds
         if self.lower is not None:
             for i in range(self.dimension):
                 if self.upper[i] < self.lower[i]:
@@ -707,7 +638,7 @@ class Parameter(Object):
                         % (self.name, i)
                     )
 
-                if self.upper[i] > phys_b[1] or self.lower[i] < phys_b[0]:
+                if self.upper[i] > pb_upper or self.lower[i] < pb_lower:
                     raise ValueError(
                         'The parameter bounds (%f, %f) for "%s" are outside of'
                         " physically meaningful values (%f, %f)!"
@@ -715,8 +646,8 @@ class Parameter(Object):
                             self.lower[i],
                             self.upper[i],
                             self.name,
-                            phys_b[0],
-                            phys_b[1],
+                            pb_lower,
+                            pb_upper,
                         )
                     )
         else:

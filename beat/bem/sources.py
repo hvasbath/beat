@@ -321,9 +321,9 @@ class RingfaultBEMSource(EllipseBEMSource):
     @property
     def bottom_origin_node(self):
         return [
-            self.delta_east_shift_bottom,
-            self.delta_north_shift_bottom,
-            -self.delta_depth_bottom,
+            self.east_shift + self.delta_east_shift_bottom,
+            self.north_shift + self.delta_north_shift_bottom,
+            -(self.depth + self.delta_depth_bottom),
         ]
 
     @property

@@ -29,7 +29,7 @@ from tqdm import tqdm
 from beat import config as bconfig
 from beat import heart, inputf, plotting, utility
 from beat.backend import backend_catalog, extract_bounds_from_summary, thin_buffer
-from beat.config import dist_vars, ffi_mode_str, geometry_mode_str
+from beat.config import dist_vars, ffi_mode_str, geometry_mode_str, bem_mode_str
 from beat.info import version
 from beat.models import Stage, estimate_hypers, load_model, sample
 from beat.sampler.pt import SamplingHistory
@@ -44,7 +44,7 @@ km = 1000.0
 
 
 def d2u(d):
-    return dict((k.replace("-", "_"), v) for (k, v) in d.items())
+    return {k.replace("-", "_"): v for (k, v) in d.items()}
 
 
 subcommand_descriptions = {
@@ -123,7 +123,7 @@ nargs_dict = {
     "export": 1,
 }
 
-mode_choices = [geometry_mode_str, ffi_mode_str]
+mode_choices = [geometry_mode_str, ffi_mode_str, bem_mode_str]
 
 supported_geodetic_formats = ["matlab", "ascii", "kite"]
 supported_geodetic_types = ["SAR", "GNSS"]
@@ -148,18 +148,10 @@ def get_project_directory(args, options, nargs=1, popflag=False):
 
     largs = len(args)
 
-    if largs == nargs - 1:
-        project_dir = os.getcwd()
-    elif largs == nargs:
-        if popflag:
-            name = args.pop(0)
-        else:
-            name = args[0]
-        project_dir = pjoin(os.path.abspath(options.main_path), name)
-    else:
-        project_dir = os.getcwd()
-
-    return project_dir
+    if largs == nargs - 1 or largs != nargs:
+        return os.getcwd()
+    name = args.pop(0) if popflag else args[0]
+    return pjoin(os.path.abspath(options.main_path), name)
 
 
 def process_common_options(options, project_dir):
@@ -177,14 +169,14 @@ def cl_parse(command, args, setup=None, details=None):
     if isinstance(usage, str):
         usage = [usage]
 
-    susage = "%s %s" % (program_name, usage[0])
+    susage = f"{program_name} {usage[0]}"
     for s in usage[1:]:
         susage += "\n%s%s %s" % (" " * 7, program_name, s)
 
     description = descr[0].upper() + descr[1:] + "."
 
     if details:
-        description = description + " %s" % details
+        description = f"{description} {details}"
 
     parser = OptionParser(usage=susage, description=description)
 
@@ -204,6 +196,11 @@ def list_callback(option, opt, value, parser):
     out = [ival.lstrip() for ival in value.split(",")]
     if out == [""]:
         out = []
+    setattr(parser.values, option.dest, out)
+
+
+def list_callback_int(option, opt, value, parser):
+    out = [int(ival.lstrip()) for ival in value.split(",")]
     setattr(parser.values, option.dest, out)
 
 
@@ -278,7 +275,7 @@ def command_init(args):
             type="string",
             default=1,
             action="callback",
-            callback=list_callback,
+            callback=list_callback_int,
             help="List integer Number of sources per source type to invert for. Default: [1]",
         )
 
@@ -354,7 +351,7 @@ def command_init(args):
         min_magnitude=options.min_mag,
         datatypes=options.datatypes,
         mode=options.mode,
-        source_type=options.source_type,
+        source_types=options.source_types,
         n_sources=options.n_sources,
         waveforms=options.waveforms,
         sampler=options.sampler,
@@ -840,13 +837,19 @@ def command_clone(args):
         )
 
         parser.add_option(
-            "--source_type",
-            dest="source_type",
-            choices=bconfig.source_names,
-            default=None,
-            help="Source type to replace in config; %s"
-            '. Default: "dont change"'
-            % ('", "'.join(name for name in bconfig.source_names)),
+            "--source_types",
+            dest="source_types",
+            type="string",
+            action="callback",
+            callback=list_callback,
+            default=[""],
+            help="Source types to solve for. Can be any combination of the "
+            "following for mode: geometry - %s; bem - %s; "
+            "Default: 'RectangularSource'"
+            % (
+                list2string(bconfig.source_catalog.keys()),
+                list2string(bconfig.bem_source_catalog.keys()),
+            ),
         )
 
         parser.add_option(
@@ -878,7 +881,7 @@ def command_clone(args):
 
     parser, options, args = cl_parse(command_str, args, setup=setup)
 
-    if not len(args) == 2:
+    if len(args) != 2:
         parser.print_help()
         sys.exit(1)
 
@@ -958,7 +961,7 @@ def command_clone(args):
                 shutil.copytree(linear_gf_dir_name, cloned_linear_gf_dir_name)
                 logger.info("Successfully cloned linear GF libraries.")
 
-        if options.source_type is None:
+        if len(options.source_types) == 0:
             old_priors = copy.deepcopy(c.problem_config.priors)
 
             new_priors = c.problem_config.select_variables()
@@ -967,8 +970,8 @@ def command_clone(args):
                     c.problem_config.priors[prior] = old_priors[prior]
 
         else:
-            logger.info('Replacing source with "%s"' % options.source_type)
-            c.problem_config.source_type = options.source_type
+            logger.info('Replacing sources with "%s"' % options.source_types)
+            c.problem_config.source_types = options.source_types
             c.problem_config.init_vars()
             c.problem_config.set_decimation_factor()
             re_init = False
@@ -2197,7 +2200,7 @@ def command_check(args):
                 lat=gc.event.lat, lon=gc.event.lon, north_shift=n, east_shift=e
             )
 
-        src_class_name = problem.config.problem_config.source_type
+        src_class_name = problem.config.problem_config.source_types[0]
         for source in sources:
             # source.regularize()
             try:

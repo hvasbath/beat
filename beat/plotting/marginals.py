@@ -15,16 +15,15 @@ from scipy.stats import kde
 
 from beat import utility
 from beat.config import dist_vars, geometry_mode_str
-from beat.heart import physical_bounds
+from beat.heart import defaults
 from beat.models import Stage, load_stage
+from beat.defaults import hypername
 
 from .common import (
     format_axes,
     get_result_point,
     histplot_op,
-    hypername,
     kde2plot,
-    plot_units,
     get_transform,
 )
 
@@ -107,7 +106,7 @@ def apply_unified_axis(
                     )
 
                     # check physical bounds if passed truncate
-                    phys_min, phys_max = physical_bounds[v]
+                    phys_min, phys_max = defaults[v].physical_bounds
                     if min < phys_min:
                         min = phys_min
                     if max > phys_max:
@@ -419,6 +418,7 @@ def traceplot(
                                 'Plot style "%s" not implemented' % plot_style
                             )
 
+                        plot_unit = defaults[hypername(plot_name)].unit
                         try:
                             param = prior_bounds[v]
 
@@ -429,9 +429,7 @@ def traceplot(
                                 except IndexError:
                                     lower, upper = param.lower, param.upper
 
-                                title = "{} {}".format(
-                                    v, plot_units[hypername(plot_name)]
-                                )
+                                title = "{} {}".format(v, plot_unit)
                             else:
                                 lower = num.array2string(param.lower, separator=",")[
                                     1:-1
@@ -442,7 +440,7 @@ def traceplot(
 
                                 title = "{} {} \npriors: ({}; {})".format(
                                     plot_name,
-                                    plot_units[hypername(plot_name)],
+                                    plot_unit,
                                     lower,
                                     upper,
                                 )
@@ -450,9 +448,7 @@ def traceplot(
                             try:
                                 title = "{} {}".format(plot_name, float(lines[v]))
                             except KeyError:
-                                title = "{} {}".format(
-                                    plot_name, plot_units[hypername(plot_name)]
-                                )
+                                title = "{} {}".format(plot_name, plot_unit)
 
                         axs[rowi, coli].set_xlabel(title, fontsize=fontsize)
                         if nvar == 1:
@@ -774,7 +770,7 @@ def correlation_plot_hist(
 
                 if k == 0:
                     ax.set_ylabel(
-                        plot_name_b + "\n " + plot_units[hypername(plot_name_b)],
+                        plot_name_b + "\n " + defaults[hypername(plot_name_b)].unit,
                         fontsize=fontsize,
                     )
                     if utility.is_odd(l):
@@ -796,7 +792,7 @@ def correlation_plot_hist(
             # put transformed varname back to varnames for unification
             # varnames[k] = plot_name_a
             ax.set_xlabel(
-                plot_name_a + "\n " + plot_units[hypername(plot_name_a)],
+                plot_name_a + "\n " + defaults[hypername(plot_name_a)].unit,
                 fontsize=fontsize,
             )
 

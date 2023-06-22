@@ -390,12 +390,12 @@ def weed_input_rvs(input_rvs, mode, datatype):
                 "fd",
             ] + burian
 
-    elif mode == "interseismic":
+    elif mode == "bem":
         if datatype == "geodetic":
             tobeweeded = burian
 
     else:
-        tobeweeded = []
+        raise TypeError(f"Mode {mode} not supported!")
 
     for weed in tobeweeded:
         if isinstance(weeded_input_rvs, dict):

@@ -42,6 +42,7 @@ from beat.heart import (
     ReferenceLocation,
     _domain_choices,
 )
+from beat.defaults import default_decimation_factors, defaults
 from beat.sources import RectangularSource, source_catalog, stf_catalog
 from beat.utility import check_point_keys, list2string
 
@@ -103,86 +104,7 @@ derived_variables_mapping = {
     "RectangularSourcePole": ["magnitude", "coupling"],
 }
 
-
 hyper_name_laplacian = "h_laplacian"
-
-sf_force = (0, 1e10)
-moffdiag = (-1.0, 1.0)
-mdiag = (-num.sqrt(2), num.sqrt(2))
-
-default_bounds = dict(
-    east_shift=(-10.0, 10.0),
-    north_shift=(-10.0, 10.0),
-    depth=(0.0, 5.0),
-    strike=(0, 180.0),
-    strike1=(0, 180.0),
-    strike2=(0, 180.0),
-    dip=(45.0, 90.0),
-    dip1=(45.0, 90.0),
-    dip2=(45.0, 90.0),
-    rake=(-90.0, 90.0),
-    rake1=(-90.0, 90.0),
-    rake2=(-90.0, 90.0),
-    length=(5.0, 30.0),
-    width=(5.0, 20.0),
-    slip=(0.1, 8.0),
-    nucleation_x=(-1.0, 1.0),
-    nucleation_y=(-1.0, 1.0),
-    opening_fraction=(0.0, 0.0),
-    magnitude=(4.0, 7.0),
-    mnn=mdiag,
-    mee=mdiag,
-    mdd=mdiag,
-    mne=moffdiag,
-    mnd=moffdiag,
-    med=moffdiag,
-    fn=sf_force,
-    fe=sf_force,
-    fd=sf_force,
-    exx=(-200.0, 200.0),
-    eyy=(-200.0, 200.0),
-    exy=(-200.0, 200.0),
-    rotation=(-200.0, 200.0),
-    w=(-3.0 / 8.0 * num.pi, 3.0 / 8.0 * num.pi),
-    v=(-1.0 / 3, 1.0 / 3.0),
-    kappa=(0.0, 2 * num.pi),
-    sigma=(-num.pi / 2.0, num.pi / 2.0),
-    h=(0.0, 1.0),
-    volume_change=(1e8, 1e10),
-    diameter=(5.0, 10.0),
-    sign=(-1.0, 1.0),
-    mix=(0, 1),
-    time=(-5.0, 5.0),
-    time_shift=(-5.0, 5.0),
-    delta_time=(0.0, 10.0),
-    delta_depth=(0.0, 10.0),
-    distance=(0.0, 10.0),
-    duration=(1.0, 30.0),
-    peak_ratio=(0.0, 1.0),
-    durations=(0.5, 29.5),
-    uparr=(-0.05, 6.0),
-    uperp=(-0.3, 4.0),
-    utens=(0.0, 0.0),
-    nucleation_strike=(0.0, 10.0),
-    nucleation_dip=(0.0, 7.0),
-    velocities=(0.5, 4.2),
-    azimuth=(0, 180),
-    amplitude=(1e10, 1e20),
-    bl_azimuth=(0, 180),
-    bl_amplitude=(0.0, 0.1),
-    locking_depth=(1.0, 10.0),
-    hypers=(-2.0, 6.0),
-    ramp=(-0.005, 0.005),
-    offset=(-0.05, 0.05),
-    lat=(30.0, 30.5),
-    lon=(30.0, 30.5),
-    omega=(0.5, 0.6),
-)
-
-default_seis_std = 1.0e-6
-default_geo_std = 1.0e-3
-
-default_decimation_factors = {"polarity": 1, "geodetic": 4, "seismic": 2}
 
 response_file_name = "responses.pkl"
 geodetic_data_name = "geodetic_data.pkl"
@@ -258,9 +180,17 @@ class ConfigNeedsUpdatingError(Exception):
         return "\n%s\n%s" % (self.errmess, self.context)
 
 
-class GFConfig(Object):
+class MediumConfig(Object):
     """
-    Base config for GreensFunction calculation parameters.
+    Base class for subsurface medium configuration
+    """
+
+    pass
+
+
+class GFConfig(MediumConfig):
+    """
+    Base config for layered GreensFunction calculation parameters.
     """
 
     store_superdir = String.T(
@@ -1052,7 +982,7 @@ class GeodeticConfig(Object):
         "If false one hyperparameter for each DATATYPE and "
         "displacement COMPONENT.",
     )
-    gf_config = GFConfig.T(default=GeodeticGFConfig.D())
+    gf_config = MediumConfig.T(default=GeodeticGFConfig.D())
 
     def __init__(self, **kwargs):
         mode = kwargs.pop("mode", geometry_mode_str)
@@ -1249,7 +1179,7 @@ class BoundaryConditions(Object):
         return num.hstack(traction_vecs)
 
 
-class BEMConfig(Object):
+class BEMConfig(MediumConfig):
     nu = Float.T(default=0.25, help="Poisson's ratio")
     mu = Float.T(default=33e9, help="Shear modulus [Pa]")
     mesh_size = Float.T(
@@ -1305,7 +1235,9 @@ class ProblemConfig(Object):
         optional=True,
         help="Determines the reduction of discretization of an extended" " source.",
     )
-    n_sources = Int.T(default=1, help="Number of Sub-sources to solve for")
+    n_sources = List.T(
+        Int.T(), default=[1], help="List of number of sub-sources for each source-type"
+    )
     datatypes = List.T(default=["geodetic"])
     hyperparameters = Dict.T(
         default=OrderedDict(),
@@ -1343,21 +1275,11 @@ class ProblemConfig(Object):
             of str of variable names to initialise
         """
         if variables is None:
-            variables, sizes = self.select_variables()
-
-        n_vars = len(variables)
-        n_sizes = len(sizes)
-        if n_vars != n_sizes:
-            ValueError(
-                f"Number variables {n_vars} and number sizes {n_sizes} are inconsisten!"
-            )
+            variables = self.select_variables()
 
         self.priors = OrderedDict()
-
-        for variable, size in zip(variables, sizes):
-
-            lower = default_bounds[variable][0]
-            upper = default_bounds[variable][1]
+        for variable, size in variables.items():
+            lower, upper = defaults[variable].default_bounds
             self.priors[variable] = get_parameter(variable, size, lower, upper)
 
     def set_vars(self, bounds_dict, attribute="priors", init=False):
@@ -1396,6 +1318,7 @@ class ProblemConfig(Object):
         if self.mode not in modes_catalog.keys():
             raise ValueError(f"Problem mode {self.mode} not implemented")
 
+        vars_catalog = modes_catalog[self.mode]
         for datatype in self.datatypes:
             if datatype not in vars_catalog.keys():
                 raise ValueError(
@@ -1404,7 +1327,6 @@ class ProblemConfig(Object):
                 )
 
         unique_variables = {}
-        vars_catalog = modes_catalog[self.mode]
         for datatype in self.datatypes:
             variables = {}
             if self.mode in [geometry_mode_str, bem_mode_str]:
@@ -1421,7 +1343,7 @@ class ProblemConfig(Object):
                     else:
                         stf = {}
 
-                    source_varnames = set(source.keys() + stf.keys())
+                    source_varnames = set(list(source.keys()) + list(stf.keys()))
                     if isinstance(source(), (PyrockoRS, gf.ExplosionSource)):
                         source_varnames.discard("magnitude")
 
@@ -1432,10 +1354,12 @@ class ProblemConfig(Object):
                             variables[varname] = n_source
 
                     variables = utility.weed_input_rvs(variables, self.mode, datatype)
-                    unique_variables |= variables
+                    unique_variables.update(variables)
             else:
                 for varname in vars_catalog[datatype]:
                     variables[varname] = self.n_sources[0]
+
+                unique_variables.update(variables)
 
         if len(variables) == 0:
             raise ValueError(
@@ -1443,7 +1367,7 @@ class ProblemConfig(Object):
                 " or not resolvable with given datatypes."
             )
 
-        return variables
+        return unique_variables
 
     def get_random_variables(self):
         """
@@ -1458,7 +1382,7 @@ class ProblemConfig(Object):
         """
         from pymc3 import Uniform
 
-        logger.debug("Optimization for %i sources", self.n_sources)
+        logger.debug("Optimization for %i sources", list2string(self.n_sources))
 
         rvs = {}
         fixed_params = {}
@@ -1602,10 +1526,11 @@ class ProblemConfig(Object):
 
     def get_derived_variables_shapes(self):
         """
-        TODO adjust to sources list!
+        Get variable names and shapes of derived variables of the problem.
 
         Returns:
-            _type_: _description_
+            list: varnames
+            list: of tuples of ints (shapes)
         """
 
         tpoint = self.get_test_point()
@@ -1920,15 +1845,12 @@ class BEATconfig(Object, Cloneable):
         defaultb_name = "hypers"
         for name in hypernames:
             logger.info(f"Added hyperparameter {name} to config and model setup!")
-
+            lower, upper = defaults[defaultb_name].default_bounds
             hypers[name] = Parameter(
                 name=name,
-                lower=num.ones(1, dtype=tconfig.floatX)
-                * default_bounds[defaultb_name][0],
-                upper=num.ones(1, dtype=tconfig.floatX)
-                * default_bounds[defaultb_name][1],
-                testvalue=num.ones(1, dtype=tconfig.floatX)
-                * num.mean(default_bounds[defaultb_name]),
+                lower=num.ones(1, dtype=tconfig.floatX) * lower,
+                upper=num.ones(1, dtype=tconfig.floatX) * upper,
+                testvalue=num.ones(1, dtype=tconfig.floatX) * num.mean([lower, upper]),
             )
 
         self.problem_config.hyperparameters = hypers
@@ -1976,14 +1898,13 @@ class BEATconfig(Object, Cloneable):
                 correction_name = name.split("_")[-1]
                 defaultb_name = correction_name
 
+            lower, upper = defaults[defaultb_name].default_bounds
             hierarchicals[name] = Parameter(
                 name=name,
-                lower=num.ones(shp, dtype=tconfig.floatX)
-                * default_bounds[defaultb_name][0],
-                upper=num.ones(shp, dtype=tconfig.floatX)
-                * default_bounds[defaultb_name][1],
+                lower=num.ones(shp, dtype=tconfig.floatX) * lower,
+                upper=num.ones(shp, dtype=tconfig.floatX) * upper,
                 testvalue=num.ones(shp, dtype=tconfig.floatX)
-                * num.mean(default_bounds[defaultb_name]),
+                * num.mean([lower, upper]),
             )
 
         self.problem_config.hierarchicals = hierarchicals
@@ -2084,27 +2005,30 @@ def init_config(
     :class:`BEATconfig`
     """
 
-    def init_dataset_config(config, datatype):
+    def init_dataset_config(config, datatype, mode):
         dconfig = datatype_catalog[datatype]()
 
-        if hasattr(dconfig.gf_config, "reference_location"):
-            if not individual_gfs:
-                dconfig.gf_config.reference_location = ReferenceLocation(
-                    lat=10.0, lon=10.0
-                )
-            else:
-                dconfig.gf_config.reference_location = None
+        if mode == bem_mode_str:
+            dconfig.gf_config = BEMConfig()
+        else:
+            if hasattr(dconfig.gf_config, "reference_location"):
+                if not individual_gfs:
+                    dconfig.gf_config.reference_location = ReferenceLocation(
+                        lat=10.0, lon=10.0
+                    )
+                else:
+                    dconfig.gf_config.reference_location = None
 
-        if use_custom:
-            logger.info(
-                "use_custom flag set! The velocity model in the"
-                " %s GF configuration has to be updated!" % datatype
-            )
-            dconfig.gf_config.custom_velocity_model = load_model().extract(
-                depth_max=100.0 * km
-            )
-            dconfig.gf_config.use_crust2 = False
-            dconfig.gf_config.replace_water = False
+            if use_custom:
+                logger.info(
+                    "use_custom flag set! The velocity model in the"
+                    " %s GF configuration has to be updated!" % datatype
+                )
+                dconfig.gf_config.custom_velocity_model = load_model().extract(
+                    depth_max=100.0 * km
+                )
+                dconfig.gf_config.use_crust2 = False
+                dconfig.gf_config.replace_water = False
 
         config[f"{datatype}_config"] = dconfig
         return config
@@ -2112,17 +2036,13 @@ def init_config(
     c = BEATconfig(name=name, date=date)
     c.project_dir = os.path.join(os.path.abspath(main_path), name)
 
-    if mode in [geometry_mode_str, "interseismic"]:
-        if date is not None and mode != "interseismic":
-            c.event = utility.search_catalog(date=date, min_magnitude=min_magnitude)
+    if mode in [geometry_mode_str, bem_mode_str]:
 
-        elif mode == "interseismic":
-            c.event = model.Event(lat=10.0, lon=10.0, depth=0.0)
-            c.date = "dummy"
-            logger.info(
-                "Interseismic mode! Using event as reference for the"
-                " stable block! Please update coordinates!"
-            )
+        for datatype in datatypes:
+            init_dataset_config(c, datatype=datatype, mode=mode)
+
+        if date is not None and mode != bem_mode_str:
+            c.event = utility.search_catalog(date=date, min_magnitude=min_magnitude)
         else:
             logger.warn(
                 "No given date! Using dummy event!"
@@ -2131,9 +2051,6 @@ def init_config(
             )
             c.event = model.Event(duration=1.0)
             c.date = "dummy"
-
-        for datatype in datatypes:
-            init_dataset_config(c, datatype=datatype)
 
     elif mode == ffi_mode_str:
         if len(source_types) > 1:

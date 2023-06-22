@@ -12,93 +12,11 @@ from pyrocko.plot import mpl_graph_color, mpl_papersize
 from scipy.stats import kde
 from theano import config as tconfig
 
-from beat import utility
+from beat import utility, defaults
 
 logger = logging.getLogger("plotting.common")
 
 km = 1000.0
-
-u_n = "$[N]$"
-u_nm = "$[Nm]$"
-u_km = "$[km]$"
-u_km_s = "$[km/s]$"
-u_deg = "$[^{\circ}]$"
-u_deg_myr = "$[^{\circ} / myr]$"
-u_m = "$[m]$"
-u_v = "$[m^3]$"
-u_s = "$[s]$"
-u_rad = "$[rad]$"
-u_hyp = ""
-u_percent = "[$\%$]"
-u_nanostrain = "nstrain"
-
-plot_units = {
-    "east_shift": u_km,
-    "north_shift": u_km,
-    "depth": u_km,
-    "width": u_km,
-    "length": u_km,
-    "dip": u_deg,
-    "dip1": u_deg,
-    "dip2": u_deg,
-    "strike": u_deg,
-    "strike1": u_deg,
-    "strike2": u_deg,
-    "rake": u_deg,
-    "rake1": u_deg,
-    "rake2": u_deg,
-    "mix": u_hyp,
-    "volume_change": u_v,
-    "diameter": u_km,
-    "slip": u_m,
-    "opening_fraction": u_hyp,
-    "azimuth": u_deg,
-    "bl_azimuth": u_deg,
-    "amplitude": u_nm,
-    "bl_amplitude": u_m,
-    "locking_depth": u_km,
-    "nucleation_dip": u_km,
-    "nucleation_strike": u_km,
-    "nucleation_x": u_hyp,
-    "nucleation_y": u_hyp,
-    "time_shift": u_s,
-    "coupling": u_percent,
-    "uperp": u_m,
-    "uparr": u_m,
-    "utens": u_m,
-    "durations": u_s,
-    "velocities": u_km_s,
-    "fn": u_n,
-    "fe": u_n,
-    "fd": u_n,
-    "mnn": u_nm,
-    "mee": u_nm,
-    "mdd": u_nm,
-    "mne": u_nm,
-    "mnd": u_nm,
-    "med": u_nm,
-    "magnitude": u_hyp,
-    "eps_xx": u_nanostrain,
-    "eps_yy": u_nanostrain,
-    "eps_xy": u_nanostrain,
-    "rotation": u_nanostrain,
-    "pole_lat": u_deg,
-    "pole_lon": u_deg,
-    "omega": u_deg_myr,
-    "w": u_rad,
-    "v": u_rad,
-    "kappa": u_deg,
-    "sigma": u_deg,
-    "h": u_deg,
-    "distance": u_km,
-    "delta_depth": u_km,
-    "delta_time": u_s,
-    "time": u_s,
-    "duration": u_s,
-    "peak_ratio": u_hyp,
-    "h_": u_hyp,
-    "like": u_hyp,
-}
 
 
 def arccosdeg(x):
@@ -197,13 +115,6 @@ def get_gmt_config(gmtpy, fontsize=14, h=20.0, w=20.0):
             "PS_MEDIA": "Custom_%ix%i" % (w * gmtpy.cm, h * gmtpy.cm),
         }
     return gmtconfig
-
-
-def hypername(varname):
-    if varname in list(plot_units.keys()):
-        return varname
-    else:
-        return "h_"
 
 
 class PlotOptions(Object):

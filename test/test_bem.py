@@ -41,7 +41,7 @@ def plot_static_result(result, target, npoints=100):
             levels=21,
         )
         print("displ min max", disp_grid.min(), disp_grid.max())
-        ax.set_title("$u_%s$" % comp)
+        ax.set_title(f"$u_{comp}$")
 
     cb = plt.colorbar(cntf)
     cb.set_label("Displacement [m]")
@@ -58,11 +58,7 @@ def plot_sources_3d(discretized_sources, slip_vectors):
 
     axs = []
     for j, comp in enumerate(slip_comps):
-        if comp == "tensile":
-            cmap = plt.get_cmap("hot")
-        else:
-            cmap = plt.get_cmap("seismic")
-
+        cmap = plt.get_cmap("hot") if comp == "tensile" else plt.get_cmap("seismic")
         ax = fig.add_subplot(1, len(slip_comps), j + 1, projection="3d")
 
         for dsource, slips3d in zip(discretized_sources, slip_vectors):
@@ -94,7 +90,7 @@ def plot_sources_3d(discretized_sources, slip_vectors):
         )
         cbs.set_label("Slip [m]")
 
-        ax.set_title("$%s-slip$" % comp)
+        ax.set_title(f"${comp}-slip$")
         ax.set_xlabel("East- Distance [km]")
         ax.set_ylabel("North- Distance [km]")
         ax.set_zlabel("Depth [km]")
