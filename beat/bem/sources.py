@@ -131,7 +131,7 @@ class DiscretizedBEMSource(object):
 
 
 @dataclass
-class Node:
+class Origin:
     """Class for storing coordinates of a node in a mesh."""
 
     x: float
@@ -163,38 +163,46 @@ class EllipseBEMSource(BEMSource):
     def __init__(self, **kwargs):
         Object.__init__(self, **kwargs)
         self.points = {}
-        self.origin_node = Node(x=self.east_shift, y=self.north_shift, z=-self.depth)
+        self.origin = Origin(x=self.east_shift, y=self.north_shift, z=-self.depth)
+
+    @property
+    def origin_node(self):
+        return (
+            self.origin.x,
+            self.origin.y,
+            self.origin.z,
+        )
 
     @property
     def left_major_node(self):
-        return Node(
-            self.origin_node.x,
-            self.origin_node.y - self.major_axis,
-            self.origin_node.z,
+        return (
+            self.origin.x,
+            self.origin.y - self.major_axis,
+            self.origin.z,
         )
 
     @property
     def right_major_node(self):
-        return Node(
-            self.origin_node.x,
-            self.origin_node.y + self.major_axis,
-            self.origin_node.z,
+        return (
+            self.origin.x,
+            self.origin.y + self.major_axis,
+            self.origin.z,
         )
 
     @property
     def upper_minor_node(self):
-        return Node(
-            self.origin_node.x + self.minor_axis,
-            self.origin_node.y,
-            self.origin_node.z,
+        return (
+            self.origin.x + self.minor_axis,
+            self.origin.y,
+            self.origin.z,
         )
 
     @property
     def lower_minor_node(self):
-        return Node(
-            self.origin_node.x - self.minor_axis,
-            self.origin_node.y,
-            self.origin_node.z,
+        return (
+            self.origin.x - self.minor_axis,
+            self.origin.y,
+            self.origin.z,
         )
 
     def _get_arch_points(self, node_names):
@@ -243,7 +251,7 @@ class EllipseBEMSource(BEMSource):
             ]
         )
 
-    def _init_points_geometry(self, geom=None, ellipse_prefixes=("top"), mesh_size=1.0):
+    def _init_points_geometry(self, geom=None, ellipse_prefixes=(""), mesh_size=1.0):
         for ellipse_prefix in ellipse_prefixes:
             for node_suffix in (
                 "left_major",
@@ -256,9 +264,7 @@ class EllipseBEMSource(BEMSource):
                 node = getattr(self, node_name)
 
                 if geom is not None:
-                    self.points[node_name] = geom.add_point(
-                        (node.x, node.y, node.z), mesh_size=mesh_size
-                    )
+                    self.points[node_name] = geom.add_point(node, mesh_size=mesh_size)
                 else:
                     raise ValueError("Geometry needs to be initialized first!")
 
@@ -333,42 +339,50 @@ class RingfaultBEMSource(EllipseBEMSource):
     def __init__(self, **kwargs):
         EllipseBEMSource.__init__(self, **kwargs)
 
-        self.bottom_origin_node = Node(
-            x=self.origin_node.x + self.delta_east_shift_bottom,
-            y=self.origin_node.y + self.delta_north_shift_bottom,
-            z=self.origin_node.z - self.delta_depth_bottom,
+        self.bottom_origin = Origin(
+            x=self.origin.x + self.delta_east_shift_bottom,
+            y=self.origin.y + self.delta_north_shift_bottom,
+            z=self.origin.z - self.delta_depth_bottom,
+        )
+
+    @property
+    def bottom_origin_node(self):
+        return (
+            self.bottom_origin.x,
+            self.bottom_origin.y,
+            self.bottom_origin.z,
         )
 
     @property
     def bottom_left_major_node(self):
-        return Node(
-            self.bottom_origin_node.x,
-            self.bottom_origin_node.y - self.major_axis_bottom,
-            self.bottom_origin_node.z,
+        return (
+            self.bottom_origin.x,
+            self.bottom_origin.y - self.major_axis_bottom,
+            self.bottom_origin.z,
         )
 
     @property
     def bottom_right_major_node(self):
-        return Node(
-            self.bottom_origin_node.x,
-            self.bottom_origin_node.y + self.major_axis_bottom,
-            self.bottom_origin_node.z,
+        return (
+            self.bottom_origin.x,
+            self.bottom_origin.y + self.major_axis_bottom,
+            self.bottom_origin.z,
         )
 
     @property
     def bottom_upper_minor_node(self):
-        return Node(
-            self.bottom_origin_node.x + self.minor_axis_bottom,
-            self.bottom_origin_node.y,
-            self.bottom_origin_node.z,
+        return (
+            self.bottom_origin.x + self.minor_axis_bottom,
+            self.bottom_origin.y,
+            self.bottom_origin.z,
         )
 
     @property
     def bottom_lower_minor_node(self):
-        return Node(
-            self.bottom_origin_node.x - self.minor_axis_bottom,
-            self.bottom_origin_node.y,
-            self.bottom_origin_node.z,
+        return (
+            self.bottom_origin.x - self.minor_axis_bottom,
+            self.bottom_origin.y,
+            self.bottom_origin.z,
         )
 
     def get_bottom_upper_left_arch_points(self):
