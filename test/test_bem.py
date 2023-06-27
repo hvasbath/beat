@@ -95,7 +95,7 @@ def plot_sources_3d(discretized_sources, slip_vectors):
         ax.set_ylabel("North- Distance [km]")
         ax.set_zlabel("Depth [km]")
 
-        ax.set_xlim([-3000, 3000])
+        ax.set_xlim([-3000, 5000])
         ax.set_ylim([-3000, 5000])
         ax.set_zlim([-1000, -5000])
         ax.invert_zaxis()
@@ -126,6 +126,7 @@ def get_disk_ringfault_setup():
         DiskBEMSource(
             tensile_traction=2.15e9,
             north_shift=0.5 * km,
+            east_shift=3.5 * km,
             depth=4.0 * km,
             major_axis=2 * km,
             dip=10,
@@ -134,6 +135,7 @@ def get_disk_ringfault_setup():
         RingfaultBEMSource(
             north_shift=0.0,
             delta_north_shift_bottom=0.5 * km,
+            east_shift=3.55 * km,
             depth=0.5 * km,
             delta_depth_bottom=4.0 * km,
             major_axis=2 * km,
