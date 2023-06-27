@@ -5,6 +5,8 @@ from pyrocko.guts import Object, Float, StringChoice, List, Int, Bool
 from pyrocko.model import Location
 from pyrocko.gf.seismosizer import Cloneable
 
+from dataclasses import dataclass
+
 try:
     import pygmsh
 
@@ -12,7 +14,6 @@ try:
 
 except ImportError:
     raise ImportError("'Pygmsh' needs to be installed!")
-
 
 try:
     from cutde.geometry import compute_efcs_to_tdcs_rotations
@@ -44,7 +45,10 @@ __all__ = [
 
 
 def get_node_name(ellipse_prefix, node_suffix):
-    return f"{ellipse_prefix}_{node_suffix}_node"
+    if ellipse_prefix:
+        return f"{ellipse_prefix}_{node_suffix}_node"
+    else:
+        return f"{node_suffix}_node"
 
 
 class DiscretizedBEMSource(object):
@@ -126,6 +130,18 @@ class DiscretizedBEMSource(object):
         return self._e_normal
 
 
+@dataclass
+class Node:
+    """Class for storing coordinates of a node in a mesh."""
+
+    x: float
+    y: float
+    z: float
+
+    def __getattr__(self, attr):
+        return (self.x, self.y, self.z)
+
+
 class BEMSource(Location, Cloneable):
     strike_traction = Float.T(
         default=0.0, help="Traction in strike-direction of the Triangles"
@@ -147,42 +163,39 @@ class EllipseBEMSource(BEMSource):
     def __init__(self, **kwargs):
         Object.__init__(self, **kwargs)
         self.points = {}
+        self.origin_node = Node(x=self.east_shift, y=self.north_shift, z=-self.depth)
 
     @property
-    def top_origin_node(self):
-        return [self.east_shift, self.north_shift, -self.depth]
+    def left_major_node(self):
+        return Node(
+            self.origin_node.x,
+            self.origin_node.y - self.major_axis,
+            self.origin_node.z,
+        )
 
     @property
-    def top_left_major_node(self):
-        return [
-            self.east_shift,
-            self.north_shift - self.major_axis,
-            -self.depth,
-        ]
+    def right_major_node(self):
+        return Node(
+            self.origin_node.x,
+            self.origin_node.y + self.major_axis,
+            self.origin_node.z,
+        )
 
     @property
-    def top_right_major_node(self):
-        return [
-            self.east_shift,
-            self.north_shift + self.major_axis,
-            -self.depth,
-        ]
+    def upper_minor_node(self):
+        return Node(
+            self.origin_node.x + self.minor_axis,
+            self.origin_node.y,
+            self.origin_node.z,
+        )
 
     @property
-    def top_upper_minor_node(self):
-        return [
-            self.east_shift + self.minor_axis,
-            self.north_shift,
-            -self.depth,
-        ]
-
-    @property
-    def top_lower_minor_node(self):
-        return [
-            self.east_shift - self.minor_axis,
-            self.north_shift,
-            -self.depth,
-        ]
+    def lower_minor_node(self):
+        return Node(
+            self.origin_node.x - self.minor_axis,
+            self.origin_node.y,
+            self.origin_node.z,
+        )
 
     def _get_arch_points(self, node_names):
         try:
@@ -193,40 +206,40 @@ class EllipseBEMSource(BEMSource):
     def get_top_upper_left_arch_points(self):
         return self._get_arch_points(
             [
-                "top_left_major_node",
-                "top_origin_node",
-                "top_upper_minor_node",
-                "top_upper_minor_node",
+                "left_major_node",
+                "origin_node",
+                "upper_minor_node",
+                "upper_minor_node",
             ]
         )
 
     def get_top_upper_right_arch_points(self):
         return self._get_arch_points(
             [
-                "top_upper_minor_node",
-                "top_origin_node",
-                "top_right_major_node",
-                "top_right_major_node",
+                "upper_minor_node",
+                "origin_node",
+                "right_major_node",
+                "right_major_node",
             ]
         )
 
     def get_top_lower_right_arch_points(self):
         return self._get_arch_points(
             [
-                "top_right_major_node",
-                "top_origin_node",
-                "top_lower_minor_node",
-                "top_lower_minor_node",
+                "right_major_node",
+                "origin_node",
+                "lower_minor_node",
+                "lower_minor_node",
             ]
         )
 
     def get_top_lower_left_arch_points(self):
         return self._get_arch_points(
             [
-                "top_lower_minor_node",
-                "top_origin_node",
-                "top_left_major_node",
-                "top_left_major_node",
+                "lower_minor_node",
+                "origin_node",
+                "left_major_node",
+                "left_major_node",
             ]
         )
 
@@ -243,7 +256,9 @@ class EllipseBEMSource(BEMSource):
                 node = getattr(self, node_name)
 
                 if geom is not None:
-                    self.points[node_name] = geom.add_point(node, mesh_size=mesh_size)
+                    self.points[node_name] = geom.add_point(
+                        (node.x, node.y, node.z), mesh_size=mesh_size
+                    )
                 else:
                     raise ValueError("Geometry needs to be initialized first!")
 
@@ -258,7 +273,7 @@ class DiskBEMSource(EllipseBEMSource):
     def discretize_basesource(self, mesh_size, target=None, optimize=False, plot=False):
         with pygmsh.geo.Geometry() as geom:
             self._init_points_geometry(
-                geom, ellipse_prefixes=("top",), mesh_size=mesh_size
+                geom, ellipse_prefixes=("",), mesh_size=mesh_size
             )
 
             rotations = (self.dip, self.plunge, self.strike)
@@ -318,45 +333,43 @@ class RingfaultBEMSource(EllipseBEMSource):
     def __init__(self, **kwargs):
         EllipseBEMSource.__init__(self, **kwargs)
 
-    @property
-    def bottom_origin_node(self):
-        return [
-            self.east_shift + self.delta_east_shift_bottom,
-            self.north_shift + self.delta_north_shift_bottom,
-            -(self.depth + self.delta_depth_bottom),
-        ]
+        self.bottom_origin_node = Node(
+            x=self.origin_node.x + self.delta_east_shift_bottom,
+            y=self.origin_node.y + self.delta_north_shift_bottom,
+            z=self.origin_node.z - self.delta_depth_bottom,
+        )
 
     @property
     def bottom_left_major_node(self):
-        return [
-            self.delta_east_shift_bottom,
-            self.delta_north_shift_bottom - self.major_axis_bottom,
-            -self.delta_depth_bottom,
-        ]
+        return Node(
+            self.bottom_origin_node.x,
+            self.bottom_origin_node.y - self.major_axis_bottom,
+            self.bottom_origin_node.z,
+        )
 
     @property
     def bottom_right_major_node(self):
-        return [
-            self.delta_east_shift_bottom,
-            self.delta_north_shift_bottom + self.major_axis_bottom,
-            -self.delta_depth_bottom,
-        ]
+        return Node(
+            self.bottom_origin_node.x,
+            self.bottom_origin_node.y + self.major_axis_bottom,
+            self.bottom_origin_node.z,
+        )
 
     @property
     def bottom_upper_minor_node(self):
-        return [
-            self.delta_east_shift_bottom + self.minor_axis_bottom,
-            self.delta_north_shift_bottom,
-            -self.delta_depth_bottom,
-        ]
+        return Node(
+            self.bottom_origin_node.x + self.minor_axis_bottom,
+            self.bottom_origin_node.y,
+            self.bottom_origin_node.z,
+        )
 
     @property
     def bottom_lower_minor_node(self):
-        return [
-            self.delta_east_shift_bottom - self.minor_axis_bottom,
-            self.delta_north_shift_bottom,
-            -self.delta_depth_bottom,
-        ]
+        return Node(
+            self.bottom_origin_node.x - self.minor_axis_bottom,
+            self.bottom_origin_node.y,
+            self.bottom_origin_node.z,
+        )
 
     def get_bottom_upper_left_arch_points(self):
         return self._get_arch_points(
@@ -399,27 +412,21 @@ class RingfaultBEMSource(EllipseBEMSource):
         )
 
     def get_left_major_connecting_points(self):
-        return self._get_arch_points(["top_left_major_node", "bottom_left_major_node"])
+        return self._get_arch_points(["left_major_node", "bottom_left_major_node"])
 
     def get_right_major_connecting_points(self):
-        return self._get_arch_points(
-            ["top_right_major_node", "bottom_right_major_node"]
-        )
+        return self._get_arch_points(["right_major_node", "bottom_right_major_node"])
 
     def get_upper_minor_connecting_points(self):
-        return self._get_arch_points(
-            ["top_upper_minor_node", "bottom_upper_minor_node"]
-        )
+        return self._get_arch_points(["upper_minor_node", "bottom_upper_minor_node"])
 
     def get_lower_minor_connecting_points(self):
-        return self._get_arch_points(
-            ["top_lower_minor_node", "bottom_lower_minor_node"]
-        )
+        return self._get_arch_points(["lower_minor_node", "bottom_lower_minor_node"])
 
     def discretize_basesource(self, mesh_size, target=None, optimize=False, plot=False):
         with pygmsh.geo.Geometry() as geom:
             self._init_points_geometry(
-                geom, ellipse_prefixes=("top", "bottom"), mesh_size=mesh_size
+                geom, ellipse_prefixes=("", "bottom"), mesh_size=mesh_size
             )
 
             if self.strike != 0:
