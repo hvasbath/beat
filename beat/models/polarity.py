@@ -31,7 +31,7 @@ __all__ = ["PolarityComposite"]
 
 
 class PolarityComposite(Composite):
-    def __init__(self, polc, project_dir, sources, events, hypers=False):
+    def __init__(self, polc, project_dir, sources, mapping, events, hypers=False):
 
         super(PolarityComposite, self).__init__(events)
 
@@ -42,6 +42,7 @@ class PolarityComposite(Composite):
         self._targets = None
         self.synthesizers = {}
         self.sources = sources
+        self.mapping = mapping
         self.config = polc
         self.gamma = shared(0.2, name="gamma", borrow=True)
         self.fixed_rvs = {}

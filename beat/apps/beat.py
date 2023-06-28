@@ -964,8 +964,12 @@ def command_clone(args):
         if len(options.source_types) == 0:
             old_priors = copy.deepcopy(c.problem_config.priors)
 
-            new_priors = c.problem_config.select_variables()
-            for prior in new_priors:
+            new_prior_names = (
+                c.problem_config.get_unique_variables_sizes()
+                .get_unique_variables()
+                .keys()
+            )
+            for prior in new_prior_names:
                 if prior in list(old_priors.keys()):
                     c.problem_config.priors[prior] = old_priors[prior]
 

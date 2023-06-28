@@ -1203,6 +1203,87 @@ def get_parameter(variable, nvars=1, lower=1, upper=2):
     )
 
 
+class DatatypeParameterMapping(Object):
+
+    sources_variables = List.T(Dict.T(String.T(), Int.T()))
+
+    def point_to_source_mapping(self):
+        total_variables = {}
+        start_idx = 0
+        for source_variables in self.sources_variables:
+            for variable, size in source_variables.items():
+                end_idx = size + start_idx
+                if variable in total_variables:
+                    total_variables[variable].append(end_idx)
+                else:
+                    total_variables[variable] = [start_idx, end_idx]
+
+            start_idx += size
+
+        return total_variables
+
+    def get_all_point_variable_names(self):
+        return self.get_total_variables_sizes().keys()
+
+    def get_total_variables_sizes(self):
+        mapping = self.point_to_source_mapping()
+        variables_sizes = {}
+        for variable, idxs in mapping.items():
+            variables_sizes[variable] = sum(idxs)
+
+        return variables_sizes
+
+
+class SourcesParameterMapping(Object):
+    """
+    Mapping for source parameters to point of variables.
+    """
+
+    datatypes = List.T(StringChoice.T(choices=_datatype_choices), default=[])
+    mappings = Dict.T(String.T(), DatatypeParameterMapping.T())
+
+    def __init__(self, **kwargs):
+
+        Object.__init__(self, **kwargs)
+
+        for datatype in self.datatypes:
+            self.mappings[datatype] = None
+
+    def add(self, sources_variables: Dict = {}, datatype: str = "geodetic"):
+        if datatype in self.mappings:
+            self.mappings[datatype] = DatatypeParameterMapping(
+                sources_variables=sources_variables
+            )
+        else:
+            raise ValueError(
+                "Datatype for the source mapping has not been initialized!"
+            )
+
+    def get_unique_variables_sizes(self) -> Dict:
+        """
+        Combine source specific variable dicts into a common setup dict
+
+        Raises:
+            ValueError: if no source specific dicts exist
+
+        Returns:
+            Dict: of variable names and their combined sizes
+        """
+
+        if len(self.mappings) == 0:
+            raise ValueError(
+                "Mode and datatype combination not implemented"
+                " or not resolvable with given datatypes."
+            )
+        unique_variables = {}
+        for datatype_parameter_mapping in self.mappings.values():
+            unique_variables.update(
+                datatype_parameter_mapping.get_total_variables_sizes()
+            )
+
+        return unique_variables
+
+
 class ProblemConfig(Object):
     """
     Config for optimization problem to setup.
@@ -1275,10 +1356,10 @@ class ProblemConfig(Object):
             of str of variable names to initialise
         """
         if variables is None:
-            variables = self.select_variables()
+            mapping = self.get_variables_mapping()
 
         self.priors = OrderedDict()
-        for variable, size in variables.items():
+        for variable, size in mapping.get_unique_variables().items():
             lower, upper = defaults[variable].default_bounds
             self.priors[variable] = get_parameter(variable, size, lower, upper)
 
@@ -1310,7 +1391,7 @@ class ProblemConfig(Object):
 
         setattr(self, attribute, upd_dict)
 
-    def select_variables(self):
+    def get_variables_mapping(self):
         """
         Return model variables depending on problem config.
         """
@@ -1326,7 +1407,7 @@ class ProblemConfig(Object):
                     Supported datatype are: {list2string(vars_catalog.keys())}"""
                 )
 
-        unique_variables = {}
+        mapping = SourcesParameterMapping(datatypes=self.datatypes)
         for datatype in self.datatypes:
             variables = {}
             if self.mode in [geometry_mode_str, bem_mode_str]:
@@ -1348,26 +1429,17 @@ class ProblemConfig(Object):
                         source_varnames.discard("magnitude")
 
                     for varname in source_varnames:
-                        if varname in variables:
-                            variables[varname] += n_source
-                        else:
-                            variables[varname] = n_source
+                        variables[varname] = n_source
 
                     variables = utility.weed_input_rvs(variables, self.mode, datatype)
-                    unique_variables.update(variables)
+                    mapping.add(variables, datatype=datatype)
             else:
                 for varname in vars_catalog[datatype]:
                     variables[varname] = self.n_sources[0]
 
-                unique_variables.update(variables)
+                mapping.add(variables, datatype=datatype)
 
-        if len(variables) == 0:
-            raise ValueError(
-                "Mode and datatype combination not implemented"
-                " or not resolvable with given datatypes."
-            )
-
-        return unique_variables
+        return mapping
 
     def get_random_variables(self):
         """

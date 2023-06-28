@@ -650,6 +650,8 @@ class SeismicGeometryComposite(SeismicComposite):
         directory of the model project, where to find the data
     sources : list
         of :class:`pyrocko.gf.seismosizer.Source`
+    mapping : list
+        of dict of varnames and their sizes
     events : list
         of :class:`pyrocko.model.Event`
         contains information of reference event(s), coordinates of reference
@@ -658,7 +660,7 @@ class SeismicGeometryComposite(SeismicComposite):
         if true initialise object for hyper parameter optimization
     """
 
-    def __init__(self, sc, project_dir, sources, events, hypers=False):
+    def __init__(self, sc, project_dir, sources, mapping, events, hypers=False):
 
         super(SeismicGeometryComposite, self).__init__(
             sc, events, project_dir, hypers=hypers
@@ -669,6 +671,7 @@ class SeismicGeometryComposite(SeismicComposite):
         self.choppers = {}
 
         self.sources = sources
+        self.mapping = mapping
 
         self.correction_name = "time_shift"
 
@@ -771,7 +774,6 @@ class SeismicGeometryComposite(SeismicComposite):
         t2 = time()
         wlogpts = []
 
-        self.init_hierarchicals(problem_config)
         self.analyse_noise(tpoint, chop_bounds=chop_bounds)
         self.init_weights()
         if self.config.station_corrections:
@@ -1239,7 +1241,6 @@ class SeismicDistributerComposite(SeismicComposite):
             gfs.init_optimization()
 
         self.init_weights()
-        self.init_hierarchicals(problem_config)
         if self.config.station_corrections:
             logger.info(
                 "Initialized %i hierarchical parameters for "

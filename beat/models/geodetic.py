@@ -570,6 +570,8 @@ class GeodeticSourceComposite(GeodeticComposite):
         directory of the model project, where to find the data
     sources : list
         of :class:`pyrocko.gf.seismosizer.Source`
+    mapping : list
+        of dict of varnames and their sizes
     events : list
         of :class:`pyrocko.model.Event`
         contains information of reference event, coordinates of reference
@@ -578,7 +580,7 @@ class GeodeticSourceComposite(GeodeticComposite):
         if true initialise object for hyper parameter optimization
     """
 
-    def __init__(self, gc, project_dir, sources, events, hypers=False):
+    def __init__(self, gc, project_dir, sources, mapping, events, hypers=False):
         super(GeodeticSourceComposite, self).__init__(
             gc, project_dir, events, hypers=hypers
         )
@@ -591,6 +593,7 @@ class GeodeticSourceComposite(GeodeticComposite):
             self.engine = BEMEngine(gc.gf_config)
 
         self.sources = sources
+        self.mapping = mapping
 
     def point2sources(self, point):
         """
@@ -607,9 +610,9 @@ class GeodeticSourceComposite(GeodeticComposite):
             if hyper in tpoint:
                 tpoint.pop(hyper)
 
-        source_params = list(self.sources[0].keys())
+        source_parameter_names = self.mapping.get_all_point_variable_names()
         for param in list(tpoint.keys()):
-            if param not in source_params:
+            if param not in source_parameter_names:
                 tpoint.pop(param)
 
         # TODO source to point mapping
@@ -662,7 +665,6 @@ class GeodeticSourceComposite(GeodeticComposite):
             tt.cast((self.sdata - los_disp) * self.sodws, tconfig.floatX)
         )
 
-        self.init_hierarchicals(problem_config)
         self.analyse_noise(tpoint)
         self.init_weights()
         if self.config.corrections_config.has_enabled_corrections:
@@ -678,9 +680,9 @@ class GeodeticSourceComposite(GeodeticComposite):
 
 
 class GeodeticGeometryComposite(GeodeticSourceComposite):
-    def __init__(self, gc, project_dir, sources, events, hypers=False):
+    def __init__(self, gc, project_dir, sources, mapping, events, hypers=False):
         super(GeodeticGeometryComposite, self).__init__(
-            gc, project_dir, sources, events, hypers=hypers
+            gc, project_dir, sources, mapping, events, hypers=hypers
         )
 
         if not hypers:
@@ -1140,7 +1142,6 @@ class GeodeticDistributerComposite(GeodeticComposite):
             tt.cast((self.sdata - mu) * self.sodws, tconfig.floatX)
         )
 
-        self.init_hierarchicals(problem_config)
         if self.config.corrections_config.has_enabled_corrections:
             residuals = self.apply_corrections(residuals)
 

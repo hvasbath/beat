@@ -225,6 +225,7 @@ class Problem(object):
             self.rvs, self.fixed_params = pc.get_random_variables()
 
             self.init_hyperparams()
+            self.init_hierarchicals()
 
             total_llk = tt.zeros((1), tconfig.floatX)
 

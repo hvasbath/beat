@@ -27,8 +27,26 @@ logger = logging.getLogger("utility")
 
 DataMap = collections.namedtuple("DataMap", "list_ind, slc, shp, dtype, name")
 
-locationtypes = {"east_shift", "north_shift", "depth", "distance", "delta_depth"}
-dimensiontypes = {"length", "width", "diameter"}
+locationtypes = {
+    "east_shift",
+    "north_shift",
+    "depth",
+    "distance",
+    "delta_depth",
+    "delta_east_shift_bottom",
+    "delta_north_shift_bottom",
+    "delta_depth_bottom",
+}
+
+dimensiontypes = {
+    "length",
+    "width",
+    "diameter",
+    "major_axis",
+    "minor_axis",
+    "major_axis_bottom",
+    "minor_axis_bottom",
+}
 mttypes = {"mnn", "mee", "mdd", "mne", "mnd", "med"}
 degtypes = {"strike", "dip", "rake"}
 nucleationtypes = {"nucleation_x", "nucleation_y"}
