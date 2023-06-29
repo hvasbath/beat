@@ -65,7 +65,7 @@ This example configuration file looks like this::
       mode: geometry
       source_types: [MTSource]
       stf_type: HalfSinusoid
-      n_sources: 1
+      n_sources: [1]
       datatypes: [seismic]
       hyperparameters:
         h_any_P_Z: !beat.heart.Parameter

@@ -90,6 +90,10 @@ class PolarityComposite(Composite):
             self.wavemaps.append(pmap)
 
     @property
+    def n_sources_total(self):
+        return len(self.sources)
+
+    @property
     def is_location_fixed(self):
         """
         Returns true if the source location random variables are fixed.
@@ -162,10 +166,9 @@ class PolarityComposite(Composite):
             if hyper in tpoint:
                 tpoint.pop(hyper)
 
-        source_params = list(self.sources[0].keys())
-
+        source_parameter_names = self.mapping.point_variable_names()
         for param in list(tpoint.keys()):
-            if param not in source_params:
+            if param not in source_parameter_names:
                 tpoint.pop(param)
 
         if "time" in tpoint:
@@ -175,7 +178,11 @@ class PolarityComposite(Composite):
                 for i, event in enumerate(self.events):  # multi event
                     tpoint["time"][i] += event.time
 
-        source_points = split_point(tpoint)
+        source_points = split_point(
+            tpoint,
+            point_to_sources=self.mapping.point_to_sources_mapping(),
+            n_sources_total=self.n_sources_total,
+        )
 
         for i, source in enumerate(self.sources):
             update_source(source, **source_points[i])

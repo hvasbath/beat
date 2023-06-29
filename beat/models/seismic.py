@@ -677,6 +677,10 @@ class SeismicGeometryComposite(SeismicComposite):
 
         self.config = sc
 
+    @property
+    def n_sources_total(self):
+        return len(self.sources)
+
     def point2sources(self, point):
         """
         Updates the composite source(s) (in place) with the point values.
@@ -697,11 +701,9 @@ class SeismicGeometryComposite(SeismicComposite):
             if hyper in tpoint:
                 tpoint.pop(hyper)
 
-        source = self.sources[0]
-        source_params = list(source.keys()) + list(source.stf.keys())
-
+        source_parameter_names = self.mapping.point_variable_names()
         for param in list(tpoint.keys()):
-            if param not in source_params:
+            if param not in source_parameter_names:
                 tpoint.pop(param)
 
         # update source times
@@ -712,7 +714,11 @@ class SeismicGeometryComposite(SeismicComposite):
                 for i, event in enumerate(self.events):  # multi event
                     tpoint["time"][i] += event.time
 
-        source_points = utility.split_point(tpoint)
+        source_points = utility.split_point(
+            tpoint,
+            point_to_sources=self.mapping.point_to_sources_mapping(),
+            n_sources_total=self.n_sources_total,
+        )
 
         for i, source in enumerate(self.sources):
             utility.update_source(source, **source_points[i])

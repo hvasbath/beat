@@ -629,12 +629,13 @@ class SourceOptimizer(Problem):
         super(SourceOptimizer, self).__init__(config, hypers)
 
         pc = config.problem_config
+        n_sources_total = sum(pc.n_sources)
 
-        if self.nevents != num.sum(pc.n_sources) and self.nevents != 1:
+        if self.nevents != n_sources_total and self.nevents != 1:
             raise ValueError(
                 "Number of events and sources have to be equal or only one "
                 "event has to be used! Number if events %i and number of "
-                "sources: %i!" % (self.nevents, pc.n_sources)
+                "sources: %i!" % (self.nevents, n_sources_total)
             )
 
         # Init sources
@@ -675,12 +676,13 @@ class GeometryOptimizer(SourceOptimizer):
         pc = config.problem_config
 
         dsources = transform_sources(self.sources, pc.datatypes, pc.decimation_factors)
-
+        mappings = pc.get_variables_mapping()
         for datatype in pc.datatypes:
             self.composites[datatype] = geometry_composite_catalog[datatype](
                 config[datatype + "_config"],
                 config.project_dir,
                 dsources[datatype],
+                mappings[datatype],
                 self.events,
                 hypers,
             )

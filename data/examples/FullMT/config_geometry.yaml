@@ -32,7 +32,7 @@ problem_config: !beat.ProblemConfig
   mode: geometry
   source_types: [MTSource]
   stf_type: Triangular
-  n_sources: 1
+  n_sources: [1]
   datatypes: [seismic]
   hyperparameters:
     h_any_P_0_Z: !beat.heart.Parameter

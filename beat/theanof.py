@@ -37,11 +37,13 @@ class GeoSynthesizer(theano.Op):
         containing :class:`pyrocko.gf.seismosizer.Source` Objects
     targets : List
         containing :class:`pyrocko.gf.targets.StaticTarget` Objects
+    point_to_sources : Dict
+        variable names and list of integers how they map to source objects
     """
 
-    __props__ = ("engine", "sources", "targets")
+    __props__ = ("engine", "sources", "targets", "point_to_sources")
 
-    def __init__(self, engine, sources, targets):
+    def __init__(self, engine, sources, targets, point_to_sources):
         if isinstance(engine, LocalEngine):
             self.outmode = "stacked_array"
         else:
@@ -51,6 +53,8 @@ class GeoSynthesizer(theano.Op):
         self.sources = tuple(sources)
         self.targets = tuple(targets)
         self.nobs = sum([target.lats.size for target in self.targets])
+        self.point_to_sources = point_to_sources
+        self.n_sources_total = len(self.sources)
 
         # add source to point mapping here for mixed source setups
 
@@ -93,10 +97,8 @@ class GeoSynthesizer(theano.Op):
         inputs : list
             of :class:`numpy.ndarray`
         output : list
-            1) of synthetic waveforms of :class:`numpy.ndarray`
-               (n x nsamples)
-            2) of start times of the first waveform samples
-               :class:`numpy.ndarray` (n x 1)
+            1) of synthetic waveforms of :class:`numpy.ndarray` (n x nsamples)
+            2) of start times of the first waveform samples :class:`numpy.ndarray` (n x 1)
         """
         synths = output[0]
 
@@ -104,8 +106,11 @@ class GeoSynthesizer(theano.Op):
 
         mpoint = utility.adjust_point_units(point)
 
-        # TODO Mapping
-        source_points = utility.split_point(mpoint)
+        source_points = utility.split_point(
+            mpoint,
+            point_to_sources=self.point_to_sources,
+            n_sources_total=self.n_sources_total,
+        )
 
         for i, source in enumerate(self.sources):
             utility.update_source(source, **source_points[i])
@@ -125,6 +130,8 @@ class GeoSynthesizer(theano.Op):
 
 class GeoLayerSynthesizerPsCmp(theano.Op):
     """
+    DEPRECATED!
+
     Theano wrapper for a geodetic forward model for static observation
     points. Direct call to PsCmp, needs PsGrn Greens Function store!
     Deprecated, currently not used in composites.
@@ -216,6 +223,8 @@ class GeoLayerSynthesizerPsCmp(theano.Op):
 
 class GeoInterseismicSynthesizer(theano.Op):
     """
+    DEPRECATED!
+
     Theano wrapper to transform the parameters of block model to
     parameters of a fault.
     """
@@ -324,6 +333,7 @@ class SeisSynthesizer(theano.Op):
     __props__ = (
         "engine",
         "sources",
+        "point_to_sources",
         "targets",
         "event",
         "arrival_taper",
@@ -339,6 +349,7 @@ class SeisSynthesizer(theano.Op):
         self,
         engine,
         sources,
+        point_to_sources,
         targets,
         event,
         arrival_taper,
@@ -363,6 +374,8 @@ class SeisSynthesizer(theano.Op):
         self.sample_rate = self.engine.get_store(
             self.targets[0].store_id
         ).config.sample_rate
+        self.point_to_sources = point_to_sources
+        self.n_sources_total = len(self.sources)
 
         if self.domain == "spectrum":
             nsamples = nextpow2(self.arrival_taper.nsamples(self.sample_rate))
@@ -413,10 +426,8 @@ class SeisSynthesizer(theano.Op):
         inputs : list
             of :class:`numpy.ndarray`
         output : list
-            1) of synthetic waveforms of :class:`numpy.ndarray`
-               (n x nsamples)
-            2) of start times of the first waveform samples
-               :class:`numpy.ndarray` (n x 1)
+            1) of synthetic waveforms of :class:`numpy.ndarray` (n x nsamples)
+            2) of start times of the first waveform samples :class:`numpy.ndarray` (n x 1)
         """
         synths = output[0]
         tmins = output[1]
@@ -431,7 +442,11 @@ class SeisSynthesizer(theano.Op):
         else:
             arrival_times = num.array(self.arrival_times)
 
-        source_points = utility.split_point(mpoint)
+        source_points = utility.split_point(
+            mpoint,
+            point_to_sources=self.point_to_sources,
+            n_sources_total=self.n_sources_total,
+        )
 
         for i, source in enumerate(self.sources):
             utility.update_source(source, **source_points[i])
@@ -480,6 +495,7 @@ class PolaritySynthesizer(theano.Op):
         self.pmap = pmap
         self.is_location_fixed = is_location_fixed
         self.always_raytrace = always_raytrace
+        # TODO check if mutli-source-type refactoring did not break anything
 
     def __getstate__(self):
         self.engine.close_cashed_stores()
@@ -502,8 +518,11 @@ class PolaritySynthesizer(theano.Op):
         synths = output[0]
         point = {vname: i for vname, i in zip(self.varnames, inputs)}
         mpoint = utility.adjust_point_units(point)
-        source_points = utility.split_point(mpoint)
 
+        source_points = utility.split_point(
+            mpoint,
+            n_sources_total=1,
+        )
         utility.update_source(self.source, **source_points[self.pmap.config.event_idx])
 
         if not self.is_location_fixed:

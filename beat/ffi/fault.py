@@ -680,6 +680,7 @@ total number of patches: %i """ % (
             sf_patches = self.get_subfault_patches(
                 index, datatype=datatype, component=component
             )
+            n_sf_patches = len(sf_patches)
 
             ucomps = {}
             for comp in slip_directions.keys():
@@ -707,8 +708,8 @@ total number of patches: %i """ % (
             except KeyError:
                 pass
 
-            patch_points = split_point(sf_point)
-            assert len(patch_points) == len(sf_patches)
+            patch_points = split_point(sf_point, n_sources_total=n_sf_patches)
+            assert len(patch_points) == n_sf_patches
 
             for patch, patch_point in zip(sf_patches, patch_points):
                 update_source(patch, **patch_point)

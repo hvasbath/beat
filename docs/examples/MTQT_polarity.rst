@@ -202,7 +202,7 @@ This is defined in the *problem_config* (source specification)::
     mode: geometry
     source_types: [MTQTSource]
     stf_type: Triangular
-    n_sources: 1
+    n_sources: [1]
     datatypes:
     - polarity
 

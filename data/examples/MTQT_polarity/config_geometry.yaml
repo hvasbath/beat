@@ -32,7 +32,7 @@ problem_config: !beat.ProblemConfig
   mode: geometry
   source_types: [MTQTSource]
   stf_type: Triangular
-  n_sources: 1
+  n_sources: [1]
   datatypes:
   - polarity
   hyperparameters:

@@ -14,7 +14,7 @@ problem_config: !beat.ProblemConfig
   stf_type: HalfSinusoid
   decimation_factors:
     geodetic: 2
-  n_sources: 1
+  n_sources: [1]
   datatypes: [geodetic]
   hyperparameters:
     h_SAR: !beat.heart.Parameter

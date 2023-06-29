@@ -595,6 +595,10 @@ class GeodeticSourceComposite(GeodeticComposite):
         self.sources = sources
         self.mapping = mapping
 
+    @property
+    def n_sources_total(self):
+        return len(self.sources)
+
     def point2sources(self, point):
         """
         Updates the composite source(s) (in place) with the point values.
@@ -610,13 +614,16 @@ class GeodeticSourceComposite(GeodeticComposite):
             if hyper in tpoint:
                 tpoint.pop(hyper)
 
-        source_parameter_names = self.mapping.get_all_point_variable_names()
+        source_parameter_names = self.mapping.point_variable_names()
         for param in list(tpoint.keys()):
             if param not in source_parameter_names:
                 tpoint.pop(param)
 
-        # TODO source to point mapping
-        source_points = utility.split_point(tpoint)
+        source_points = utility.split_point(
+            tpoint,
+            point_to_sources=self.mapping.point_to_sources_mapping(),
+            n_sources_total=self.n_sources_total,
+        )
         for i, source in enumerate(self.sources):
             utility.update_source(source, **source_points[i])
             # reset source time may result in store error otherwise

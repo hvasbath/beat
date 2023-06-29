@@ -30,6 +30,9 @@ from pyrocko.guts import (
     dump,
     load,
 )
+from typing import Dict as TDict
+from typing import List as TList
+
 from theano import config as tconfig
 
 from beat import utility, bem
@@ -1207,29 +1210,41 @@ class DatatypeParameterMapping(Object):
 
     sources_variables = List.T(Dict.T(String.T(), Int.T()))
 
-    def point_to_source_mapping(self):
-        total_variables = {}
-        start_idx = 0
-        for source_variables in self.sources_variables:
-            for variable, size in source_variables.items():
-                end_idx = size + start_idx
-                if variable in total_variables:
-                    total_variables[variable].append(end_idx)
-                else:
-                    total_variables[variable] = [start_idx, end_idx]
+    def __init__(self, **kwargs):
 
-            start_idx += size
+        Object.__init__(self, **kwargs)
 
-        return total_variables
+        self._mapping = None
 
-    def get_all_point_variable_names(self):
-        return self.get_total_variables_sizes().keys()
+    def point_to_sources_mapping(self) -> TDict[str, TList[int]]:
 
-    def get_total_variables_sizes(self):
-        mapping = self.point_to_source_mapping()
+        if self._mapping is None:
+            start_idx = 0
+            total_variables = {}
+            for source_variables in self.sources_variables:
+                for variable, size in source_variables.items():
+                    end_idx = size + start_idx
+                    source_idxs = list(range(start_idx, end_idx))
+                    if variable in total_variables:
+                        total_variables[variable].extend(source_idxs)
+                    else:
+                        total_variables[variable] = source_idxs
+
+                start_idx += size
+
+            self._mapping = total_variables
+
+        return self._mapping
+
+    def point_variable_names(self) -> TList[int]:
+        return self.point_to_sources_mapping().keys()
+
+    def total_variables_sizes(self) -> TDict[str, int]:
+
+        mapping = self.point_to_sources_mapping()
         variables_sizes = {}
         for variable, idxs in mapping.items():
-            variables_sizes[variable] = sum(idxs)
+            variables_sizes[variable] = len(idxs)
 
         return variables_sizes
 
@@ -1249,7 +1264,7 @@ class SourcesParameterMapping(Object):
         for datatype in self.datatypes:
             self.mappings[datatype] = None
 
-    def add(self, sources_variables: Dict = {}, datatype: str = "geodetic"):
+    def add(self, sources_variables: TDict = {}, datatype: str = "geodetic"):
         if datatype in self.mappings:
             self.mappings[datatype] = DatatypeParameterMapping(
                 sources_variables=sources_variables
@@ -1259,7 +1274,13 @@ class SourcesParameterMapping(Object):
                 "Datatype for the source mapping has not been initialized!"
             )
 
-    def get_unique_variables_sizes(self) -> Dict:
+    def __getitem__(self, k):
+        if k not in self.mappings.keys():
+            raise KeyError(k)
+
+        return self.mappings[k]
+
+    def unique_variables_sizes(self) -> TDict[str, int]:
         """
         Combine source specific variable dicts into a common setup dict
 
@@ -1277,9 +1298,7 @@ class SourcesParameterMapping(Object):
             )
         unique_variables = {}
         for datatype_parameter_mapping in self.mappings.values():
-            unique_variables.update(
-                datatype_parameter_mapping.get_total_variables_sizes()
-            )
+            unique_variables.update(datatype_parameter_mapping.total_variables_sizes())
 
         return unique_variables
 
@@ -1583,12 +1602,12 @@ class ProblemConfig(Object):
 
     def get_parameter_shape(self, param):
         if self.mode == ffi_mode_str and param.name in hypo_vars:
-            shape = self.n_sources
+            shape = self.n_sources[0]
         elif self.mode == ffi_mode_str and self.mode_config.npatches:
             shape = self.mode_config.subfault_npatches
             if len(shape) == 0:
                 shape = self.mode_config.npatches
-        elif self.mode in [ffi_mode_str, geometry_mode_str]:
+        elif self.mode in [ffi_mode_str, geometry_mode_str, bem_mode_str]:
             shape = param.dimension
 
         else:
@@ -2155,7 +2174,7 @@ def init_config(
         n_sources = gmc.problem_config.n_sources[0]
         point = {k: v.testvalue for k, v in gmc.problem_config.priors.items()}
         point = utility.adjust_point_units(point)
-        source_points = utility.split_point(point)
+        source_points = utility.split_point(point, n_sources_total=n_sources)
 
         reference_sources = init_reference_sources(
             source_points,

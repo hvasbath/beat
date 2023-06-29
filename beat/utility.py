@@ -667,7 +667,7 @@ def adjust_point_units(point):
     return mpoint
 
 
-def split_point(point):
+def split_point(point, point_to_sources=None, n_sources_total=1):
     """
     Split point in solution space into List of dictionaries with source
     parameters for each source.
@@ -676,25 +676,25 @@ def split_point(point):
     ----------
     point : dict
         :func:`pymc3.model.Point`
+    point_to_sources : :class: `beat.config.DatatypeParameterMapping`
+    n_sources_total : list
+        of int with number of sources for each type in setup
 
     Returns
     -------
     source_points : list
         of :func:`pymc3.model.Point`
     """
-    params = point.keys()
-    if len(params) > 0:
-        n_sources = point[next(iter(params))].shape[0]
-    else:
-        n_sources = 0
 
-    source_points = []
-    for i in range(n_sources):
-        source_param_dict = dict()
-        for param, value in point.items():
-            source_param_dict[param] = float(value[i])
+    source_points = [{} for i in range(n_sources_total)]
+    for param, values in point.items():
+        if point_to_sources:
+            source_idxs = point_to_sources[param]
+        else:
+            source_idxs = range(n_sources_total)
 
-        source_points.append(source_param_dict)
+        for value, idx in zip(values, source_idxs):
+            source_points[idx][param] = float(value)
 
     return source_points
 

@@ -128,7 +128,7 @@ Under the *problem_config* we find the parameters that we need to adjust::
       decimation_factors:
         geodetic: 1
         seismic: 1
-      n_sources: 1
+      n_sources: [1]
       datatypes: [geodetic, seismic]
       hyperparameters:
         h_SAR: !beat.heart.Parameter

@@ -34,7 +34,7 @@ problem_config: !beat.ProblemConfig
   decimation_factors:
     geodetic: 4
     seismic: 1
-  n_sources: 1
+  n_sources: [1]
   datatypes: [geodetic, seismic]
   hyperparameters:
     h_SAR: !beat.heart.Parameter

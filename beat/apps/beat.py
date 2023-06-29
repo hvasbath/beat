@@ -260,7 +260,7 @@ def command_init(args):
             action="callback",
             callback=list_callback,
             default=["RectangularSource"],
-            help="Source types to solve for. Can be any combination of the "
+            help="List of source types to solve for. Can be any combination of the "
             "following for mode: geometry - %s; bem - %s; "
             "Default: 'RectangularSource'"
             % (
@@ -276,7 +276,7 @@ def command_init(args):
             default=1,
             action="callback",
             callback=list_callback_int,
-            help="List integer Number of sources per source type to invert for. Default: [1]",
+            help="List of integer numbers of sources per source type to invert for. Default: [1]",
         )
 
         parser.add_option(
@@ -664,6 +664,11 @@ def command_import(args):
 
         if options.mode == ffi_mode_str:
             n_sources = problem.config.problem_config.n_sources
+            if len(n_sources) != 1:
+                raise TypeError(
+                    "FFI with more than one source type is not implemented!"
+                )
+
             if options.import_from_mode == geometry_mode_str:
                 logger.info("Importing non-linear source geometry results!")
 
@@ -672,12 +677,12 @@ def command_import(args):
                         point.pop(param)
 
                 point = utility.adjust_point_units(point)
-                source_points = utility.split_point(point)
+                source_points = utility.split_point(point, n_sources_total=n_sources[0])
 
                 reference_sources = bconfig.init_reference_sources(
                     source_points,
                     n_sources,
-                    c.problem_config.source_type,
+                    c.problem_config.source_types[0],
                     c.problem_config.stf_type,
                     event=c.event,
                 )
@@ -718,6 +723,7 @@ def command_import(args):
 
         elif options.mode == geometry_mode_str:
             if options.import_from_mode == geometry_mode_str:
+                # TODO update for n_sources refactoring
                 n_sources = problem.config.problem_config.n_sources
                 logger.info("Importing non-linear source geometry results!")
 
@@ -1542,7 +1548,7 @@ def command_build_gfs(args):
                 logger.info("Fault discretization done! Updating problem_config...")
                 logger.info("%s" % fault.__str__())
 
-                c.problem_config.n_sources = fault.nsubfaults
+                c.problem_config.n_sources = [fault.nsubfaults]
                 mode_c.npatches = fault.npatches
                 mode_c.subfault_npatches = fault.subfault_npatches
 
