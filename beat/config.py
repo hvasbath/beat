@@ -46,7 +46,11 @@ from beat.heart import (
     _domain_choices,
 )
 from beat.defaults import default_decimation_factors, defaults
-from beat.sources import RectangularSource, source_catalog, stf_catalog
+from beat.sources import (
+    RectangularSource,
+    stf_catalog,
+    source_catalog as geometry_source_catalog,
+)
 from beat.utility import check_point_keys, list2string
 
 try:
@@ -55,6 +59,12 @@ try:
     bem_catalog = {"geodetic": bem_source_catalog}
 except ImportError:
     bem_catalog = {}
+
+
+source_catalog = {}
+for catalog in [geometry_source_catalog, bem_source_catalog]:
+    source_catalog.update(catalog)
+
 
 guts_prefix = "beat"
 
@@ -188,7 +198,12 @@ class MediumConfig(Object):
     Base class for subsurface medium configuration
     """
 
-    pass
+    reference_model_idx = Int.T(
+        default=0,
+        help="Index to velocity model to use for the optimization."
+        " 0 - reference, 1..n - model of variations",
+    )
+    sample_rate = Float.T(default=0, optional=True)
 
 
 class GFConfig(MediumConfig):
@@ -200,11 +215,6 @@ class GFConfig(MediumConfig):
         default="./",
         help="Absolute path to the directory where Greens Function"
         " stores are located",
-    )
-    reference_model_idx = Int.T(
-        default=0,
-        help="Index to velocity model to use for the optimization."
-        " 0 - reference, 1..n - model of variations",
     )
     n_variations = Tuple.T(
         2,
@@ -1185,6 +1195,7 @@ class BoundaryConditions(Object):
 class BEMConfig(MediumConfig):
     nu = Float.T(default=0.25, help="Poisson's ratio")
     mu = Float.T(default=33e9, help="Shear modulus [Pa]")
+    earth_model_name = String.T(default="homogeneous-elastic-halfspace")
     mesh_size = Float.T(
         default=0.5,
         help="Determines the size of triangles [km], the smaller the finer the discretization.",
@@ -1254,6 +1265,8 @@ class SourcesParameterMapping(Object):
     Mapping for source parameters to point of variables.
     """
 
+    source_types = List.T(String.T(), default=[])
+    n_sources = List.T(String.T(), default=[])
     datatypes = List.T(StringChoice.T(choices=_datatype_choices), default=[])
     mappings = Dict.T(String.T(), DatatypeParameterMapping.T())
 
@@ -1378,7 +1391,7 @@ class ProblemConfig(Object):
             mapping = self.get_variables_mapping()
 
         self.priors = OrderedDict()
-        for variable, size in mapping.get_unique_variables().items():
+        for variable, size in mapping.unique_variables_sizes().items():
             lower, upper = defaults[variable].default_bounds
             self.priors[variable] = get_parameter(variable, size, lower, upper)
 
@@ -1426,11 +1439,16 @@ class ProblemConfig(Object):
                     Supported datatype are: {list2string(vars_catalog.keys())}"""
                 )
 
-        mapping = SourcesParameterMapping(datatypes=self.datatypes)
+        mapping = SourcesParameterMapping(
+            source_types=self.source_types,
+            datatypes=self.datatypes,
+            n_sources=self.n_sources,
+        )
         for datatype in self.datatypes:
-            variables = {}
             if self.mode in [geometry_mode_str, bem_mode_str]:
+                list_variables = []
                 for source_type, n_source in zip(self.source_types, self.n_sources):
+                    variables = {}
                     if source_type not in vars_catalog[datatype].keys():
                         raise ValueError(
                             "Source Type not supported for type"
@@ -1451,12 +1469,15 @@ class ProblemConfig(Object):
                         variables[varname] = n_source
 
                     variables = utility.weed_input_rvs(variables, self.mode, datatype)
-                    mapping.add(variables, datatype=datatype)
+                    list_variables.append(variables)
+
+                mapping.add(list_variables, datatype=datatype)
             else:
+                variables = {}
                 for varname in vars_catalog[datatype]:
                     variables[varname] = self.n_sources[0]
 
-                mapping.add(variables, datatype=datatype)
+                mapping.add([variables], datatype=datatype)
 
         return mapping
 

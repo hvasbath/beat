@@ -48,6 +48,9 @@ geometry_composite_catalog = {
     "geodetic": geodetic.GeodeticGeometryComposite,
 }
 
+bem_composite_catalog = {
+    "geodetic": geodetic.GeodeticBEMComposite,
+}
 
 distributer_composite_catalog = {
     "seismic": seismic.SeismicDistributerComposite,
@@ -674,11 +677,15 @@ class GeometryOptimizer(SourceOptimizer):
         super(GeometryOptimizer, self).__init__(config, hypers)
 
         pc = config.problem_config
+        if pc.mode == "geometry":
+            composite_catalog = geometry_composite_catalog
+        elif pc.mode == "bem":
+            composite_catalog = bem_composite_catalog
 
         dsources = transform_sources(self.sources, pc.datatypes, pc.decimation_factors)
         mappings = pc.get_variables_mapping()
         for datatype in pc.datatypes:
-            self.composites[datatype] = geometry_composite_catalog[datatype](
+            self.composites[datatype] = composite_catalog[datatype](
                 config[datatype + "_config"],
                 config.project_dir,
                 dsources[datatype],
@@ -903,11 +910,10 @@ class DistributionOptimizer(Problem):
         return point
 
 
-problem_modes = list(bconfig.modes_catalog.keys())
 problem_catalog = {
-    problem_modes[0]: GeometryOptimizer,
-    problem_modes[1]: DistributionOptimizer,
-    problem_modes[2]: InterseismicOptimizer,
+    bconfig.geometry_mode_str: GeometryOptimizer,
+    bconfig.ffi_mode_str: DistributionOptimizer,
+    bconfig.bem_mode_str: GeometryOptimizer,
 }
 
 

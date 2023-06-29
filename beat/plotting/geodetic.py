@@ -522,7 +522,7 @@ def scene_fits(problem, stage, plot_options):
     if po.reference:
         if mode != ffi_mode_str:
             composite.point2sources(po.reference)
-            ref_sources = copy.deepcopy(composite.sources)
+            ref_sources = [source.clone() for source in composite.sources]
         bpoint = po.reference
     else:
         bpoint = get_result_point(stage.mtrace, po.post_llk)
@@ -993,7 +993,7 @@ def scene_fits(problem, stage, plot_options):
                 horizontalalignment="center",
             )
 
-        draw_sources(axes[figidx][rowidx, 1], sources, scene, po, event=event)
+        # draw_sources(axes[figidx][rowidx, 1], sources, scene, po, event=event)
 
         if ref_sources:
             ref_color = scolor("aluminium4")

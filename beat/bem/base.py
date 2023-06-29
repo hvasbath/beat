@@ -82,7 +82,7 @@ class BEMEngine(object):
         self._ncoords_targets = None
 
     def cache_target_coords3(self, targets, dtype="float32"):
-        ncoords_targets = num.array([0] + [target.ncoords for target in targets])
+        ncoords_targets = num.cumsum([0] + [target.ncoords for target in targets])
         if self._ncoords_targets is None:
             self._ncoords_targets = ncoords_targets
             coords_diff = 0

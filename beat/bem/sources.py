@@ -1,9 +1,9 @@
 import logging
 import numpy as num
 
-from pyrocko.guts import Object, Float, StringChoice, List, Int, Bool
-from pyrocko.model import Location
-from pyrocko.gf.seismosizer import Cloneable
+from pyrocko.guts import Object, Float
+
+from pyrocko.gf.seismosizer import Source
 
 from dataclasses import dataclass
 
@@ -142,7 +142,7 @@ class Origin:
         return (self.x, self.y, self.z)
 
 
-class BEMSource(Location, Cloneable):
+class BEMSource(Source):
     strike_traction = Float.T(
         default=0.0, help="Traction in strike-direction of the Triangles"
     )
@@ -161,7 +161,7 @@ class EllipseBEMSource(BEMSource):
     strike = Float.T(default=0.0)
 
     def __init__(self, **kwargs):
-        Object.__init__(self, **kwargs)
+        BEMSource.__init__(self, **kwargs)
         self.points = {}
         self.origin = Origin(x=self.east_shift, y=self.north_shift, z=-self.depth)
 

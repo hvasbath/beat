@@ -625,7 +625,7 @@ def transform_sources(sources, datatypes, decimation_factors=None):
         transformed_sources = []
 
         for source in sources:
-            transformed_source = copy.deepcopy(source)
+            transformed_source = source.clone()
 
             if decimation_factors is not None:
                 transformed_source.update(

@@ -32,6 +32,7 @@ km = 1000.0
 
 
 __all__ = [
+    "GeodeticBEMComposite",
     "GeodeticGeometryComposite",
     "GeodeticInterseismicComposite",
     "GeodeticDistributerComposite",
@@ -692,11 +693,15 @@ class GeodeticGeometryComposite(GeodeticSourceComposite):
             gc, project_dir, sources, mapping, events, hypers=hypers
         )
 
+        logger.info("Initialising geometry geodetic composite ...")
         if not hypers:
             # synthetics generation
             logger.debug("Initialising synthetics functions ... \n")
             self.get_synths = theanof.GeoSynthesizer(
-                engine=self.engine, sources=self.sources, targets=self.targets
+                engine=self.engine,
+                sources=self.sources,
+                targets=self.targets,
+                point_to_sources=mapping.point_to_sources_mapping(),
             )
 
     def __getstate__(self):
@@ -821,16 +826,20 @@ class GeodeticGeometryComposite(GeodeticSourceComposite):
 
 
 class GeodeticBEMComposite(GeodeticSourceComposite):
-    def __init__(self, gc, project_dir, sources, events, hypers=False):
-        super(GeodeticGeometryComposite, self).__init__(
-            gc, project_dir, sources, events, hypers=hypers
+    def __init__(self, gc, project_dir, sources, mapping, events, hypers=False):
+        super(GeodeticBEMComposite, self).__init__(
+            gc, project_dir, sources, mapping, events, hypers=hypers
         )
+        logger.info("Initialising BEM geodetic composite ...")
 
         if not hypers:
             # synthetics generation
             logger.debug("Initialising synthetics functions ... \n")
             self.get_synths = theanof.GeoSynthesizer(
-                engine=self.engine, sources=self.sources, targets=self.targets
+                engine=self.engine,
+                sources=self.sources,
+                targets=self.targets,
+                point_to_sources=mapping.point_to_sources_mapping(),
             )
 
     def get_synthetics(self, point):
@@ -858,6 +867,7 @@ class GeodeticBEMComposite(GeodeticSourceComposite):
 
         synths = []
         for disp, data in zip(displacements, self.datasets):
+            print(disp.shape)
             los_d = (disp * data.los_vector).sum(axis=1)
             synths.append(los_d)
 
