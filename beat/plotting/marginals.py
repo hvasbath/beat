@@ -14,7 +14,7 @@ from pyrocko.plot import AutoScaler, mpl_graph_color, mpl_papersize, nice_value
 from scipy.stats import kde
 
 from beat import utility
-from beat.config import dist_vars, geometry_mode_str
+from beat.config import dist_vars, geometry_mode_str, bem_mode_str
 from beat.heart import defaults
 from beat.models import Stage, load_stage
 from beat.defaults import hypername
@@ -950,7 +950,9 @@ def draw_correlation_hist(problem, plot_options):
     po = plot_options
     mode = problem.config.problem_config.mode
 
-    assert mode == geometry_mode_str
+    if mode not in [geometry_mode_str, bem_mode_str]:
+        raise NotImplementedError(f"The correlation plot is not implemented for {mode}")
+
     assert po.load_stage != 0
 
     hypers = utility.check_hyper_flag(problem)
