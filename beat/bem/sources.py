@@ -3,7 +3,7 @@ import numpy as num
 import functools
 
 from pyrocko.guts import Object, Float
-
+from pyrocko.orthodrome import ne_to_latlon
 from pyrocko.gf.seismosizer import Source
 
 from dataclasses import dataclass
@@ -279,6 +279,41 @@ class DiskBEMSource(EllipseBEMSource):
     def __init__(self, **kwargs):
         EllipseBEMSource.__init__(self, **kwargs)
 
+    def outline(self, cs="xy", npoints=50):
+        major_axis_rot = self.major_axis * num.cos(self.dip * DEG2RAD)
+        minor_axis_rot = self.minor_axis * num.cos(self.plunge * DEG2RAD)
+
+        ring = num.linspace(0, 2 * num.pi, npoints)
+        ellipse = num.array(
+            [minor_axis_rot * num.cos(ring), major_axis_rot * num.sin(ring)]
+        )
+
+        strike_rad = -self.strike * DEG2RAD
+        rot_strike = num.array(
+            [
+                [num.cos(strike_rad), -num.sin(strike_rad)],
+                [num.sin(strike_rad), num.cos(strike_rad)],
+            ]
+        )
+        ellipse_rot = rot_strike.dot(ellipse)
+
+        points = num.atleast_2d(num.zeros([npoints, 2]))
+        points[:, 0] += ellipse_rot[1, :] + self.north_shift
+        points[:, 1] += ellipse_rot[0, :] + self.east_shift
+
+        if cs == "xy":
+            return points
+        elif cs in ("latlon", "lonlat"):
+            latlon = ne_to_latlon(self.lat, self.lon, points[:, 0], points[:, 1])
+
+            latlon = num.array(latlon).T
+            if cs == "latlon":
+                return latlon
+            else:
+                return latlon[:, ::-1]
+        else:
+            raise NotImplemented(f"Coordinate system '{cs}' is not implemented.")
+
     def discretize_basesource(self, mesh_size, target=None, optimize=False, plot=False):
 
         with pygmsh.geo.Geometry() as geom:
@@ -308,6 +343,7 @@ class DiskBEMSource(EllipseBEMSource):
             t_arch_ll = geom.add_ellipse_arc(*self.get_top_lower_left_arch_points())
 
             ellipse = geom.add_curve_loop([t_arch_ul, t_arch_ur, t_arch_lr, t_arch_ll])
+
             disk = geom.add_surface(ellipse)
 
             if optimize:

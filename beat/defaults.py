@@ -19,7 +19,7 @@ def hypername(varname):
     if varname in plot_units.keys():
         return varname
     else:
-        return "h_"
+        return "hypers"
 
 
 class Bounds(Object):
@@ -120,6 +120,7 @@ default_bounds = dict(
     delta_east_shift_bottom=(-10, 10),
     delta_north_shift_bottom=(-10, 10),
     delta_depth_bottom=(-1, 1),
+    like=(0, 1),  # dummy for plotting
 )
 
 default_seis_std = 1.0e-6
@@ -204,6 +205,7 @@ physical_bounds = dict(
     delta_east_shift_bottom=(-500, 500),
     delta_north_shift_bottom=(-500, 500),
     delta_depth_bottom=(-20, 20),
+    like=(-num.inf, num.inf),
 )
 
 u_n = "$[N]$"
@@ -219,7 +221,7 @@ u_rad = "$[rad]$"
 u_hyp = ""
 u_percent = "[$\%$]"
 u_nanostrain = "nstrain"
-u_mpa = "[$[MPa]$]"
+u_mpa = "$[MPa]$"
 
 plot_units = {
     "east_shift": u_km,
@@ -277,13 +279,13 @@ plot_units = {
     "kappa": u_deg,
     "sigma": u_deg,
     "h": u_deg,
+    "hypers": u_hyp,
     "distance": u_km,
     "delta_depth": u_km,
     "delta_time": u_s,
     "time": u_s,
     "duration": u_s,
     "peak_ratio": u_hyp,
-    "h_": u_hyp,
     "like": u_hyp,
     "strike_traction": u_mpa,
     "dip_traction": u_mpa,

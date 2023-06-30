@@ -187,6 +187,10 @@ class BEMEngine(object):
 
         return num.block(G_slip_components)
 
+    def get_store(self, store_id):
+        """Dummy method to allow compatibility"""
+        return None
+
 
 def get_coefficient_matrices_tdcs(
     discretized_bem_source: DiscretizedBEMSource,

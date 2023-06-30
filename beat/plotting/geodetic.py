@@ -993,7 +993,7 @@ def scene_fits(problem, stage, plot_options):
                 horizontalalignment="center",
             )
 
-        # draw_sources(axes[figidx][rowidx, 1], sources, scene, po, event=event)
+        draw_sources(axes[figidx][rowidx, 1], sources, scene, po, event=event)
 
         if ref_sources:
             ref_color = scolor("aluminium4")
