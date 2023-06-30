@@ -219,7 +219,7 @@ u_rad = "$[rad]$"
 u_hyp = ""
 u_percent = "[$\%$]"
 u_nanostrain = "nstrain"
-u_gpa = "[$[GPa]$]"
+u_mpa = "[$[MPa]$]"
 
 plot_units = {
     "east_shift": u_km,
@@ -285,9 +285,9 @@ plot_units = {
     "peak_ratio": u_hyp,
     "h_": u_hyp,
     "like": u_hyp,
-    "strike_traction": u_gpa,
-    "dip_traction": u_gpa,
-    "tensile_traction": u_gpa,
+    "strike_traction": u_mpa,
+    "dip_traction": u_mpa,
+    "tensile_traction": u_mpa,
     "major_axis": u_km,
     "minor_axis": u_km,
     "major_axis_bottom": u_km,

@@ -59,7 +59,8 @@ class GeoSynthesizer(theano.Op):
         # add source to point mapping here for mixed source setups
 
     def __getstate__(self):
-        self.engine.close_cashed_stores()
+        if isinstance(self.engine, LocalEngine):
+            self.engine.close_cashed_stores()
         return self.__dict__
 
     def __setstate__(self, state):

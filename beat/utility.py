@@ -52,6 +52,7 @@ degtypes = {"strike", "dip", "rake"}
 nucleationtypes = {"nucleation_x", "nucleation_y"}
 patch_anchor_points = {"center", "bottom_depth", "bottom_left"}
 
+patypes = {"strike_traction", "dip_traction", "tensile_traction"}
 kmtypes = set.union(locationtypes, dimensiontypes, patch_anchor_points)
 grouped_vars = set.union(kmtypes, mttypes, degtypes, nucleationtypes)
 
@@ -661,6 +662,8 @@ def adjust_point_units(point):
     for key, value in point.items():
         if key in kmtypes:
             mpoint[key] = value * km
+        elif key in patypes:
+            mpoint[key] = value * km * km
         else:
             mpoint[key] = value
 

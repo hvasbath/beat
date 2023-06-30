@@ -222,7 +222,8 @@ def choose_proposal(proposal_name, **kwargs):
     -------
     class:`pymc3.Proposal` Object
     """
-    return proposal_distributions[proposal_name](**kwargs)
+    proposal = proposal_distributions[proposal_name](**kwargs)
+    return proposal
 
 
 def setup_chain_counter(n_chains, n_jobs):
