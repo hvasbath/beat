@@ -1226,6 +1226,16 @@ class DatatypeParameterMapping(Object):
         Object.__init__(self, **kwargs)
 
         self._mapping = None
+        self.point_to_sources_mapping()
+
+    def __getitem__(self, k):
+        if self._mapping is None:
+            self.point_to_sources_mapping()
+
+        if k not in self._mapping.keys():
+            raise KeyError(k)
+
+        return self._mapping[k]
 
     def point_to_sources_mapping(self) -> TDict[str, TList[int]]:
 

@@ -622,7 +622,7 @@ class GeodeticSourceComposite(GeodeticComposite):
 
         source_points = utility.split_point(
             tpoint,
-            point_to_sources=self.mapping.point_to_sources_mapping(),
+            point_to_sources=self.mapping,
             n_sources_total=self.n_sources_total,
         )
         for i, source in enumerate(self.sources):
@@ -842,7 +842,7 @@ class GeodeticBEMComposite(GeodeticSourceComposite):
                 engine=self.engine,
                 sources=self.sources,
                 targets=self.targets,
-                point_to_sources=mapping.point_to_sources_mapping(),
+                point_to_sources=mapping,
             )
 
     def get_synthetics(self, point):
