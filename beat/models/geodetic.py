@@ -814,15 +814,18 @@ class GeodeticGeometryComposite(GeodeticSourceComposite):
 
                 cov_pv = utility.ensure_cov_psd(cov_pv)
                 data.covariance.pred_v = cov_pv
-                choli = data.covariance.chol_inverse
-
-                self.weights[i].set_value(choli)
-                data.covariance.update_slog_pdet()
         else:
             logger.info(
                 "Not updating geodetic velocity model-covariances because "
                 "number of model variations is too low! < %i" % thresh
             )
+
+        # update shared weights from covariance matrices
+        for i, data in enumerate(self.datasets):
+            choli = data.covariance.chol_inverse
+
+            self.weights[i].set_value(choli)
+            data.covariance.update_slog_pdet()
 
 
 class GeodeticBEMComposite(GeodeticSourceComposite):
@@ -867,7 +870,6 @@ class GeodeticBEMComposite(GeodeticSourceComposite):
 
         synths = []
         for disp, data in zip(displacements, self.datasets):
-            print(disp.shape)
             los_d = (disp * data.los_vector).sum(axis=1)
             synths.append(los_d)
 
@@ -886,10 +888,6 @@ class GeodeticBEMComposite(GeodeticSourceComposite):
         point : dict
             with numpy array-like items and variable name keys
         """
-        raise NotImplementedError(
-            "Needs updating for this composite to vary elastic parameters."
-        )
-
         gc = self.config
 
         if not self.weights:
@@ -905,6 +903,11 @@ class GeodeticBEMComposite(GeodeticSourceComposite):
         crust_inds = range(*gc.gf_config.n_variations)
         thresh = 5
         if len(crust_inds) > thresh:
+
+            raise NotImplementedError(
+                "Needs updating for this composite to vary elastic parameters."
+            )
+
             logger.info("Updating geodetic velocity model-covariances ...")
             if self.config.noise_estimator.structure == "non-toeplitz":
                 logger.warning(
@@ -935,15 +938,18 @@ class GeodeticBEMComposite(GeodeticSourceComposite):
 
                 cov_pv = utility.ensure_cov_psd(cov_pv)
                 data.covariance.pred_v = cov_pv
-                choli = data.covariance.chol_inverse
-
-                self.weights[i].set_value(choli)
-                data.covariance.update_slog_pdet()
         else:
             logger.info(
                 "Not updating geodetic velocity model-covariances because "
                 "number of model variations is too low! < %i" % thresh
             )
+
+        # update shared weights from covariance matrices
+        for i, data in enumerate(self.datasets):
+            choli = data.covariance.chol_inverse
+
+            self.weights[i].set_value(choli)
+            data.covariance.update_slog_pdet()
 
 
 class GeodeticInterseismicComposite(GeodeticSourceComposite):
@@ -1275,12 +1281,15 @@ class GeodeticDistributerComposite(GeodeticComposite):
 
                 cov_pv = utility.ensure_cov_psd(cov_pv)
                 data.covariance.pred_v = cov_pv
-                choli = data.covariance.chol_inverse
-
-                self.weights[i].set_value(choli)
-                data.covariance.update_slog_pdet()
         else:
             logger.info(
                 "Not updating geodetic velocity model-covariances because "
                 "number of model variations is too low! < %i" % thresh
             )
+
+        # update shared weights from covariance matrices
+        for i, data in enumerate(self.datasets):
+            choli = data.covariance.chol_inverse
+
+            self.weights[i].set_value(choli)
+            data.covariance.update_slog_pdet()

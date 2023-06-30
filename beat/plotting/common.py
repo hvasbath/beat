@@ -3,7 +3,7 @@ import os
 
 import numpy as num
 from matplotlib import pyplot as plt
-from matplotlib.ticker import MaxNLocator
+from matplotlib.ticker import MaxNLocator, FixedLocator
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 from pymc3 import quantiles
 from pyrocko import orthodrome as otd
@@ -544,9 +544,15 @@ def scale_axes(axis, scale, offset=0.0):
     class FormatScaled(ScalarFormatter):
         @staticmethod
         def __call__(value, pos):
-            return "{:,.1f}".format(offset + value * scale).replace(",", " ")
+            return "{:,.2f}".format(offset + value * scale).replace(",", " ")
 
     axis.set_major_formatter(FormatScaled())
+
+
+def set_locator_axes(axis, locator):
+    axis.set_major_locator(locator)
+    ticks_loc = axis.get_majorticklocs().tolist()
+    axis.set_major_locator(FixedLocator(ticks_loc))
 
 
 def set_anchor(sources, anchor):
@@ -557,15 +563,6 @@ def set_anchor(sources, anchor):
 def get_gmt_colorstring_from_mpl(i):
     color = (num.array(mpl_graph_color(i)) * 255).tolist()
     return utility.list2string(color, "/")
-
-
-def get_latlon_ratio(lat, lon):
-    """
-    Get latlon ratio at given location
-    """
-    dlat_meters = otd.distance_accurate50m(lat, lon, lat - 1.0, lon)
-    dlon_meters = otd.distance_accurate50m(lat, lon, lat, lon - 1.0)
-    return dlat_meters / dlon_meters
 
 
 def plot_inset_hist(

@@ -15,7 +15,7 @@ from pyrocko import gmtpy
 from pyrocko import orthodrome as otd
 from pyrocko.cake_plot import light
 from pyrocko.cake_plot import str_to_mpl_color as scolor
-from pyrocko.plot import AutoScaler, mpl_graph_color, mpl_papersize, nice_value
+from pyrocko.plot import mpl_graph_color, mpl_papersize
 
 from beat import utility
 from beat.config import ffi_mode_str
@@ -24,13 +24,13 @@ from beat.models import Stage
 from .common import (
     format_axes,
     get_gmt_colorstring_from_mpl,
-    get_latlon_ratio,
     get_nice_plot_bounds,
     get_result_point,
     km,
     cbtick,
     plot_inset_hist,
     scale_axes,
+    set_locator_axes,
     set_anchor,
     plot_covariances,
     get_weights_point,
@@ -629,7 +629,7 @@ def scene_fits(problem, stage, plot_options):
 
     def axis_config(axes, source, scene, po):
 
-        latlon_ratio = get_latlon_ratio(source.lat, source.lon)
+        latlon_ratio = 1.0 / num.cos(source.effective_lat * num.pi / 180.0)
         for i, ax in enumerate(axes):
             if po.plot_projection == "latlon":
                 ystr = "Latitude [deg]"
@@ -660,8 +660,8 @@ def scene_fits(problem, stage, plot_options):
             else:
                 raise TypeError("Plot projection %s not available" % po.plot_projection)
 
-            ax.xaxis.set_major_locator(MaxNLocator(nbins=3))
-            ax.yaxis.set_major_locator(MaxNLocator(nbins=3))
+            set_locator_axes(ax.get_xaxis(), MaxNLocator(nbins=3))
+            set_locator_axes(ax.get_yaxis(), MaxNLocator(nbins=3))
 
             if i == 0:
                 ax.set_ylabel(ystr, fontsize=fontsize)

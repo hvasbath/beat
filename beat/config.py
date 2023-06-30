@@ -204,6 +204,14 @@ class MediumConfig(Object):
         " 0 - reference, 1..n - model of variations",
     )
     sample_rate = Float.T(default=0, optional=True)
+    n_variations = Tuple.T(
+        2,
+        Int.T(),
+        default=(0, 1),
+        help="Start and end index to vary input velocity model. "
+        "Important for the calculation of the model prediction covariance"
+        " matrix with respect to uncertainties in the velocity model.",
+    )
 
 
 class GFConfig(MediumConfig):
@@ -215,14 +223,6 @@ class GFConfig(MediumConfig):
         default="./",
         help="Absolute path to the directory where Greens Function"
         " stores are located",
-    )
-    n_variations = Tuple.T(
-        2,
-        Int.T(),
-        default=(0, 1),
-        help="Start and end index to vary input velocity model. "
-        "Important for the calculation of the model prediction covariance"
-        " matrix with respect to uncertainties in the velocity model.",
     )
     earth_model_name = String.T(
         default="ak135-f-continental.f",
