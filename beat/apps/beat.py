@@ -848,10 +848,10 @@ def command_clone(args):
             type="string",
             action="callback",
             callback=list_callback,
-            default=[""],
-            help="Source types to solve for. Can be any combination of the "
+            default=[],
+            help="Source types to replace sources with. Can be any combination of the "
             "following for mode: geometry - %s; bem - %s; "
-            "Default: 'RectangularSource'"
+            "Default: No replacement!"
             % (
                 list2string(bconfig.source_catalog.keys()),
                 list2string(bconfig.bem_source_catalog.keys()),
@@ -971,9 +971,7 @@ def command_clone(args):
             old_priors = copy.deepcopy(c.problem_config.priors)
 
             new_prior_names = (
-                c.problem_config.get_unique_variables_sizes()
-                .get_unique_variables()
-                .keys()
+                c.problem_config.get_variables_mapping().unique_variables_sizes().keys()
             )
             for prior in new_prior_names:
                 if prior in list(old_priors.keys()):

@@ -461,17 +461,17 @@ def traceplot(
                         ax.get_yaxis().set_visible(False)
                         format_axes(axs[rowi, coli])
                         ax.tick_params(axis="x", labelsize=fontsize)
-                        #                axs[rowi, coli].set_ylabel("Frequency")
 
                         if lines:
                             try:
-                                ax.axvline(x=lines[v], color="white", lw=1.0)
-                                ax.axvline(
-                                    x=lines[v],
-                                    color="black",
-                                    linestyle="dashed",
-                                    lw=1.0,
-                                )
+                                for line in lines[v]:
+                                    ax.axvline(x=line, color="white", lw=1.0)
+                                    ax.axvline(
+                                        x=line,
+                                        color="black",
+                                        linestyle="dashed",
+                                        lw=1.0,
+                                    )
                             except KeyError:
                                 pass
 

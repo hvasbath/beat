@@ -293,8 +293,8 @@ def histplot_op(
         maxd = quants[qlist[-1]]
 
         if reference is not None:
-            mind = num.minimum(mind, reference)
-            maxd = num.maximum(maxd, reference)
+            mind = num.minimum(mind, reference).min()
+            maxd = num.maximum(maxd, reference).max()
 
         if tstd is None:
             tstd = num.std(d)

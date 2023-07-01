@@ -105,7 +105,9 @@ class BEMEngine(object):
 
     def process(self, sources: list, targets: list) -> num.ndarray:
         discretized_sources = [
-            source.discretize_basesource(mesh_size=self.config.mesh_size * km)
+            source.discretize_basesource(
+                mesh_size=self.config.mesh_size * km, plot=False
+            )
             for source in sources
         ]
         obs_points = self.cache_target_coords3(targets, dtype="float32")

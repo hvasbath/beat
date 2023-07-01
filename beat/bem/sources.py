@@ -164,7 +164,7 @@ class EllipseBEMSource(BEMSource):
         BEMSource.__init__(self, **kwargs)
         self.points = {}
 
-    @functools.cached_property
+    @property
     def __origin(self):
         return Origin(x=self.east_shift, y=self.north_shift, z=-self.depth)
 
@@ -323,7 +323,6 @@ class DiskBEMSource(EllipseBEMSource):
 
             rotations = (self.dip, self.plunge, self.strike)
             axes = ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))
-
             for point in self.points.values():
 
                 for rot_angle, axis in zip(rotations, axes):
@@ -382,7 +381,7 @@ class RingfaultBEMSource(EllipseBEMSource):
     def __init__(self, **kwargs):
         EllipseBEMSource.__init__(self, **kwargs)
 
-    @functools.cached_property
+    @property
     def __bottom_origin(self):
         return Origin(
             x=self.__origin.x + self.delta_east_shift_bottom,
