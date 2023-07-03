@@ -7,7 +7,6 @@ from scipy import stats
 
 import numpy as num
 from matplotlib import pyplot as plt
-from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.patches import FancyArrow
 from matplotlib.ticker import MaxNLocator
 from pymc3.plots.utils import make_2d
@@ -34,6 +33,8 @@ from .common import (
     set_anchor,
     plot_covariances,
     get_weights_point,
+    save_figs,
+    plot_exists,
 )
 
 logger = logging.getLogger("plotting.geodetic")
@@ -1087,23 +1088,11 @@ def draw_geodetic_covariances(problem, plot_options):
         "geodetic_covs_%s_%s" % (stage.number, llk_str),
     )
 
-    if not os.path.exists(outpath + ".%s" % po.outformat) or po.force:
-        figs = geodetic_covariances(problem, stage, po)
-    else:
-        logger.info("geodetic covariances plots exist. Use force=True for replotting!")
+    if plot_exists(outpath, po.outformat, po.force):
         return
 
-    if po.outformat == "display":
-        plt.show()
-    else:
-        logger.info("saving figures to %s" % outpath)
-        if po.outformat == "pdf":
-            with PdfPages(outpath + ".pdf") as opdf:
-                for fig in figs:
-                    opdf.savefig(fig)
-        else:
-            for i, fig in enumerate(figs):
-                fig.savefig("%s_%i.%s" % (outpath, i, po.outformat), dpi=po.dpi)
+    figs = geodetic_covariances(problem, stage, po)
+    save_figs(figs, outpath, po.outformat, po.dpi)
 
 
 def draw_scene_fits(problem, plot_options):
@@ -1143,23 +1132,11 @@ def draw_scene_fits(problem, plot_options):
         % (stage.number, llk_str, po.plot_projection, po.nensemble),
     )
 
-    if not os.path.exists(outpath + ".%s" % po.outformat) or po.force:
-        figs = scene_fits(problem, stage, po)
-    else:
-        logger.info("scene plots exist. Use force=True for replotting!")
+    if plot_exists(outpath, po.outformat, po.force):
         return
 
-    if po.outformat == "display":
-        plt.show()
-    else:
-        logger.info("saving figures to %s" % outpath)
-        if po.outformat == "pdf":
-            with PdfPages(outpath + ".pdf") as opdf:
-                for fig in figs:
-                    opdf.savefig(fig)
-        else:
-            for i, fig in enumerate(figs):
-                fig.savefig("%s_%i.%s" % (outpath, i, po.outformat), dpi=po.dpi)
+    figs = scene_fits(problem, stage, po)
+    save_figs(figs, outpath, po.outformat, po.dpi)
 
 
 def draw_gnss_fits(problem, plot_options):
@@ -1199,11 +1176,10 @@ def draw_gnss_fits(problem, plot_options):
         "gnss_%s_%s_%i_%s" % (stage.number, llk_str, po.nensemble, po.plot_projection),
     )
 
-    if not os.path.exists(outpath) or po.force:
-        figs = gnss_fits(problem, stage, po)
-    else:
-        logger.info("scene plots exist. Use force=True for replotting!")
+    if plot_exists(outpath, po.outformat, po.force):
         return
+
+    figs = gnss_fits(problem, stage, po)
 
     if po.outformat == "display":
         plt.show()

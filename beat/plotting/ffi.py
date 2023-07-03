@@ -2,12 +2,13 @@ import logging
 import os
 
 import numpy as num
-import pyrocko.moment_tensor as mt
+
 from matplotlib import pyplot as plt
-from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.collections import PatchCollection
 from matplotlib.patches import FancyArrow, Rectangle
 from matplotlib.ticker import FormatStrFormatter, MaxNLocator
+
+import pyrocko.moment_tensor as mt
 from pyrocko import gmtpy
 from pyrocko import orthodrome as otd
 from pyrocko.cake_plot import str_to_mpl_color as scolor
@@ -20,7 +21,7 @@ from pyrocko.plot import (
 )
 
 from beat import utility
-from beat.config import ffi_mode_str
+from beat.config import ffi_mode_str, bem_mode_str
 from beat.models import Stage, load_stage
 
 from .common import (
@@ -30,6 +31,8 @@ from .common import (
     get_result_point,
     km,
     scale_axes,
+    save_figs,
+    plot_exists,
 )
 
 logger = logging.getLogger("plotting.ffi")
@@ -144,44 +147,39 @@ def draw_moment_rate(problem, po):
             store=sc.engine.get_store(target.store_id),
         )
 
-        if not os.path.exists(outpath) or po.force:
-            fig, ax = plt.subplots(
-                nrows=1, ncols=1, figsize=mpl_papersize("a7", "landscape")
-            )
-            labelpos = mpl_margins(
-                fig, left=5, bottom=4, top=1.5, right=0.5, units=fontsize
-            )
-            labelpos(ax, 2.0, 1.5)
-            if mtrace is not None:
-                nchains = len(mtrace)
-                csteps = float(nchains) / po.nensemble
-                idxs = num.floor(num.arange(0, nchains, csteps)).astype("int32")
-                mrfs_rate = []
-                mrfs_time = []
-                for idx in idxs:
-                    point = mtrace.point(idx=idx)
-                    mrf_rate, mrf_time = fault.get_moment_rate_function(
-                        index=ns,
-                        point=point,
-                        target=target,
-                        store=sc.engine.get_store(target.store_id),
-                    )
-                    mrfs_rate.append(mrf_rate)
-                    mrfs_time.append(mrf_time)
+        if plot_exists(outpath, po.force):
+            return
 
-                fuzzy_moment_rate(ax, mrfs_rate, mrfs_time)
+        fig, ax = plt.subplots(
+            nrows=1, ncols=1, figsize=mpl_papersize("a7", "landscape")
+        )
+        labelpos = mpl_margins(
+            fig, left=5, bottom=4, top=1.5, right=0.5, units=fontsize
+        )
+        labelpos(ax, 2.0, 1.5)
+        if mtrace is not None:
+            nchains = len(mtrace)
+            csteps = float(nchains) / po.nensemble
+            idxs = num.floor(num.arange(0, nchains, csteps)).astype("int32")
+            mrfs_rate = []
+            mrfs_time = []
+            for idx in idxs:
+                point = mtrace.point(idx=idx)
+                mrf_rate, mrf_time = fault.get_moment_rate_function(
+                    index=ns,
+                    point=point,
+                    target=target,
+                    store=sc.engine.get_store(target.store_id),
+                )
+                mrfs_rate.append(mrf_rate)
+                mrfs_time.append(mrf_time)
 
-            ax.plot(ref_mrf_times, ref_mrf_rates, "-k", alpha=0.8, linewidth=1.0)
-            format_axes(ax, remove=["top", "right"])
+            fuzzy_moment_rate(ax, mrfs_rate, mrfs_time)
 
-            if po.outformat == "display":
-                plt.show()
-            else:
-                logger.info("saving figure to %s" % outpath)
-                fig.savefig(outpath, format=po.outformat, dpi=po.dpi)
+        ax.plot(ref_mrf_times, ref_mrf_rates, "-k", alpha=0.8, linewidth=1.0)
+        format_axes(ax, remove=["top", "right"])
 
-        else:
-            logger.info("Plot exists! Use --force to overwrite!")
+        save_figs([fig], outpath, po.outformat, po.dpi)
 
 
 def source_geometry(
@@ -827,27 +825,20 @@ def draw_slip_dist(problem, po):
         mtrace = None
         stage_number = -1
 
+    outpath = os.path.join(
+        problem.outfolder,
+        po.figure_dir,
+        "slip_dist_%i_%s_%i" % (stage_number, llk_str, po.nensemble),
+    )
+
+    if plot_exists(outpath, po.outformat, po.force):
+        return
+
     figs, axs = fault_slip_distribution(
         fault, mtrace, reference=reference, nensemble=po.nensemble
     )
 
-    if po.outformat == "display":
-        plt.show()
-    else:
-        outpath = os.path.join(
-            problem.outfolder,
-            po.figure_dir,
-            "slip_dist_%i_%s_%i" % (stage_number, llk_str, po.nensemble),
-        )
-
-        logger.info("Storing slip-distribution to: %s" % outpath)
-        if po.outformat == "pdf":
-            with PdfPages(outpath + ".pdf") as opdf:
-                for fig in figs:
-                    opdf.savefig(fig, dpi=po.dpi)
-        else:
-            for i, fig in enumerate(figs):
-                fig.savefig(outpath + "_%i.%s" % (i, po.outformat), dpi=po.dpi)
+    save_figs(figs, outpath, po.outformat, po.dpi)
 
 
 def draw_3d_slip_distribution(problem, po):
@@ -955,9 +946,10 @@ def draw_3d_slip_distribution(problem, po):
         % (slip_label, po.load_stage, llk_str, po.nensemble, po.outformat),
     )
 
-    if not os.path.exists(outpath) or po.force or po.outformat == "display":
-        logger.info("Drawing 3d slip-distribution plot ...")
+    if plot_exists(outpath, po.outformat, po.force):
+        return
 
+    if mode == ffi_mode_str:
         gmt = slip_distribution_3d_gmt(
             fault,
             reference,
@@ -971,8 +963,8 @@ def draw_3d_slip_distribution(problem, po):
 
         logger.info("saving figure to %s" % outpath)
         gmt.save(outpath, resolution=300, size=10)
-    else:
-        logger.info("Plot exists! Use --force to overwrite!")
+    elif mode == bem_mode_str:
+        from .bem import slip_distribution_3d
 
 
 def slip_distribution_3d_gmt(
@@ -1107,7 +1099,7 @@ def slip_distribution_3d_gmt(
                 t=transparency,
                 W="0.1p",
                 p=p,
-                *J
+                *J,
             )
 
     # add a colorbar

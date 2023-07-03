@@ -3,6 +3,7 @@ import os
 
 import numpy as num
 from matplotlib import pyplot as plt
+from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.ticker import MaxNLocator, FixedLocator
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 from pymc3 import quantiles
@@ -910,3 +911,30 @@ def get_weights_point(composite, best_point, config):
         tpoint = best_point
 
     return tpoint
+
+
+def plot_exists(outpath, outformat, force):
+    outpath = f"{outpath}.{outformat}"
+    if os.path.exists(outpath) and not force and outformat != "display":
+        logger.warning("Plot exists! Use --force to overwrite!")
+        return True
+    else:
+        return False
+
+
+def save_figs(figs, outpath, outformat, dpi):
+
+    if outformat == "display":
+        plt.show()
+
+    elif outformat == "pdf":
+        filepath = f"{outpath}.pdf"
+        logger.info("saving figures to %s" % filepath)
+        with PdfPages() as opdf:
+            for fig in figs:
+                opdf.savefig(fig)
+    else:
+        for i, fig in enumerate(figs):
+            filepath = f"{outpath}_{i}.{outformat}"
+            logger.info("saving figure to %s" % filepath)
+            fig.savefig(filepath, dpi=dpi)

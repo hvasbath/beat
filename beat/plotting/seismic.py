@@ -7,7 +7,6 @@ from tqdm import tqdm
 
 import numpy as num
 from matplotlib import pyplot as plt
-from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.ticker import MaxNLocator
 from pymc3.plots.utils import make_2d
 from pyrocko import gmtpy, trace
@@ -39,6 +38,8 @@ from .common import (
     str_unit,
     get_weights_point,
     hist2d_plot_op,
+    save_figs,
+    plot_exists,
 )
 
 km = 1000.0
@@ -1128,27 +1129,13 @@ def draw_seismic_fits(problem, po):
         "waveforms_%s_%s_%i" % (stage.number, llk_str, po.nensemble),
     )
 
-    if not os.path.exists(outpath) or po.force:
-        event_figs = seismic_fits(problem, stage, po)
-    else:
-        logger.info("waveform plots exist. Use force=True for replotting!")
+    if plot_exists(outpath, po.outformat, po.force):
         return
 
-    if po.outformat == "display":
-        plt.show()
-    else:
-        for event_idx, figs in event_figs:
-            event_outpath = "{}_{}".format(outpath, event_idx)
-            logger.info("saving figures to %s" % event_outpath)
-            if po.outformat == "pdf":
-                with PdfPages(event_outpath + ".pdf") as opdf:
-                    for fig in figs:
-                        opdf.savefig(fig)
-            else:
-                for i, fig in enumerate(figs):
-                    fig.savefig(
-                        event_outpath + "_%i.%s" % (i, po.outformat), dpi=po.dpi
-                    )
+    event_figs = seismic_fits(problem, stage, po)
+    for event_idx, figs in event_figs:
+        event_outpath = f"{outpath}_{event_idx}"
+        save_figs(figs, event_outpath, po.outformat, po.dpi)
 
 
 def point2array(point, varnames, idx_source=1, rpoint=None):
@@ -1611,78 +1598,70 @@ def draw_fuzzy_beachball(problem, po):
                 ),
             )
 
-            if not os.path.exists(outpath) or po.force or po.outformat == "display":
-                fig = plt.figure(figsize=(4.0, 4.0))
-                fig.subplots_adjust(left=0.0, right=1.0, bottom=0.0, top=1.0)
-                axes = fig.add_subplot(1, 1, 1)
+            fig = plt.figure(figsize=(4.0, 4.0))
+            fig.subplots_adjust(left=0.0, right=1.0, bottom=0.0, top=1.0)
+            axes = fig.add_subplot(1, 1, 1)
 
-                transform, position, size = beachball.choose_transform(
-                    axes, kwargs["size_units"], kwargs["position"], kwargs["size"]
-                )
+            transform, position, size = beachball.choose_transform(
+                axes, kwargs["size_units"], kwargs["position"], kwargs["size"]
+            )
 
-                plot_fuzzy_beachball_mpl_pixmap(
-                    m6s,
-                    axes,
-                    best_mt=best_mt,
-                    best_color="white",
+            plot_fuzzy_beachball_mpl_pixmap(
+                m6s,
+                axes,
+                best_mt=best_mt,
+                best_color="white",
+                wavename=wavename,
+                **kwargs,
+            )
+
+            if best_mt is not None:
+                best_amps, bx, by = mts2amps(
+                    [best_mt],
+                    grid_resolution=kwargs["grid_resolution"],
+                    projection=kwargs["projection"],
+                    beachball_type=kwargs["beachball_type"],
                     wavename=wavename,
-                    **kwargs
+                    mask=False,
                 )
 
-                if best_mt is not None:
-                    best_amps, bx, by = mts2amps(
-                        [best_mt],
-                        grid_resolution=kwargs["grid_resolution"],
-                        projection=kwargs["projection"],
-                        beachball_type=kwargs["beachball_type"],
-                        wavename=wavename,
-                        mask=False,
-                    )
+                axes.contour(
+                    position[0] + by * size,
+                    position[1] + bx * size,
+                    best_amps.T,
+                    levels=[0.0],
+                    colors=["black"],
+                    linestyles="dashed",
+                    linewidths=kwargs["linewidth"],
+                    transform=transform,
+                    zorder=kwargs["zorder"],
+                    alpha=kwargs["alpha"],
+                )
 
-                    axes.contour(
-                        position[0] + by * size,
-                        position[1] + bx * size,
-                        best_amps.T,
-                        levels=[0.0],
-                        colors=["black"],
-                        linestyles="dashed",
-                        linewidths=kwargs["linewidth"],
-                        transform=transform,
-                        zorder=kwargs["zorder"],
-                        alpha=kwargs["alpha"],
-                    )
+            if "polarity" in problem.config.problem_config.datatypes:
+                pmap = composite.wavemaps[k_pamp]
+                source = composite.sources[pmap.config.event_idx]
+                pmap.update_targets(
+                    composite.engine,
+                    source,
+                    always_raytrace=composite.config.gf_config.always_raytrace,
+                )
+                draw_ray_piercing_points_bb(
+                    axes,
+                    pmap.get_takeoff_angles_rad(),
+                    pmap.get_azimuths_rad(),
+                    pmap._prepared_data,
+                    stations=pmap.stations,
+                    size=size,
+                    position=position,
+                    transform=transform,
+                )
 
-                if "polarity" in problem.config.problem_config.datatypes:
-                    pmap = composite.wavemaps[k_pamp]
-                    source = composite.sources[pmap.config.event_idx]
-                    pmap.update_targets(
-                        composite.engine,
-                        source,
-                        always_raytrace=composite.config.gf_config.always_raytrace,
-                    )
-                    draw_ray_piercing_points_bb(
-                        axes,
-                        pmap.get_takeoff_angles_rad(),
-                        pmap.get_azimuths_rad(),
-                        pmap._prepared_data,
-                        stations=pmap.stations,
-                        size=size,
-                        position=position,
-                        transform=transform,
-                    )
+            axes.set_xlim(0.0, 10.0)
+            axes.set_ylim(0.0, 10.0)
+            axes.set_axis_off()
 
-                axes.set_xlim(0.0, 10.0)
-                axes.set_ylim(0.0, 10.0)
-                axes.set_axis_off()
-
-                if not po.outformat == "display":
-                    logger.info("saving figure to %s" % outpath)
-                    fig.savefig(outpath, dpi=po.dpi)
-                else:
-                    plt.show()
-
-            else:
-                logger.info("Plot already exists! Please use --force to overwrite!")
+            save_figs([fig], outpath, po.outformat, po.dpi)
 
 
 def fuzzy_mt_decomposition(axes, list_m6s, labels=None, colors=None, fontsize=12):
@@ -1891,23 +1870,17 @@ def draw_fuzzy_mt_decomposition(problem, po):
         % (po.load_stage, llk_str, po.nensemble, po.outformat),
     )
 
-    if not os.path.exists(outpath) or po.force or po.outformat == "display":
+    if plot_exists(outpath, po.outformat, po.force):
+        return
 
-        height = 1.5 + (n_sources - 1) * 0.65
-        fig = plt.figure(figsize=(6.0, height))
-        fig.subplots_adjust(left=0.01, right=0.99, bottom=0.03, top=0.97)
-        axes = fig.add_subplot(1, 1, 1)
+    height = 1.5 + (n_sources - 1) * 0.65
+    fig = plt.figure(figsize=(6.0, height))
+    fig.subplots_adjust(left=0.01, right=0.99, bottom=0.03, top=0.97)
+    axes = fig.add_subplot(1, 1, 1)
 
-        fuzzy_mt_decomposition(axes, list_m6s=list_m6s, fontsize=fontsize)
+    fuzzy_mt_decomposition(axes, list_m6s=list_m6s, fontsize=fontsize)
 
-        if not po.outformat == "display":
-            logger.info("saving figure to %s" % outpath)
-            fig.savefig(outpath, dpi=po.dpi)
-        else:
-            plt.show()
-
-    else:
-        logger.info("Plot already exists! Please use --force to overwrite!")
+    save_figs([figs], outpath, po.outformat, po.dpi)
 
 
 def station_variance_reductions(problem, stage, plot_options):
@@ -2198,29 +2171,13 @@ def draw_station_variance_reductions(problem, po):
         "station_variance_reductions_%s_%s_%i" % (stage.number, llk_str, po.nensemble),
     )
 
-    if not os.path.exists(outpath) or po.force:
-        event_figs = station_variance_reductions(problem, stage, po)
-    else:
-        logger.info(
-            "station variance reductions plot exists. Use force=True for replotting!"
-        )
+    if plot_exists(outpath, po.outformat, po.force):
         return
 
-    if po.outformat == "display":
-        plt.show()
-    else:
-        for event_idx, figs in event_figs:
-            event_outpath = "{}_{}".format(outpath, event_idx)
-            logger.info("saving figures to %s" % event_outpath)
-            if po.outformat == "pdf":
-                with PdfPages(event_outpath + ".pdf") as opdf:
-                    for fig in figs:
-                        opdf.savefig(fig)
-            else:
-                for i, fig in enumerate(figs):
-                    fig.savefig(
-                        event_outpath + "_%i.%s" % (i, po.outformat), dpi=po.dpi
-                    )
+    event_figs = station_variance_reductions(problem, stage, po)
+    for event_idx, figs in event_figs:
+        event_outpath = f"{outpath}_{event_idx}"
+        save_figs(figs, event_outpath, po.outformat, po.dpi)
 
 
 def draw_hudson(problem, po):
@@ -2251,6 +2208,16 @@ def draw_hudson(problem, po):
     beachballsize_small = beachballsize * 0.5
 
     for idx_source, (m6s, best_mt) in enumerate(zip(list_m6s, list_best_mts)):
+        outpath = os.path.join(
+            problem.outfolder,
+            po.figure_dir,
+            "hudson_%i_%s_%i_%i.%s"
+            % (po.load_stage, llk_str, po.nensemble, idx_source, po.outformat),
+        )
+
+        if plot_exists(outpath, po.outformat, po.force):
+            return
+
         fig = plt.figure(figsize=(4.0, 4.0))
         fig.subplots_adjust(left=0.0, right=1.0, bottom=0.0, top=1.0)
         axes = fig.add_subplot(1, 1, 1)
@@ -2339,23 +2306,8 @@ def draw_hudson(problem, po):
                 "skipping drawing ..."
             )
 
-        outpath = os.path.join(
-            problem.outfolder,
-            po.figure_dir,
-            "hudson_%i_%s_%i_%i.%s"
-            % (po.load_stage, llk_str, po.nensemble, idx_source, po.outformat),
-        )
-
-        if not os.path.exists(outpath) or po.force or po.outformat == "display":
-
-            if not po.outformat == "display":
-                logger.info("saving figure to %s" % outpath)
-                fig.savefig(outpath, dpi=po.dpi)
-            else:
-                plt.show()
-
-        else:
-            logger.info("Plot already exists! Please use --force to overwrite!")
+            logger.info("saving figure to %s" % outpath)
+            fig.savefig(outpath, dpi=po.dpi)
 
 
 def draw_data_stations(
@@ -2474,7 +2426,7 @@ def gmt_station_map_azimuthal(
             max_distance,
             data_cpt,
             scale_label,
-            *("-J%s" % J_location, "-R%s" % R_location, "-St14p")
+            *("-J%s" % J_location, "-R%s" % R_location, "-St14p"),
         )
     else:
         st_lons = [station.lon for station in stations]
@@ -2508,7 +2460,7 @@ def gmt_station_map_azimuthal(
         gmt,
         [event],
         *("-J%s" % J_location, "-R%s" % R_location),
-        **dict(G="orange", S="a14p")
+        **dict(G="orange", S="a14p"),
     )
 
 
@@ -2567,87 +2519,84 @@ def draw_station_map_gmt(problem, po):
                 % (wmap.name, wmap.mapnumber, value_string, po.outformat),
             )
 
+            if plot_exists(outpath, po.outformat, po.force):
+                continue
+
             dist = max(wmap.get_distances_deg())
-            if not os.path.exists(outpath) or po.force:
 
-                if point:
-                    time_shifts = extract_time_shifts(point, sc.hierarchicals, wmap)
-                else:
-                    time_shifts = None
-
-                if dist > 30:
-                    logger.info(
-                        "Using equidistant azimuthal projection for"
-                        " teleseismic setup of wavemap %s." % wmap._mapid
-                    )
-
-                    gmt = gmtpy.GMT(config=gmtconfig)
-                    gmt_station_map_azimuthal(
-                        gmt,
-                        wmap.stations,
-                        event,
-                        data=time_shifts,
-                        max_distance=dist,
-                        width=w,
-                        bin_width=bin_width,
-                        fontsize=fontsize,
-                        font=font,
-                    )
-
-                    gmt.save(outpath, resolution=po.dpi, size=w)
-
-                else:
-                    logger.info(
-                        "Using equidistant projection for regional setup "
-                        "of wavemap %s." % wmap._mapid
-                    )
-                    from pyrocko import orthodrome as otd
-                    from pyrocko.automap import Map
-
-                    m = Map(
-                        lat=event.lat,
-                        lon=event.lon,
-                        radius=dist * otd.d2m,
-                        width=h,
-                        height=h,
-                        show_grid=True,
-                        show_topo=True,
-                        show_scale=True,
-                        color_dry=(143, 188, 143),  # grey
-                        illuminate=True,
-                        illuminate_factor_ocean=0.15,
-                        # illuminate_factor_land = 0.2,
-                        show_rivers=True,
-                        show_plates=False,
-                        gmt_config=gmtconfig,
-                    )
-
-                    if time_shifts:
-                        sargs = m.jxyr + ["-St14p"]
-                        draw_data_stations(
-                            m.gmt,
-                            wmap.stations,
-                            time_shifts,
-                            dist,
-                            data_cpt=None,
-                            scale_label="time shifts [s]",
-                            *sargs
-                        )
-
-                        for st in wmap.stations:
-                            text = "{}.{}".format(st.network, st.station)
-                            m.add_label(lat=st.lat, lon=st.lon, text=text)
-                    else:
-                        m.add_stations(
-                            wmap.stations, psxy_style=dict(S="t14p", G="red")
-                        )
-
-                    draw_events(m.gmt, [event], *m.jxyr, **dict(G="yellow", S="a14p"))
-                    m.save(outpath, resolution=po.dpi, oversample=2.0)
-
-                logger.info("saving figure to %s" % outpath)
+            if point:
+                time_shifts = extract_time_shifts(point, sc.hierarchicals, wmap)
             else:
-                logger.info("Plot exists! Use --force to overwrite!")
+                time_shifts = None
+
+            if dist > 30:
+                logger.info(
+                    "Using equidistant azimuthal projection for"
+                    " teleseismic setup of wavemap %s." % wmap._mapid
+                )
+
+                gmt = gmtpy.GMT(config=gmtconfig)
+                gmt_station_map_azimuthal(
+                    gmt,
+                    wmap.stations,
+                    event,
+                    data=time_shifts,
+                    max_distance=dist,
+                    width=w,
+                    bin_width=bin_width,
+                    fontsize=fontsize,
+                    font=font,
+                )
+
+                gmt.save(outpath, resolution=po.dpi, size=w)
+            else:
+                logger.info(
+                    "Using equidistant projection for regional setup "
+                    "of wavemap %s." % wmap._mapid
+                )
+                from pyrocko import orthodrome as otd
+                from pyrocko.automap import Map
+
+                m = Map(
+                    lat=event.lat,
+                    lon=event.lon,
+                    radius=dist * otd.d2m,
+                    width=h,
+                    height=h,
+                    show_grid=True,
+                    show_topo=True,
+                    show_scale=True,
+                    color_dry=(143, 188, 143),  # grey
+                    illuminate=True,
+                    illuminate_factor_ocean=0.15,
+                    # illuminate_factor_land = 0.2,
+                    show_rivers=True,
+                    show_plates=False,
+                    gmt_config=gmtconfig,
+                )
+
+                if time_shifts:
+                    sargs = m.jxyr + ["-St14p"]
+                    draw_data_stations(
+                        m.gmt,
+                        wmap.stations,
+                        time_shifts,
+                        dist,
+                        data_cpt=None,
+                        scale_label="time shifts [s]",
+                        *sargs,
+                    )
+
+                    for st in wmap.stations:
+                        text = "{}.{}".format(st.network, st.station)
+                        m.add_label(lat=st.lat, lon=st.lon, text=text)
+                else:
+                    m.add_stations(wmap.stations, psxy_style=dict(S="t14p", G="red"))
+
+                draw_events(m.gmt, [event], *m.jxyr, **dict(G="yellow", S="a14p"))
+                m.save(outpath, resolution=po.dpi, oversample=2.0)
+
+            logger.info("saving figure to %s" % outpath)
 
 
 def draw_lune_plot(problem, po):

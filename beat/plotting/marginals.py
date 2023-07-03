@@ -5,7 +5,6 @@ import os
 import numpy as num
 from matplotlib import pyplot as plt
 from matplotlib.ticker import MaxNLocator
-from matplotlib.backends.backend_pdf import PdfPages
 
 from pymc3 import plots as pmp
 from pymc3 import quantiles
@@ -25,6 +24,8 @@ from .common import (
     histplot_op,
     kde2plot,
     get_transform,
+    save_figs,
+    plot_exists,
 )
 
 logger = logging.getLogger("plotting.marginals")
@@ -889,56 +890,43 @@ def draw_posteriors(problem, plot_options):
         else:
             sidxs = ""
 
-        outpath_tmp = os.path.join(
+        outpath = os.path.join(
             problem.outfolder,
             po.figure_dir,
             "stage_%i_%s_%s_%s" % (s, sidxs, po.post_llk, plot_style),
         )
 
-        if not os.path.exists(outpath_tmp + ".%s" % po.outformat) or po.force:
-            logger.info("plotting stage: %s" % stage.handler.stage_path(s))
-            stage.load_results(
-                varnames=problem.varnames,
-                model=problem.model,
-                stage_number=s,
-                load="trace",
-                chains=[-1],
-            )
+        if plot_exists(outpath, po.outformat, po.force):
+            return
 
-            prior_bounds = {}
-            prior_bounds.update(**pc.hyperparameters)
-            prior_bounds.update(**pc.hierarchicals)
-            prior_bounds.update(**pc.priors)
+        logger.info("plotting stage: %s" % stage.handler.stage_path(s))
+        stage.load_results(
+            varnames=problem.varnames,
+            model=problem.model,
+            stage_number=s,
+            load="trace",
+            chains=[-1],
+        )
 
-            figs, _, _ = traceplot(
-                stage.mtrace,
-                varnames=varnames,
-                chains=None,
-                combined=True,
-                source_idxs=po.source_idxs,
-                plot_style=plot_style,
-                lines=po.reference,
-                posterior=po.post_llk,
-                prior_bounds=prior_bounds,
-                nbins=nbins,
-            )
+        prior_bounds = {}
+        prior_bounds.update(**pc.hyperparameters)
+        prior_bounds.update(**pc.hierarchicals)
+        prior_bounds.update(**pc.priors)
 
-            if po.outformat == "display":
-                plt.show()
-            else:
-                logger.info("saving figures to %s" % outpath_tmp)
-                if po.outformat == "pdf":
-                    with PdfPages(outpath_tmp + ".pdf") as opdf:
-                        for fig in figs:
-                            opdf.savefig(fig)
-                else:
-                    for i, fig in enumerate(figs):
-                        outpath = "%s_%i.%s" % (outpath_tmp, i, po.outformat)
-                        logger.info("saving figure to %s" % outpath)
-                        fig.savefig(outpath, format=po.outformat, dpi=po.dpi)
+        figs, _, _ = traceplot(
+            stage.mtrace,
+            varnames=varnames,
+            chains=None,
+            combined=True,
+            source_idxs=po.source_idxs,
+            plot_style=plot_style,
+            lines=po.reference,
+            posterior=po.post_llk,
+            prior_bounds=prior_bounds,
+            nbins=nbins,
+        )
 
-        else:
-            logger.info("plot for stage %s exists. Use force=True for replotting!" % s)
+        save_figs(figs, outpath, po.outformat, po.dpi)
 
 
 def draw_correlation_hist(problem, plot_options):
@@ -988,28 +976,16 @@ def draw_correlation_hist(problem, plot_options):
         "corr_hist_%s_%s" % (stage.number, llk_str),
     )
 
-    if not os.path.exists(outpath) or po.force:
-        figs, _ = correlation_plot_hist(
-            mtrace=stage.mtrace,
-            varnames=varnames,
-            cmap=plt.cm.gist_earth_r,
-            chains=None,
-            point=reference,
-            point_size=6,
-            point_color="red",
-        )
-    else:
-        logger.info("correlation plot exists. Use force=True for replotting!")
+    if plot_exists(outpath, po.outformat, po.force):
         return
 
-    if po.outformat == "display":
-        plt.show()
-    else:
-        logger.info("saving figures to %s" % outpath)
-        if po.outformat == "pdf":
-            with PdfPages(outpath + ".pdf") as opdf:
-                for fig in figs:
-                    opdf.savefig(fig)
-        else:
-            for i, fig in enumerate(figs):
-                fig.savefig("%s_%i.%s" % (outpath, i, po.outformat), dpi=po.dpi)
+    figs, _ = correlation_plot_hist(
+        mtrace=stage.mtrace,
+        varnames=varnames,
+        cmap=plt.cm.gist_earth_r,
+        chains=None,
+        point=reference,
+        point_size=6,
+        point_color="red",
+    )
+    save_figs(figs, outpath, po.outformat, po.dpi)
