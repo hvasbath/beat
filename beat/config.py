@@ -162,7 +162,7 @@ _initialization_choices = ["random", "lsq"]
 _backend_choices = ["csv", "bin"]
 _datatype_choices = ["geodetic", "seismic", "polarity"]
 _sampler_choices = ["PT", "SMC", "Metropolis"]
-_slip_component_choices = ("strike", "dip", "tensile")
+_slip_component_choices = ("strike", "dip", "normal")
 
 
 class InconsistentParameterNaming(Exception):
@@ -1149,7 +1149,7 @@ class FFIConfig(ModeConfig):
 class BoundaryCondition(Object):
     slip_component = StringChoice.T(
         choices=_slip_component_choices,
-        default="tensile",
+        default="normal",
         help=f"Slip-component for Green's Function calculation, maybe {list2string(_slip_component_choices)} ",
     )
     source_idxs = List.T(
@@ -1169,7 +1169,7 @@ class BoundaryConditions(Object):
         default={
             "strike": BoundaryCondition.D(slip_component="strike"),
             "dip": BoundaryCondition.D(slip_component="dip"),
-            "tensile": BoundaryCondition.D(slip_component="tensile"),
+            "normal": BoundaryCondition.D(slip_component="normal"),
         },
     )
 
@@ -1187,7 +1187,9 @@ class BoundaryConditions(Object):
             bcond = self.conditions[slip_comp]
             for receiver_idx in bcond.receiver_idxs:
                 receiver_mesh = discretized_sources[receiver_idx]
-                traction_vecs.append(receiver_mesh.get_traction_vector(slip_comp))
+                t_vec = receiver_mesh.get_traction_vector(slip_comp)
+                print("slip_comp", t_vec)
+                traction_vecs.append(t_vec)
 
         return num.hstack(traction_vecs)
 

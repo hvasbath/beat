@@ -897,6 +897,35 @@ def plot_covariances(datasets, covariances):
     return figures, axes
 
 
+def set_axes_equal_3d(ax, axes="xyz"):
+    """
+    Make axes of 3D plot have equal scale so that spheres appear as
+    spheres, cubes as cubes, etc..
+    This is one possible solution to Matplotlib's
+    ax.set_aspect('equal') and ax.axis('equal') not working for 3D.
+
+    Parameters
+    ----------
+    ax: a matplotlib axis, e.g., as output from plt.gca().
+    """
+
+    def set_axes_radius(ax, origin, radius, axes=["xyz"]):
+        if "x" in axes:
+            ax.set_xlim3d([origin[0] - radius, origin[0] + radius])
+
+        if "y" in axes:
+            ax.set_ylim3d([origin[1] - radius, origin[1] + radius])
+
+        if "z" in axes:
+            ax.set_zlim3d([origin[2] - radius, origin[2] + radius])
+
+    limits = num.array([ax.get_xlim3d(), ax.get_ylim3d(), ax.get_zlim3d()])
+
+    origin = num.mean(limits, axis=1)
+    radius = 0.5 * num.max(num.abs(limits[:, 1] - limits[:, 0]))
+    set_axes_radius(ax, origin, radius, axes=axes)
+
+
 def get_weights_point(composite, best_point, config):
 
     if composite.config.noise_estimator.structure == "non-toeplitz":
@@ -914,8 +943,8 @@ def get_weights_point(composite, best_point, config):
 
 
 def plot_exists(outpath, outformat, force):
-    outpath = f"{outpath}.{outformat}"
-    if os.path.exists(outpath) and not force and outformat != "display":
+    outpath_tmp = f"{outpath}.{outformat}"
+    if os.path.exists(outpath_tmp) and not force and outformat != "display":
         logger.warning("Plot exists! Use --force to overwrite!")
         return True
     else:
@@ -930,7 +959,7 @@ def save_figs(figs, outpath, outformat, dpi):
     elif outformat == "pdf":
         filepath = f"{outpath}.pdf"
         logger.info("saving figures to %s" % filepath)
-        with PdfPages() as opdf:
+        with PdfPages(filepath) as opdf:
             for fig in figs:
                 opdf.savefig(fig)
     else:

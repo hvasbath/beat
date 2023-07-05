@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 
 import numpy as num
-
+from time import time
 from pyrocko.moment_tensor import symmat6
 from pyrocko.gf import StaticResult, Response, Request
 from pyrocko.guts_array import Array
@@ -67,9 +67,11 @@ class BEMResponse(Object):
         array_like: [n_triangles, 3]
             where columns are: strike, dip and tensile slip-components"""
         slips = []
+        print("isv shape", self.inverted_slip_vectors.shape)
         for src_idx in range(self.n_sources):
             start_idx = self.source_ordering[src_idx]
             end_idx = self.source_ordering[src_idx + 1]
+            print("idxs", start_idx, end_idx)
             slips.append(self.inverted_slip_vectors[start_idx:end_idx, :])
 
         return slips
@@ -113,19 +115,30 @@ class BEMEngine(object):
         obs_points = self.cache_target_coords3(targets, dtype="float32")
 
         coefficient_matrix = self.get_interaction_matrix(discretized_sources)
+        print("Coeffmat", coefficient_matrix.shape)
         tractions = self.config.boundary_conditions.get_traction_field(
             discretized_sources
         )
 
-        inv_slips, _, _, _ = num.linalg.lstsq(coefficient_matrix, tractions, rcond=None)
+        # t0 = time()
+        # inv_slips, _, _, _ = num.linalg.lstsq(coefficient_matrix, tractions, rcond=None)
+        t1 = time()
+        # solve with least squares
+        inv_slips = num.linalg.multi_dot(
+            [
+                num.linalg.inv(coefficient_matrix.T.dot(coefficient_matrix)),
+                coefficient_matrix.T,
+                tractions,
+            ]
+        )
+        print("", inv_slips[0:5])
+        t2 = time()
+        # print("lsq", t1 - t0)
+        logger.debug(f"multidot {t2 - t1}")
 
-        result_sources = [
-            discretized_sources[src_idx]
-            for bcond in self.config.boundary_conditions.iter_conditions()
-            for src_idx in bcond.source_idxs
-        ]
-
-        all_triangles = num.vstack([source.triangles_xyz for source in result_sources])
+        all_triangles = num.vstack(
+            [source.triangles_xyz for source in discretized_sources]
+        )
         disp_mat = HS.disp_matrix(
             obs_pts=obs_points, tris=all_triangles, nu=self.config.nu
         )
@@ -183,9 +196,9 @@ class BEMEngine(object):
                     Gs_dip.append(g_dip)
                     Gs_normal.append(g_normal)
 
-            G_slip_components[0].append(num.vstack(Gs_strike))
-            G_slip_components[1].append(num.vstack(Gs_dip))
-            G_slip_components[2].append(num.vstack(Gs_normal))
+                G_slip_components[0].append(num.vstack(Gs_strike))
+                G_slip_components[1].append(num.vstack(Gs_dip))
+                G_slip_components[2].append(num.vstack(Gs_normal))
 
         return num.block(G_slip_components)
 

@@ -33,6 +33,7 @@ from .common import (
     scale_axes,
     save_figs,
     plot_exists,
+    set_axes_equal_3d,
 )
 
 logger = logging.getLogger("plotting.ffi")
@@ -245,34 +246,6 @@ def source_geometry(
             alpha=alpha,
         )
 
-    def set_axes_radius(ax, origin, radius, axes=["xyz"]):
-        if "x" in axes:
-            ax.set_xlim3d([origin[0] - radius, origin[0] + radius])
-
-        if "y" in axes:
-            ax.set_ylim3d([origin[1] - radius, origin[1] + radius])
-
-        if "z" in axes:
-            ax.set_zlim3d([origin[2] - radius, origin[2] + radius])
-
-    def set_axes_equal(ax, axes="xyz"):
-        """
-        Make axes of 3D plot have equal scale so that spheres appear as
-        spheres, cubes as cubes, etc..
-        This is one possible solution to Matplotlib's
-        ax.set_aspect('equal') and ax.axis('equal') not working for 3D.
-
-        Parameters
-        ----------
-        ax: a matplotlib axis, e.g., as output from plt.gca().
-        """
-
-        limits = num.array([ax.get_xlim3d(), ax.get_ylim3d(), ax.get_zlim3d()])
-
-        origin = num.mean(limits, axis=1)
-        radius = 0.5 * num.max(num.abs(limits[:, 1] - limits[:, 0]))
-        set_axes_radius(ax, origin, radius, axes=axes)
-
     fig = plt.figure(figsize=mpl_papersize("a5", "landscape"))
     ax = fig.add_subplot(111, projection="3d")
     extfs = fault.get_all_subfaults()
@@ -348,7 +321,7 @@ def source_geometry(
     ax.set_zlabel("Depth [km]")
     ax.set_ylabel("North_shift [km]")
     ax.set_xlabel("East_shift [km]")
-    set_axes_equal(ax, axes="xy")
+    set_axes_equal_3d(ax, axes="xy")
 
     strikes = num.array([extf.strike for extf in extfs])
     dips = num.array([extf.strike for extf in extfs])
@@ -850,7 +823,7 @@ def draw_3d_slip_distribution(problem, po):
 
     mode = problem.config.problem_config.mode
 
-    if mode != ffi_mode_str:
+    if mode not in [ffi_mode_str, bem_mode_str]:
         raise ModeError(
             "Wrong optimization mode: %s! This plot "
             'variant is only valid for "%s" mode' % (mode, ffi_mode_str)
@@ -874,8 +847,6 @@ def draw_3d_slip_distribution(problem, po):
 
     datatype, cconf = list(problem.composites.items())[0]
 
-    fault = cconf.load_fault_geometry()
-
     if po.plot_projection in ["local", "latlon"]:
         perspective = "135/30"
     else:
@@ -885,6 +856,7 @@ def draw_3d_slip_distribution(problem, po):
     if gc:
         for corr in gc.corrections_config.euler_poles:
             if corr.enabled:
+                fault = cconf.load_fault_geometry()
                 if len(po.varnames) > 0 and po.varnames[0] in varname_choices:
                     from beat.ffi import euler_pole2slips
 
@@ -910,6 +882,13 @@ def draw_3d_slip_distribution(problem, po):
                 )
                 slip_units = "m"
 
+    if len(po.varnames) == 0:
+        varnames = None
+    else:
+        varnames = po.varnames
+
+    if len(po.varnames) == 1:
+        slip_label = po.varnames[0]
         if po.varnames[0] == "slip_variation":
             from pandas import read_csv
 
@@ -923,21 +902,8 @@ def draw_3d_slip_distribution(problem, po):
             )
             reference["slip_variation"] = bounds[1] - bounds[0]
             slip_units = "m"
-
-    if len(po.varnames) == 0:
-        varnames = None
-    else:
-        varnames = po.varnames
-
-    if len(po.varnames) == 1:
-        slip_label = po.varnames[0]
     else:
         slip_label = "slip"
-
-    if po.source_idxs is None:
-        source_idxs = [0, fault.nsubfaults]
-    else:
-        source_idxs = po.source_idxs
 
     outpath = os.path.join(
         problem.outfolder,
@@ -950,6 +916,12 @@ def draw_3d_slip_distribution(problem, po):
         return
 
     if mode == ffi_mode_str:
+
+        if po.source_idxs is None:
+            source_idxs = [0, fault.nsubfaults]
+        else:
+            source_idxs = po.source_idxs
+
         gmt = slip_distribution_3d_gmt(
             fault,
             reference,
@@ -964,7 +936,21 @@ def draw_3d_slip_distribution(problem, po):
         logger.info("saving figure to %s" % outpath)
         gmt.save(outpath, resolution=300, size=10)
     elif mode == bem_mode_str:
+
         from .bem import slip_distribution_3d
+
+        composite = problem.composites["geodetic"]
+        composite.point2sources(reference)
+        response = composite.engine.process(
+            sources=composite.sources, targets=composite.targets
+        )
+
+        fig, _ = slip_distribution_3d(
+            response.discretized_sources,
+            response.source_slips(),
+            perspective=perspective,
+        )
+        save_figs([fig], outpath, po.outformat, po.dpi)
 
 
 def slip_distribution_3d_gmt(

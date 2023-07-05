@@ -1,81 +1,145 @@
+from matplotlib import pyplot as plt
+from pyrocko.plot import mpl_graph_color, mpl_papersize
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 import matplotlib.cm as cm
+from matplotlib.ticker import MaxNLocator
+
+from beat.bem import slip_comp_to_idx
+import numpy as num
+from .common import set_locator_axes, scale_axes, set_axes_equal_3d
+
+km = 1000.0
 
 
-def slip_distribution_3d():
+def cb_round(value, decimal=2):
+    return num.round(value, decimal)
 
-    fig = plt.figure(figsize=plt.figaspect(0.5))
-    ax = fig.add_subplot(1, 1, 1, projection="3d")
 
-    cmap = plt.get_cmap("hot")
-    pa_col = Poly3DCollection(
-        rf_mesh.triangles_xyz,
-        cmap=cmap,
-        rasterized=True,
+def slip_distribution_3d(
+    discretized_sources, slip_vectors, perspective="150/30", debug=False
+):
+
+    fontsize_title = 12
+    fontsize = 8
+
+    camera = [float(angle) for angle in perspective.split("/")]
+
+    print(mpl_papersize("a5", "landscape"))
+    fig = plt.figure(figsize=mpl_papersize("a5", "landscape"))
+    slip_comps = ["strike", "dip", "normal"]
+
+    axs = []
+    sources_coord_limits = (
+        num.dstack(
+            [dsource.get_minmax_triangles_xyz() for dsource in discretized_sources]
+        )
+        / km
     )
-    a = inv_slips[0 : rf_mesh.n_triangles]
-    #    a = num.random.rand(rf_mesh.n_triangles) - 0.5
-    print("a shape", a.shape)
-    print("n triangles", rf_mesh.triangles_xyz.shape)
-    cbounds = [a.min(), a.max()]
-    # norm = matplotlib.colors.Normalize(vmin=a.min(), vmax=a.max(), clip=False)
-    # mapper = cm.ScalarMappable(norm=norm, cmap=cmap)
+    min_limits = num.floor(sources_coord_limits.min(2).min(1)) * km
+    max_limits = num.ceil(sources_coord_limits.max(2).max(1)) * km
+    for j, comp in enumerate(slip_comps):
+        cmap = plt.get_cmap("hot") if comp == "normal" else plt.get_cmap("seismic")
+        ax = fig.add_subplot(1, len(slip_comps), j + 1, projection="3d")
 
-    # colors = [mapper.to_rgba(v) for v in a]
-    # print(colors)
+        for dsource, slips3d in zip(discretized_sources, slip_vectors):
+            pa_col = Poly3DCollection(
+                dsource.triangles_xyz,
+                cmap=cmap,
+                rasterized=True,
+            )
+            a = slips3d[:, slip_comp_to_idx[comp]]
 
-    print("cbounds", cbounds)
-    pa_col.set_array(a)
-    pa_col.set_clim(*cbounds)
-    pa_col.set(edgecolor="k", linewidth=0.5, alpha=0.8)
-    #    pa_col.autoscale()
-    #    print(pa_col.get_array())
-    cbs = plt.colorbar(
-        pa_col,
-        ax=ax,
-        orientation="vertical",
-        #        cmap=cmap,
+            if comp == "strike":
+                absmax = num.max([num.abs(a.min()), a.max()])
+                cbounds = [-cb_round(absmax), cb_round(absmax)]
+            else:
+                cbounds = [cb_round(a.min()), cb_round(a.max())]
+
+            assert a.size == dsource.n_triangles
+
+            pa_col.set_array(a)
+            pa_col.set_clim(*cbounds)
+            pa_col.set(edgecolor="k", linewidth=0.2, alpha=0.8)
+
+            ax.add_collection(pa_col)
+
+            if debug:
+                unit_vectors = getattr(dsource, f"unit_{comp}_vectors")
+                print("uvs shape", unit_vectors.shape)
+                ax.quiver(
+                    dsource.centroids[:, 0],
+                    dsource.centroids[:, 1],
+                    dsource.centroids[:, 2],
+                    unit_vectors[:, 0],
+                    unit_vectors[:, 1],
+                    unit_vectors[:, 2],
+                    color="k",
+                    length=dsource.mesh_size,
+                    linewidth=0.5,
+                )
+                for tri_idx in range(dsource.n_triangles):
+                    ax.text(
+                        dsource.centroids[tri_idx, 0],
+                        dsource.centroids[tri_idx, 1],
+                        dsource.centroids[tri_idx, 2],
+                        tri_idx,
+                        zorder=3,
+                        fontsize=6,
+                    )
+
+        cbl = 0.1 + j * 0.3
+        cbb = 0.2
+        cbw = 0.15
+        cbh = 0.01
+
+        cbaxes = fig.add_axes([cbl, cbb, cbw, cbh])
+
+        cbs = plt.colorbar(
+            pa_col,
+            ax=ax,
+            ticks=cbounds,
+            cax=cbaxes,
+            orientation="horizontal",
+        )
+        cbs.set_label(f"{comp}-slip [m]", fontsize=fontsize)
+        cbs.ax.tick_params(labelsize=fontsize, rotation=-30)
+
+        ax.tick_params(labelsize=fontsize)
+        if j == 2:
+            ax.set_xlabel("East-Distance [km]", fontsize=fontsize)
+            ax.set_ylabel("North-Distance [km]", fontsize=fontsize)
+            ax.set_zlabel("Depth [km]", fontsize=fontsize)
+        else:
+            ax.set_xticklabels([])
+            ax.set_yticklabels([])
+            ax.set_zticklabels([])
+
+        ax.set_xlim([min_limits[0], max_limits[0]])
+        ax.set_ylim([min_limits[1], max_limits[1]])
+        ax.set_zlim([min_limits[2], max_limits[2]])
+
+        set_locator_axes(ax.get_xaxis(), MaxNLocator(nbins=3))
+        set_locator_axes(ax.get_yaxis(), MaxNLocator(nbins=3))
+        set_locator_axes(ax.get_zaxis(), MaxNLocator(nbins=3))
+
+        scale = {"scale": 1 / km}
+
+        scale_axes(ax.get_xaxis(), **scale)
+        scale_axes(ax.get_yaxis(), **scale)
+        scale_axes(ax.get_zaxis(), **scale)
+
+        #     ax.invert_zaxis()
+        # ax.set_aspect(1)
+        ax.view_init(*camera[::-1])
+        set_axes_equal_3d(ax, axes="xyz")
+
+    fig.subplots_adjust(
+        left=0.03,
+        right=1.0 - 0.08,
+        bottom=0.06,
+        top=1.0 - 0.06,
+        wspace=0.0,
+        hspace=0.1,
     )
-    ax.add_collection(pa_col)
-
-    pa_col = Poly3DCollection(
-        s_mesh.triangles_xyz,
-        cmap=cmap,
-        rasterized=True,
-    )
-    b = inv_slips[-s_mesh.n_triangles : :]
-    #    a = num.random.rand(rf_mesh.n_triangles) - 0.5
-    print("a shape", b.shape)
-    print("n triangles", s_mesh.triangles_xyz.shape)
-    cbounds = [b.min(), b.max()]
-    # norm = matplotlib.colors.Normalize(vmin=a.min(), vmax=a.max(), clip=False)
-    # mapper = cm.ScalarMappable(norm=norm, cmap=cmap)
-
-    # colors = [mapper.to_rgba(v) for v in a]
-    # print(colors)
-
-    print("cbounds", cbounds)
-    pa_col.set_array(b)
-    pa_col.set_clim(*cbounds)
-    pa_col.set(edgecolor="k", linewidth=0.5, alpha=0.8)
-    #    pa_col.autoscale()
-    #    print(pa_col.get_array())
-    cbs = plt.colorbar(
-        pa_col,
-        ax=ax,
-        orientation="vertical",
-        #        cmap=cmap,
-    )
-    ax.add_collection(pa_col)
-
-    ax.set_xlabel("East- Distance [km]")
-    ax.set_ylabel("North- Distance [km]")
-    ax.set_zlabel("Depth [km]")
-    ax.set_xlim([-3000, 3000])
-    ax.set_ylim([-3000, 5000])
-    ax.set_zlim([-1000, -5000])
-    ax.invert_zaxis()
-    fig.tight_layout()
-
-    plt.show()
-    fig.savefig("mesh.png", bbox_inches="tight")
+    # fig.tight_layout()
+    return fig, axs

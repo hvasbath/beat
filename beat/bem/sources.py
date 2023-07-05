@@ -35,7 +35,7 @@ km = 1.0e3
 slip_comp_to_idx = {
     "strike": 0,
     "dip": 1,
-    "tensile": 2,
+    "normal": 2,
 }
 
 
@@ -55,7 +55,7 @@ def get_node_name(ellipse_prefix, node_suffix):
 
 
 class DiscretizedBEMSource(object):
-    def __init__(self, mesh, dtype=None, tractions=(0, 0, 0)):
+    def __init__(self, mesh, dtype=None, tractions=(0, 0, 0), mesh_size=1.0):
         self._points = mesh.points.astype(dtype) if dtype is not None else mesh.points
         self._mesh = mesh
         self._centroids = None
@@ -63,6 +63,7 @@ class DiscretizedBEMSource(object):
         self._e_strike = None
         self._e_dip = None
         self._e_normal = None
+        self.mesh_size = mesh_size
 
         self.tractions = tractions
 
@@ -86,6 +87,11 @@ class DiscretizedBEMSource(object):
     @property
     def triangles_xyz(self):
         return self.vertices[self.triangles_idxs]
+
+    def get_minmax_triangles_xyz(self):
+        mins = self.triangles_xyz.min(0)
+        maxs = self.triangles_xyz.max(0)
+        return num.vstack([mins, maxs]).T
 
     @property
     def n_triangles(self):
@@ -165,47 +171,47 @@ class EllipseBEMSource(BEMSource):
         self.points = {}
 
     @property
-    def __origin(self):
+    def _origin(self):
         return Origin(x=self.east_shift, y=self.north_shift, z=-self.depth)
 
     @property
     def origin_node(self):
         return (
-            self.__origin.x,
-            self.__origin.y,
-            self.__origin.z,
+            self._origin.x,
+            self._origin.y,
+            self._origin.z,
         )
 
     @property
     def left_major_node(self):
         return (
-            self.__origin.x,
-            self.__origin.y - self.major_axis,
-            self.__origin.z,
+            self._origin.x,
+            self._origin.y - self.major_axis,
+            self._origin.z,
         )
 
     @property
     def right_major_node(self):
         return (
-            self.__origin.x,
-            self.__origin.y + self.major_axis,
-            self.__origin.z,
+            self._origin.x,
+            self._origin.y + self.major_axis,
+            self._origin.z,
         )
 
     @property
     def upper_minor_node(self):
         return (
-            self.__origin.x + self.minor_axis,
-            self.__origin.y,
-            self.__origin.z,
+            self._origin.x + self.minor_axis,
+            self._origin.y,
+            self._origin.z,
         )
 
     @property
     def lower_minor_node(self):
         return (
-            self.__origin.x - self.minor_axis,
-            self.__origin.y,
-            self.__origin.z,
+            self._origin.x - self.minor_axis,
+            self._origin.y,
+            self._origin.z,
         )
 
     def _get_arch_points(self, node_names):
@@ -358,7 +364,8 @@ class DiskBEMSource(EllipseBEMSource):
                 gmsh.fltk.run()
 
             return DiscretizedBEMSource(
-                mesh,
+                mesh=mesh,
+                mesh_size=mesh_size,
                 dtype="float32",
                 tractions=(
                     self.strike_traction,
@@ -382,51 +389,51 @@ class RingfaultBEMSource(EllipseBEMSource):
         EllipseBEMSource.__init__(self, **kwargs)
 
     @property
-    def __bottom_origin(self):
+    def _bottom_origin(self):
         return Origin(
-            x=self.__origin.x + self.delta_east_shift_bottom,
-            y=self.__origin.y + self.delta_north_shift_bottom,
-            z=self.__origin.z - self.delta_depth_bottom,
+            x=self._origin.x + self.delta_east_shift_bottom,
+            y=self._origin.y + self.delta_north_shift_bottom,
+            z=self._origin.z - self.delta_depth_bottom,
         )
 
     @property
     def bottom_origin_node(self):
         return (
-            self.__bottom_origin.x,
-            self.__bottom_origin.y,
-            self.__bottom_origin.z,
+            self._bottom_origin.x,
+            self._bottom_origin.y,
+            self._bottom_origin.z,
         )
 
     @property
     def bottom_left_major_node(self):
         return (
-            self.__bottom_origin.x,
-            self.__bottom_origin.y - self.major_axis_bottom,
-            self.__bottom_origin.z,
+            self._bottom_origin.x,
+            self._bottom_origin.y - self.major_axis_bottom,
+            self._bottom_origin.z,
         )
 
     @property
     def bottom_right_major_node(self):
         return (
-            self.__bottom_origin.x,
-            self.__bottom_origin.y + self.major_axis_bottom,
-            self.__bottom_origin.z,
+            self._bottom_origin.x,
+            self._bottom_origin.y + self.major_axis_bottom,
+            self._bottom_origin.z,
         )
 
     @property
     def bottom_upper_minor_node(self):
         return (
-            self.__bottom_origin.x + self.minor_axis_bottom,
-            self.__bottom_origin.y,
-            self.__bottom_origin.z,
+            self._bottom_origin.x + self.minor_axis_bottom,
+            self._bottom_origin.y,
+            self._bottom_origin.z,
         )
 
     @property
     def bottom_lower_minor_node(self):
         return (
-            self.__bottom_origin.x - self.minor_axis_bottom,
-            self.__bottom_origin.y,
-            self.__bottom_origin.z,
+            self._bottom_origin.x - self.minor_axis_bottom,
+            self._bottom_origin.y,
+            self._bottom_origin.z,
         )
 
     def get_bottom_upper_left_arch_points(self):
@@ -521,10 +528,8 @@ class RingfaultBEMSource(EllipseBEMSource):
             )
             mantle = [
                 geom.add_surface(quadrant)
-                for quadrant in (m_top_left, m_bottom_left, m_bottom_right, m_top_right)
+                for quadrant in (m_top_left, m_top_right, m_bottom_right, m_bottom_left)
             ]
-
-            geom._COMPOUND_ENTITIES.append((2, [surf._id for surf in mantle]))
 
             geom.add_surface_loop(mantle)
 
@@ -545,7 +550,8 @@ class RingfaultBEMSource(EllipseBEMSource):
                 gmsh.fltk.run()
 
             return DiscretizedBEMSource(
-                mesh,
+                mesh=mesh,
+                mesh_size=mesh_size,
                 dtype="float32",
                 tractions=(
                     self.strike_traction,
