@@ -1188,7 +1188,6 @@ class BoundaryConditions(Object):
             for receiver_idx in bcond.receiver_idxs:
                 receiver_mesh = discretized_sources[receiver_idx]
                 t_vec = receiver_mesh.get_traction_vector(slip_comp)
-                print("slip_comp", t_vec)
                 traction_vecs.append(t_vec)
 
         return num.hstack(traction_vecs)

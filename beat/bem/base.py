@@ -67,11 +67,9 @@ class BEMResponse(Object):
         array_like: [n_triangles, 3]
             where columns are: strike, dip and tensile slip-components"""
         slips = []
-        print("isv shape", self.inverted_slip_vectors.shape)
         for src_idx in range(self.n_sources):
             start_idx = self.source_ordering[src_idx]
             end_idx = self.source_ordering[src_idx + 1]
-            print("idxs", start_idx, end_idx)
             slips.append(self.inverted_slip_vectors[start_idx:end_idx, :])
 
         return slips
@@ -115,14 +113,10 @@ class BEMEngine(object):
         obs_points = self.cache_target_coords3(targets, dtype="float32")
 
         coefficient_matrix = self.get_interaction_matrix(discretized_sources)
-        print("Coeffmat", coefficient_matrix.shape)
         tractions = self.config.boundary_conditions.get_traction_field(
             discretized_sources
         )
 
-        # t0 = time()
-        # inv_slips, _, _, _ = num.linalg.lstsq(coefficient_matrix, tractions, rcond=None)
-        t1 = time()
         # solve with least squares
         inv_slips = num.linalg.multi_dot(
             [
@@ -131,10 +125,6 @@ class BEMEngine(object):
                 tractions,
             ]
         )
-        print("", inv_slips[0:5])
-        t2 = time()
-        # print("lsq", t1 - t0)
-        logger.debug(f"multidot {t2 - t1}")
 
         all_triangles = num.vstack(
             [source.triangles_xyz for source in discretized_sources]
@@ -228,8 +218,10 @@ def get_coefficient_matrices_tdcs(
         discretized_bem_source.centroids, triangles_xyz, nu=nu
     )
 
-    strain_mat_T = num.transpose(strain_mat, (0, 2, 3, 1))
+    strain_mat_T = num.transpose(strain_mat, (0, 3, 2, 1))
     stress_mat_T = strain_to_stress(strain_mat_T, mu=mu, nu=nu)
+
+    stress_mat_T = num.transpose(stress_mat_T, (0, 2, 1, 3))
     stress_mat_m9s = symmat6(*stress_mat_T.T).T
 
     # select relevant source slip vector component indexs (0-strike, 1-dip, 2-tensile)

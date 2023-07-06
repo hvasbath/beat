@@ -1,8 +1,7 @@
 import logging
 import numpy as num
-import functools
 
-from pyrocko.guts import Object, Float
+from pyrocko.guts import Float, Tuple
 from pyrocko.orthodrome import ne_to_latlon
 from pyrocko.gf.seismosizer import Source
 
@@ -43,6 +42,7 @@ __all__ = [
     "DiscretizedBEMSource",
     "RingfaultBEMSource",
     "DiskBEMSource",
+    "TriangleBEMSource",
     "source_catalog",
 ]
 
@@ -158,6 +158,43 @@ class BEMSource(Source):
     tensile_traction = Float.T(
         default=0.0, help="Traction in normal-direction of the Triangles"
     )
+
+
+class TriangleBEMSource(BEMSource):
+
+    p1 = Tuple.T(3, Float.T(), default=(0, 1, -1))
+    p2 = Tuple.T(3, Float.T(), default=(1, 0, -1))
+    p3 = Tuple.T(3, Float.T(), default=(-1, 0, -1))
+
+    def discretize_basesource(self, mesh_size, plot=False, optimize=False):
+        with pygmsh.geo.Geometry() as geom:
+
+            gp1 = geom.add_point(self.p1, mesh_size=mesh_size)
+            gp2 = geom.add_point(self.p2, mesh_size=mesh_size)
+            gp3 = geom.add_point(self.p3, mesh_size=mesh_size)
+
+            l1 = geom.add_line(gp1, gp2)
+            l2 = geom.add_line(gp2, gp3)
+            l3 = geom.add_line(gp3, gp1)
+
+            edge = geom.add_curve_loop([l1, l2, l3])
+            geom.add_surface(edge)
+
+            mesh = geom.generate_mesh()
+
+            if plot:
+                gmsh.fltk.run()
+
+            return DiscretizedBEMSource(
+                mesh=mesh,
+                mesh_size=mesh_size,
+                dtype="float32",
+                tractions=(
+                    self.strike_traction,
+                    self.dip_traction,
+                    self.tensile_traction,
+                ),
+            )
 
 
 class EllipseBEMSource(BEMSource):

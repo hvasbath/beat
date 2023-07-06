@@ -832,9 +832,10 @@ def draw_3d_slip_distribution(problem, po):
     if po.load_stage is None:
         po.load_stage = -1
 
-    stage = load_stage(problem, stage_number=po.load_stage, load="trace", chains=[-1])
-
     if not po.reference:
+        stage = load_stage(
+            problem, stage_number=po.load_stage, load="trace", chains=[-1]
+        )
         reference = problem.config.problem_config.get_test_point()
         res_point = get_result_point(stage.mtrace, po.post_llk)
         reference.update(res_point)
@@ -949,6 +950,7 @@ def draw_3d_slip_distribution(problem, po):
             response.discretized_sources,
             response.source_slips(),
             perspective=perspective,
+            debug=False,
         )
         save_figs([fig], outpath, po.outformat, po.dpi)
 

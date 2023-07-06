@@ -19,12 +19,11 @@ def slip_distribution_3d(
     discretized_sources, slip_vectors, perspective="150/30", debug=False
 ):
 
-    fontsize_title = 12
+    # fontsize_title = 12
     fontsize = 8
 
     camera = [float(angle) for angle in perspective.split("/")]
 
-    print(mpl_papersize("a5", "landscape"))
     fig = plt.figure(figsize=mpl_papersize("a5", "landscape"))
     slip_comps = ["strike", "dip", "normal"]
 
@@ -65,7 +64,7 @@ def slip_distribution_3d(
 
             if debug:
                 unit_vectors = getattr(dsource, f"unit_{comp}_vectors")
-                print("uvs shape", unit_vectors.shape)
+
                 ax.quiver(
                     dsource.centroids[:, 0],
                     dsource.centroids[:, 1],
@@ -102,9 +101,9 @@ def slip_distribution_3d(
             orientation="horizontal",
         )
         cbs.set_label(f"{comp}-slip [m]", fontsize=fontsize)
-        cbs.ax.tick_params(labelsize=fontsize, rotation=-30)
+        cbs.ax.tick_params(labelsize=fontsize)
 
-        ax.tick_params(labelsize=fontsize)
+        ax.tick_params(labelsize=fontsize, rotation=-30)
         if j == 2:
             ax.set_xlabel("East-Distance [km]", fontsize=fontsize)
             ax.set_ylabel("North-Distance [km]", fontsize=fontsize)
@@ -117,6 +116,8 @@ def slip_distribution_3d(
         ax.set_xlim([min_limits[0], max_limits[0]])
         ax.set_ylim([min_limits[1], max_limits[1]])
         ax.set_zlim([min_limits[2], max_limits[2]])
+
+        set_axes_equal_3d(ax, axes="xyz")
 
         set_locator_axes(ax.get_xaxis(), MaxNLocator(nbins=3))
         set_locator_axes(ax.get_yaxis(), MaxNLocator(nbins=3))
@@ -131,7 +132,6 @@ def slip_distribution_3d(
         #     ax.invert_zaxis()
         # ax.set_aspect(1)
         ax.view_init(*camera[::-1])
-        set_axes_equal_3d(ax, axes="xyz")
 
     fig.subplots_adjust(
         left=0.03,
