@@ -1,4 +1,7 @@
 import multiprocessing
+
+mp_context = multiprocessing.get_context("spawn")
+
 import signal
 import sys
 import traceback
@@ -7,7 +10,6 @@ from functools import wraps
 from io import BytesIO
 from itertools import count
 from logging import getLogger
-from multiprocessing import reduction
 
 import numpy as num
 
@@ -27,7 +29,7 @@ def dumps(cls, obj, protocol=None):
 
 # monkey patch pickling in multiprocessing
 if sys.hexversion < 0x30600F0:
-    reduction.ForkingPickler.dumps = dumps
+    mp_context.reduction.ForkingPickler.dumps = dumps
 
 
 def get_process_id():
@@ -35,7 +37,7 @@ def get_process_id():
     Returns the process id of the current process
     """
     try:
-        current = multiprocessing.current_process()
+        current = mp_context.current_process()
         n = current._identity[0]
     except IndexError:
         # in case of only one used core ...
@@ -50,7 +52,7 @@ def check_available_memory(filesize):
     Parameters
     ----------
     filesize : float
-       in [Mb] megabyte
+        in [Mb] megabyte
     """
     from psutil import virtual_memory
 
@@ -219,13 +221,13 @@ def paripool(
     """
 
     def start_message(*globals):
-        logger.debug("Starting %s" % multiprocessing.current_process().name)
+        logger.debug("Starting %s" % mp_context.current_process().name)
 
     def callback(result):
         logger.info("\n Feierabend! Done with the work!")
 
     if nprocs is None:
-        nprocs = multiprocessing.cpu_count()
+        nprocs = mp_context.cpu_count()
 
     if chunksize is None:
         chunksize = 1
@@ -237,7 +239,7 @@ def paripool(
             yield [function(*work)]
 
     else:
-        pool = multiprocessing.Pool(
+        pool = mp_context.Pool(
             processes=nprocs, initializer=initializer, initargs=initargs
         )
 
@@ -265,7 +267,7 @@ def paripool(
             yield pool.map_async(
                 _pay_worker, workers, chunksize=chunksize, callback=callback
             ).get(pool_timeout)
-        except multiprocessing.TimeoutError:
+        except mp_context.TimeoutError:
             logger.error("Overseer fell asleep. Fire everyone!")
             pool.terminate()
         except KeyboardInterrupt:
@@ -276,7 +278,7 @@ def paripool(
             pool.close()
             pool.join()
             # reset process counter for tqdm progressbar
-            multiprocessing.process._process_counter = count(1)
+            mp_context.process._process_counter = count(1)
 
 
 def memshare(parameternames):
@@ -343,7 +345,7 @@ def memshare_sparams(shared_params):
         shape = original.shape
         original.shape = size
         logger.info("Allocating %s" % param.name)
-        ctypes = multiprocessing.RawArray(
+        ctypes = mp_context.RawArray(
             "f" if original.dtype == num.float32 else "d", size
         )
 
