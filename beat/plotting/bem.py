@@ -45,7 +45,6 @@ def slip_distribution_3d(
         for k, (dsource, slips3d) in enumerate(zip(discretized_sources, slip_vectors)):
             pa_col = Poly3DCollection(
                 dsource.triangles_xyz,
-                rasterized=True,
             )
 
             a = slips3d[:, slip_comp_to_idx[comp]]
