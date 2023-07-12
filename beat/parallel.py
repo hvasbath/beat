@@ -1,6 +1,7 @@
 import multiprocessing
 
-mp_context = multiprocessing.get_context("spawn")
+# mp_context = multiprocessing.get_context("spawn")
+mp_context = multiprocessing
 
 import signal
 import sys
@@ -278,7 +279,7 @@ def paripool(
             pool.close()
             pool.join()
             # reset process counter for tqdm progressbar
-            multiprocessing.process._process_counter = count(1)
+            mp_context.process._process_counter = count(1)
 
 
 def memshare(parameternames):
