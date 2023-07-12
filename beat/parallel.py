@@ -278,7 +278,7 @@ def paripool(
             pool.close()
             pool.join()
             # reset process counter for tqdm progressbar
-            mp_context.process._process_counter = count(1)
+            multiprocessing.process._process_counter = count(1)
 
 
 def memshare(parameternames):

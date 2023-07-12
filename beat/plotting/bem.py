@@ -38,17 +38,19 @@ def slip_distribution_3d(
     max_limits = num.ceil(sources_coord_limits.max(2).max(1)) * km
     for j, comp in enumerate(slip_comps):
         cmap = plt.get_cmap("hot") if comp == "normal" else plt.get_cmap("seismic")
-        ax = fig.add_subplot(1, len(slip_comps), j + 1, projection="3d")
+        ax = fig.add_subplot(
+            1, len(slip_comps), j + 1, projection="3d", computed_zorder=False
+        )
 
-        for dsource, slips3d in zip(discretized_sources, slip_vectors):
+        for k, (dsource, slips3d) in enumerate(zip(discretized_sources, slip_vectors)):
             pa_col = Poly3DCollection(
                 dsource.triangles_xyz,
-                cmap=cmap,
                 rasterized=True,
             )
+
             a = slips3d[:, slip_comp_to_idx[comp]]
 
-            if comp == "strike":
+            if comp in ["strike", "dip"]:
                 absmax = num.max([num.abs(a.min()), a.max()])
                 cbounds = [-cb_round(absmax), cb_round(absmax)]
             else:
@@ -56,52 +58,59 @@ def slip_distribution_3d(
 
             assert a.size == dsource.n_triangles
 
-            pa_col.set_array(a)
-            pa_col.set_clim(*cbounds)
-            pa_col.set(edgecolor="k", linewidth=0.2, alpha=0.8)
-
             ax.add_collection(pa_col)
 
-            if debug:
+            if num.diff(cbounds) == 0:
+                colors = ["white" for _ in range(a.size)]
+                pa_col.set_facecolor(colors)
+                pa_col.set(edgecolor="k", linewidth=0.1, alpha=0.25)
+            else:
+
+                cbl = 0.1 + j * 0.3
+                cbb = 0.2 - k * 0.08
+                cbw = 0.15
+                cbh = 0.01
+
+                cbaxes = fig.add_axes([cbl, cbb, cbw, cbh])
+
+                pa_col.set_cmap(cmap)
+
+                pa_col.set_array(a)
+                pa_col.set_clim(*cbounds)
+                pa_col.set(edgecolor="k", linewidth=0.2, alpha=0.75)
+
+                cbs = plt.colorbar(
+                    pa_col,
+                    ax=ax,
+                    ticks=cbounds,
+                    cax=cbaxes,
+                    orientation="horizontal",
+                )
+                cbs.set_label(f"{comp}-slip [m]", fontsize=fontsize)
+                cbs.ax.tick_params(labelsize=fontsize)
+
                 unit_vectors = getattr(dsource, f"unit_{comp}_vectors")
 
                 ax.quiver(
-                    dsource.centroids[:, 0],
-                    dsource.centroids[:, 1],
-                    dsource.centroids[:, 2],
-                    unit_vectors[:, 0],
-                    unit_vectors[:, 1],
-                    unit_vectors[:, 2],
+                    dsource.centroids[::4, 0],
+                    dsource.centroids[::4, 1],
+                    dsource.centroids[::4, 2],
+                    unit_vectors[::4, 0],
+                    unit_vectors[::4, 1],
+                    unit_vectors[::4, 2],
                     color="k",
-                    length=dsource.mesh_size,
-                    linewidth=0.5,
+                    length=dsource.mesh_size / 2,
+                    linewidth=1.0,
                 )
+            if debug:
                 for tri_idx in range(dsource.n_triangles):
                     ax.text(
                         dsource.centroids[tri_idx, 0],
                         dsource.centroids[tri_idx, 1],
                         dsource.centroids[tri_idx, 2],
                         tri_idx,
-                        zorder=3,
                         fontsize=6,
                     )
-
-        cbl = 0.1 + j * 0.3
-        cbb = 0.2
-        cbw = 0.15
-        cbh = 0.01
-
-        cbaxes = fig.add_axes([cbl, cbb, cbw, cbh])
-
-        cbs = plt.colorbar(
-            pa_col,
-            ax=ax,
-            ticks=cbounds,
-            cax=cbaxes,
-            orientation="horizontal",
-        )
-        cbs.set_label(f"{comp}-slip [m]", fontsize=fontsize)
-        cbs.ax.tick_params(labelsize=fontsize)
 
         ax.tick_params(labelsize=fontsize, rotation=-30)
         if j == 2:
