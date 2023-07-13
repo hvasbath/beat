@@ -669,6 +669,9 @@ def scene_fits(problem, stage, plot_options):
                 ax.set_xlabel(xstr, fontsize=fontsize)
                 ax.set_yticklabels(ax.get_yticklabels(), rotation=90)
 
+            scale_x["precision"] = 2
+            scale_y["precision"] = 2
+
             ax.scale_x = scale_x
             ax.scale_y = scale_y
 

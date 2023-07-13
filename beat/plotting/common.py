@@ -539,13 +539,13 @@ def hide_ticks(ax, axis="yaxis"):
         tick.tick2line.set_visible(False)
 
 
-def scale_axes(axis, scale, offset=0.0):
+def scale_axes(axis, scale, offset=0.0, precision=1):
     from matplotlib.ticker import ScalarFormatter
 
     class FormatScaled(ScalarFormatter):
         @staticmethod
         def __call__(value, pos):
-            return "{:,.2f}".format(offset + value * scale).replace(",", " ")
+            return f"{offset + value * scale:.{precision}f}"
 
     axis.set_major_formatter(FormatScaled())
 
