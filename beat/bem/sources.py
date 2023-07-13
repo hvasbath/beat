@@ -323,18 +323,20 @@ class DiskBEMSource(EllipseBEMSource):
         EllipseBEMSource.__init__(self, **kwargs)
 
     def outline(self, cs="xy", npoints=50):
-        return get_ellipse_points(
-            self.lon,
-            self.lat,
-            self.east_shift,
-            self.north_shift,
-            self.major_axis,
-            self.minor_axis,
-            self.dip,
-            self.plunge,
-            self.strike,
-            cs=cs,
-            npoints=npoints,
+        return num.flipud(
+            get_ellipse_points(
+                self.lon,
+                self.lat,
+                self.east_shift,
+                self.north_shift,
+                self.major_axis,
+                self.minor_axis,
+                self.dip,
+                self.plunge,
+                self.strike,
+                cs=cs,
+                npoints=npoints,
+            )
         )
 
     def discretize_basesource(self, mesh_size, target=None, optimize=False, plot=False):
