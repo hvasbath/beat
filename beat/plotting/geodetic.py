@@ -806,7 +806,14 @@ def scene_fits(problem, stage, plot_options):
                 ax.fill(
                     fe, fn, edgecolor=color, facecolor=light(color, 0.5), alpha=alpha
                 )
-                ax.plot(fe[0:2], fn[0:2], "-k", alpha=0.7, linewidth=1.0)
+                n_upper_edge_points = round(fn.size / 2.0)
+                ax.plot(
+                    fe[0:n_upper_edge_points],
+                    fn[0:n_upper_edge_points],
+                    "-k",
+                    alpha=0.7,
+                    linewidth=1.0,
+                )
             else:
                 ax.plot(fe, fn, marker="*", markersize=10, color=color, **kwargs)
 
