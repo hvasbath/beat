@@ -2413,6 +2413,8 @@ def main():
             if acommand in subcommands:
                 globals()["command_" + acommand](["--help"])
 
+        if "mpi4py" in sys.modules:
+            print("MPI has been imported")
         sys.exit("Usage: %s" % usage)
 
     else:
