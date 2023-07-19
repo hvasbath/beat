@@ -5,7 +5,7 @@ from os.path import basename
 from os.path import join as pjoin
 
 # disable internal blas parallelisation as we parallelise over chains
-nthreads = os.environ.get("NUM_THREADS", 1)
+nthreads = os.environ.get("NUM_THREADS", "1")
 os.environ["OMP_NUM_THREADS"] = nthreads
 os.environ["NUMEXPR_NUM_THREADS"] = nthreads
 os.environ["OPENBLAS_NUM_THREADS"] = nthreads
