@@ -14,7 +14,7 @@ from logging import getLevelName, getLogger
 from pickle import HIGHEST_PROTOCOL
 
 import numpy as num
-from mpi4py import MPI
+
 from theano import config as tconfig
 
 from beat.backend import MemoryChain, SampleStage, backend_catalog
@@ -30,10 +30,6 @@ from beat.sampler.base import (
 from beat.utility import dump_objects, list2string, load_objects, setup_logging
 
 logger = getLogger("pt")
-
-
-MPI.pickle.PROTOCOL = HIGHEST_PROTOCOL
-
 
 __all__ = [
     "pt_sample",
@@ -915,6 +911,11 @@ def pt_sample(
 
 
 def _sample():
+
+    from mpi4py import MPI
+
+    MPI.pickle.PROTOCOL = HIGHEST_PROTOCOL
+
     # Define MPI message tags
     tags = distributed.enum("READY", "INIT", "DONE", "EXIT", "SAMPLE", "BETA")
 
