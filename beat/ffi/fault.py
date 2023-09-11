@@ -488,14 +488,17 @@ total number of patches: %i """ % (
             else:
                 raise TypeError("Only 1-2d data supported!")
 
-        def patches2vertices(patches):
+        def patches2vertices(patches, keep_lastline=False):
             verts = []
             for patch in patches:
                 patch.anchor = "top"
                 xyz = patch.outline()
                 latlon = num.ones((5, 2)) * num.array([patch.lat, patch.lon])
                 patchverts = num.hstack((latlon, xyz))
-                verts.append(patchverts[:-1, :])  # last vertex double
+                if keep_lastline:
+                    verts.append(patchverts)
+                else:
+                    verts.append(patchverts[:-1, :])
 
             return num.vstack(verts)
 
@@ -566,7 +569,7 @@ total number of patches: %i """ % (
 
         outlines = []
         for sf in self.iter_subfaults():
-            outlines.append(patches2vertices([sf]))
+            outlines.append(patches2vertices([sf], keep_lastline=True))
 
         faces1 = num.arange(ncorners * self.npatches, dtype="int64").reshape(
             self.npatches, ncorners
