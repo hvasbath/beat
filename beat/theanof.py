@@ -757,14 +757,6 @@ class StrainRateTensor(theano.Op):
         self.data_mask = tuple(data_mask)
         self.ndata = len(self.lats)
 
-        station_idxs = [
-            station_idx
-            for station_idx in range(self.ndata)
-            if station_idx not in data_mask
-        ]
-
-        self.station_idxs = tuple(station_idxs)
-
     def make_node(self, inputs):
         inlist = []
 
@@ -794,20 +786,19 @@ class StrainRateTensor(theano.Op):
         exy = point["exy"]
         rotation = point["rotation"]
 
-        valid = num.array(self.station_idxs)
-
         v_xyz = heart.velocities_from_strain_rate_tensor(
-            num.array(self.lats)[valid],
-            num.array(self.lons)[valid],
+            num.array(self.lats),
+            num.array(self.lons),
             exx=exx,
             eyy=eyy,
             exy=exy,
             rotation=rotation,
         )
 
-        v_xyz_all = num.zeros((self.ndata, 3))
-        v_xyz_all[valid, :] = v_xyz
-        z[0] = v_xyz_all
+        if self.data_mask:
+            v_xyz[num.array(self.data_mask), :] = 0.0
+
+        z[0] = v_xyz
 
     def infer_shape(self, node, input_shapes):
         return [(self.ndata, 3)]
