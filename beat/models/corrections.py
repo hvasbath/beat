@@ -164,14 +164,11 @@ class StrainRateCorrection(Correction):
             self.los_vector.astype(tconfig.floatX), name="los", borrow=True
         )
 
-    def get_station_indexes(self):
-        return array(self.strain_rate_tensor.station_idxs)
+    def get_station_coordinates(self, mask=None):
+        if mask is None:
+            mask = self.data_mask
 
-    def get_station_coordinates(self, indexes=None):
-        if indexes is None:
-            indexes = self.get_station_indexes()
-
-        return array(self.lats)[indexes], array(self.lons)[indexes]
+        return array(self.lats)[mask], array(self.lons)[mask]
 
     def get_displacements(self, hierarchicals, point=None):
         """
@@ -200,15 +197,11 @@ class StrainRateCorrection(Correction):
 
                 kwargs = self.get_point_rvs(hierarchicals)
 
-        valid = self.get_station_indexes()
-        lats, lons = self.get_station_coordinates(valid)
+        v_xyz = velocities_from_strain_rate_tensor(
+            array(self.lats), array(self.lons), **kwargs
+        )
 
-        v_xyz = velocities_from_strain_rate_tensor(lats, lons, **kwargs)
+        if self.data_mask.size > 0:
+            v_xyz[self.data_mask, :] = 0.0
 
-        if valid.size > 0:
-            vels = zeros((self.lats.size, 3))
-            vels[valid, :] = v_xyz
-        else:
-            vels = v_xyz
-
-        return (vels * self.los_vector).sum(axis=1)
+        return (v_xyz * self.los_vector).sum(axis=1)

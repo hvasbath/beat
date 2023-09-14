@@ -1347,7 +1347,9 @@ class GNSSCompoundComponent(GeodeticDataset):
             "Stations with idxs %s got blacklisted!"
             % utility.list2string(station_blacklist_idxs)
         )
-        return num.array(station_blacklist_idxs)
+        mask = num.ones_like(self.lats, dtype=num.bool)
+        mask[num.array(station_blacklist_idxs)] = False
+        return mask
 
     def station_name_index_mapping(self):
         if self._station2index is None:
@@ -1554,8 +1556,7 @@ class DiffIFG(IFG):
         mask = num.full(lats.size, False)
         if polygons:
             logger.info(
-                "Found polygon mask in %s! Importing for Euler Pole"
-                " correction ..." % name
+                "Found polygon mask in %s! Importing for corrections ..." % name
             )
             from matplotlib.path import Path
 
@@ -1585,14 +1586,10 @@ class DiffIFG(IFG):
 
     def get_data_mask(self, corr_conf):
         """
-        Extracts mask from kite scene and returns mask indexes-
-        maybe during import?!!!
+        Returns extracted mask from kite scene
         """
-        if corr_conf.feature == "Euler Pole":
-            logger.info("Masking data for Euler Pole estimation!")
-            return self.mask
-        else:
-            return None
+        logger.info("Masking data for %s estimation!" % corr_conf.feature)
+        return self.mask
 
 
 class GeodeticResult(Object):
