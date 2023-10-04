@@ -7,7 +7,13 @@ from numpy.testing import assert_allclose
 from pyrocko import util
 from pyrocko.gf.targets import StaticTarget
 
-from beat.bem import BEMEngine, RingfaultBEMSource, DiskBEMSource, TriangleBEMSource
+from beat.bem import (
+    BEMEngine,
+    RingfaultBEMSource,
+    DiskBEMSource,
+    TriangleBEMSource,
+    check_intersection,
+)
 from beat.plotting.bem import slip_distribution_3d
 from beat.config import BEMConfig
 from matplotlib import pyplot as plt
@@ -109,8 +115,16 @@ def get_disk_tensile_only_setup():
     return config, sources, targets
 
 
-def get_disk_ringfault_setup():
+def get_disk_ringfault_setup(intersect=False):
     targets = [get_static_target([-10 * km, 10 * km], 100)]
+
+    if intersect:
+        major_axis_bottom = 1.5 * km
+        minor_axis_bottom = 1.0 * km
+    else:
+        major_axis_bottom = 3.5 * km
+        minor_axis_bottom = 3.0 * km
+
     sources = [
         DiskBEMSource(
             tensile_traction=2.15e6,
@@ -130,10 +144,12 @@ def get_disk_ringfault_setup():
             delta_depth_bottom=4.0 * km,
             major_axis=2 * km,
             minor_axis=1 * km,
-            major_axis_bottom=1.5 * km,
+            major_axis_bottom=major_axis_bottom,
+            minor_axis_bottom=minor_axis_bottom,
             strike=5,
         ),
     ]
+
     config = BEMConfig(mesh_size=mesh_size)
     for bcond in config.boundary_conditions.iter_conditions():
         bcond.receiver_idxs = [0, 1]
@@ -147,18 +163,20 @@ class TestBEM(unittest.TestCase):
     def __init__(self, *args, **kwargs):
         unittest.TestCase.__init__(self, *args, **kwargs)
 
-    def _run_bem_engine(self, setup_function, plot=True):
-        config, sources, targets = setup_function()
+    def _run_bem_engine(self, setup_function, plot=True, **kwargs):
+        print(kwargs)
+        config, sources, targets = setup_function(**kwargs)
 
         engine = BEMEngine(config)
         response = engine.process(sources=sources, targets=targets)
 
         results = response.static_results()
-        if plot:
+        if plot and response.is_valid:
             for i, result in enumerate(results):
                 plot_static_result(result.result, targets[i])
 
             slip_vectors = response.source_slips()
+
             slip_distribution_3d(response.discretized_sources, slip_vectors, debug=True)
             plt.show()
 
@@ -172,7 +190,22 @@ class TestBEM(unittest.TestCase):
         self._run_bem_engine(get_disk_setup)
 
     def test_bem_engine_dike_ringfault(self):
-        self._run_bem_engine(get_disk_ringfault_setup)
+        kwargs = {"intersect": True}
+        self._run_bem_engine(get_disk_ringfault_setup, **kwargs)
+
+        kwargs = {"intersect": False}
+        self._run_bem_engine(get_disk_ringfault_setup, **kwargs)
+
+    def test_bem_source_intersection(self):
+        config, sources, _ = get_disk_ringfault_setup(intersect=True)
+
+        intersect = check_intersection(sources, mesh_size=config.mesh_size * km)
+        assert intersect == True
+
+        config, sources, _ = get_disk_ringfault_setup(intersect=False)
+
+        intersect = check_intersection(sources, mesh_size=config.mesh_size * km)
+        assert intersect == False
 
 
 if __name__ == "__main__":

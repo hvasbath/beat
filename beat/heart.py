@@ -4156,9 +4156,11 @@ def geo_synthetics(
     'stacked_arrays'
     or list of
     :class:`numpy.ndarray` (target.samples; ux-North, uy-East, uz-Down)
+    returns Nan in displacements if result is invalid!
     """
 
     response = engine.process(sources, targets)
+
     ns = len(sources)
     nt = len(targets)
 

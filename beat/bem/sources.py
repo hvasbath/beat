@@ -44,6 +44,7 @@ __all__ = [
     "DiskBEMSource",
     "TriangleBEMSource",
     "source_catalog",
+    "check_intersection",
 ]
 
 
@@ -79,6 +80,10 @@ class DiscretizedBEMSource(object):
     @property
     def vertices(self):
         return self._points
+
+    @property
+    def n_vertices(self):
+        return len(self.vertices)
 
     @property
     def triangles_idxs(self):
@@ -150,14 +155,41 @@ class Origin:
 
 class BEMSource(Source):
     strike_traction = Float.T(
-        default=0.0, help="Traction in strike-direction of the Triangles"
+        default=0.0, help="Traction [Pa] in strike-direction of the Triangles"
     )
     dip_traction = Float.T(
-        default=0.0, help="Traction in dip-direction of the Triangles"
+        default=0.0, help="Traction [Pa] in dip-direction of the Triangles"
     )
     tensile_traction = Float.T(
-        default=0.0, help="Traction in normal-direction of the Triangles"
+        default=0.0, help="Traction [Pa] in normal-direction of the Triangles"
     )
+
+    def get_source_surface(self, geom, mesh_size):
+        raise NotImplementedError
+
+    def discretize_basesource(self, mesh_size, target=None, plot=False):
+
+        with pygmsh.geo.Geometry() as geom:
+
+            surf = self.get_source_surface(geom, mesh_size)
+            if len(surf) > 1:
+                geom.add_surface_loop(surf)
+
+            mesh = geom.generate_mesh()
+
+        if plot:
+            gmsh.fltk.run()
+
+        return DiscretizedBEMSource(
+            mesh=mesh,
+            mesh_size=mesh_size,
+            dtype="float32",
+            tractions=(
+                self.strike_traction,
+                self.dip_traction,
+                self.tensile_traction,
+            ),
+        )
 
 
 class TriangleBEMSource(BEMSource):
@@ -166,35 +198,18 @@ class TriangleBEMSource(BEMSource):
     p2 = Tuple.T(3, Float.T(), default=(1, 0, -1))
     p3 = Tuple.T(3, Float.T(), default=(-1, 0, -1))
 
-    def discretize_basesource(self, mesh_size, plot=False, optimize=False):
-        with pygmsh.geo.Geometry() as geom:
+    def get_source_surface(self, geom, mesh_size):
 
-            gp1 = geom.add_point(self.p1, mesh_size=mesh_size)
-            gp2 = geom.add_point(self.p2, mesh_size=mesh_size)
-            gp3 = geom.add_point(self.p3, mesh_size=mesh_size)
+        gp1 = geom.add_point(self.p1, mesh_size=mesh_size)
+        gp2 = geom.add_point(self.p2, mesh_size=mesh_size)
+        gp3 = geom.add_point(self.p3, mesh_size=mesh_size)
 
-            l1 = geom.add_line(gp1, gp2)
-            l2 = geom.add_line(gp2, gp3)
-            l3 = geom.add_line(gp3, gp1)
+        l1 = geom.add_line(gp1, gp2)
+        l2 = geom.add_line(gp2, gp3)
+        l3 = geom.add_line(gp3, gp1)
 
-            edge = geom.add_curve_loop([l1, l2, l3])
-            geom.add_surface(edge)
-
-            mesh = geom.generate_mesh()
-
-            if plot:
-                gmsh.fltk.run()
-
-            return DiscretizedBEMSource(
-                mesh=mesh,
-                mesh_size=mesh_size,
-                dtype="float32",
-                tractions=(
-                    self.strike_traction,
-                    self.dip_traction,
-                    self.tensile_traction,
-                ),
-            )
+        edge = geom.add_curve_loop([l1, l2, l3])
+        return [geom.add_surface(edge)]
 
 
 class EllipseBEMSource(BEMSource):
@@ -339,59 +354,33 @@ class DiskBEMSource(EllipseBEMSource):
             )
         )
 
-    def discretize_basesource(self, mesh_size, target=None, optimize=False, plot=False):
+    def get_source_surface(self, geom, mesh_size):
 
-        with pygmsh.geo.Geometry() as geom:
-            self._init_points_geometry(
-                geom, ellipse_prefixes=("",), mesh_size=mesh_size
-            )
+        self._init_points_geometry(geom, ellipse_prefixes=("",), mesh_size=mesh_size)
 
-            rotations = (self.dip, self.plunge, self.strike)
-            axes = ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))
-            for point in self.points.values():
+        rotations = (self.dip, self.plunge, self.strike)
+        axes = ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))
+        for point in self.points.values():
 
-                for rot_angle, axis in zip(rotations, axes):
-                    if rot_angle != 0:
-                        # TODO if rotation results in one point ending at the exact
-                        # same location of other point it will be removed
-                        geom.rotate(
-                            point,
-                            self.origin_node,
-                            -rot_angle * DEG2RAD,
-                            axis,
-                        )
+            for rot_angle, axis in zip(rotations, axes):
+                if rot_angle != 0:
+                    # TODO if rotation results in one point ending at the exact
+                    # same location of other point it will be removed
+                    geom.rotate(
+                        point,
+                        self.origin_node,
+                        -rot_angle * DEG2RAD,
+                        axis,
+                    )
 
-            t_arch_ul = geom.add_ellipse_arc(*self.get_top_upper_left_arch_points())
-            t_arch_ur = geom.add_ellipse_arc(*self.get_top_upper_right_arch_points())
-            t_arch_lr = geom.add_ellipse_arc(*self.get_top_lower_right_arch_points())
-            t_arch_ll = geom.add_ellipse_arc(*self.get_top_lower_left_arch_points())
+        t_arch_ul = geom.add_ellipse_arc(*self.get_top_upper_left_arch_points())
+        t_arch_ur = geom.add_ellipse_arc(*self.get_top_upper_right_arch_points())
+        t_arch_lr = geom.add_ellipse_arc(*self.get_top_lower_right_arch_points())
+        t_arch_ll = geom.add_ellipse_arc(*self.get_top_lower_left_arch_points())
 
-            ellipse = geom.add_curve_loop([t_arch_ul, t_arch_ur, t_arch_lr, t_arch_ll])
+        ellipse = geom.add_curve_loop([t_arch_ul, t_arch_ur, t_arch_lr, t_arch_ll])
 
-            disk = geom.add_surface(ellipse)
-
-            if optimize:
-                geom.synchronize()
-
-                gmsh.model.mesh.generate()
-                gmsh.model.mesh.optimize()
-                mesh = pygmsh.helpers.extract_to_meshio()
-            else:
-                mesh = geom.generate_mesh()
-
-            if plot:
-                gmsh.fltk.run()
-
-            return DiscretizedBEMSource(
-                mesh=mesh,
-                mesh_size=mesh_size,
-                dtype="float32",
-                tractions=(
-                    self.strike_traction,
-                    self.dip_traction,
-                    self.tensile_traction,
-                ),
-            )
+        return [geom.add_surface(ellipse)]
 
 
 class RingfaultBEMSource(EllipseBEMSource):
@@ -507,77 +496,46 @@ class RingfaultBEMSource(EllipseBEMSource):
     def get_lower_minor_connecting_points(self):
         return self._get_arch_points(["lower_minor_node", "bottom_lower_minor_node"])
 
-    def discretize_basesource(self, mesh_size, target=None, optimize=False, plot=False):
-        with pygmsh.geo.Geometry() as geom:
-            self._init_points_geometry(
-                geom, ellipse_prefixes=("", "bottom"), mesh_size=mesh_size
-            )
+    def get_source_surface(self, geom, mesh_size):
 
-            if self.strike != 0:
-                for point in self.points.values():
-                    geom.rotate(
-                        point,
-                        (self.east_shift, self.north_shift, -self.depth),
-                        -self.strike * DEG2RAD,
-                        (0.0, 0.0, 1.0),
-                    )
+        self._init_points_geometry(
+            geom, ellipse_prefixes=("", "bottom"), mesh_size=mesh_size
+        )
 
-            t_arch_ul = geom.add_ellipse_arc(*self.get_top_upper_left_arch_points())
-            t_arch_ur = geom.add_ellipse_arc(*self.get_top_upper_right_arch_points())
-            t_arch_lr = geom.add_ellipse_arc(*self.get_top_lower_right_arch_points())
-            t_arch_ll = geom.add_ellipse_arc(*self.get_top_lower_left_arch_points())
+        if self.strike != 0:
+            for point in self.points.values():
+                geom.rotate(
+                    point,
+                    (self.east_shift, self.north_shift, -self.depth),
+                    -self.strike * DEG2RAD,
+                    (0.0, 0.0, 1.0),
+                )
 
-            b_arch_ul = geom.add_ellipse_arc(*self.get_bottom_upper_left_arch_points())
-            b_arch_ur = geom.add_ellipse_arc(*self.get_bottom_upper_right_arch_points())
-            b_arch_lr = geom.add_ellipse_arc(*self.get_bottom_lower_right_arch_points())
-            b_arch_ll = geom.add_ellipse_arc(*self.get_bottom_lower_left_arch_points())
+        t_arch_ul = geom.add_ellipse_arc(*self.get_top_upper_left_arch_points())
+        t_arch_ur = geom.add_ellipse_arc(*self.get_top_upper_right_arch_points())
+        t_arch_lr = geom.add_ellipse_arc(*self.get_top_lower_right_arch_points())
+        t_arch_ll = geom.add_ellipse_arc(*self.get_top_lower_left_arch_points())
 
-            c_lmaj = geom.add_line(*self.get_left_major_connecting_points())
-            c_rmaj = geom.add_line(*self.get_right_major_connecting_points())
-            c_umin = geom.add_line(*self.get_upper_minor_connecting_points())
-            c_lmin = geom.add_line(*self.get_lower_minor_connecting_points())
+        b_arch_ul = geom.add_ellipse_arc(*self.get_bottom_upper_left_arch_points())
+        b_arch_ur = geom.add_ellipse_arc(*self.get_bottom_upper_right_arch_points())
+        b_arch_lr = geom.add_ellipse_arc(*self.get_bottom_lower_right_arch_points())
+        b_arch_ll = geom.add_ellipse_arc(*self.get_bottom_lower_left_arch_points())
 
-            m_top_left = geom.add_curve_loop([t_arch_ul, c_umin, -b_arch_ul, -c_lmaj])
-            m_top_right = geom.add_curve_loop([t_arch_ur, c_rmaj, -b_arch_ur, -c_umin])
-            m_bottom_right = geom.add_curve_loop(
-                [t_arch_lr, c_lmin, -b_arch_lr, -c_rmaj]
-            )
-            m_bottom_left = geom.add_curve_loop(
-                [t_arch_ll, c_lmaj, -b_arch_ll, -c_lmin]
-            )
-            mantle = [
-                geom.add_surface(quadrant)
-                for quadrant in (m_top_left, m_top_right, m_bottom_right, m_bottom_left)
-            ]
+        c_lmaj = geom.add_line(*self.get_left_major_connecting_points())
+        c_rmaj = geom.add_line(*self.get_right_major_connecting_points())
+        c_umin = geom.add_line(*self.get_upper_minor_connecting_points())
+        c_lmin = geom.add_line(*self.get_lower_minor_connecting_points())
 
-            geom.add_surface_loop(mantle)
-
-            if optimize:
-                geom.synchronize()
-
-                # set compound entities after sync
-                for c in geom._COMPOUND_ENTITIES:
-                    gmsh.model.mesh.setCompound(*c)
-
-                gmsh.model.mesh.generate()
-                gmsh.model.mesh.optimize()
-                mesh = pygmsh.helpers.extract_to_meshio()
-            else:
-                mesh = geom.generate_mesh()
-
-            if plot:
-                gmsh.fltk.run()
-
-            return DiscretizedBEMSource(
-                mesh=mesh,
-                mesh_size=mesh_size,
-                dtype="float32",
-                tractions=(
-                    self.strike_traction,
-                    self.dip_traction,
-                    self.tensile_traction,
-                ),
-            )
+        m_top_left = geom.add_curve_loop([t_arch_ul, c_umin, -b_arch_ul, -c_lmaj])
+        m_top_right = geom.add_curve_loop([t_arch_ur, c_rmaj, -b_arch_ur, -c_umin])
+        m_bottom_right = geom.add_curve_loop([t_arch_lr, c_lmin, -b_arch_lr, -c_rmaj])
+        m_bottom_left = geom.add_curve_loop([t_arch_ll, c_lmaj, -b_arch_ll, -c_lmin])
+        mantle = [
+            geom.add_surface(quadrant)
+            for quadrant in (m_top_left, m_top_right, m_bottom_right, m_bottom_left)
+        ]
+        return mantle
+        # return geom.add_surface_loop(mantle)
 
     def outline(self, cs="xy", npoints=50):
         upper_ellipse = get_ellipse_points(
@@ -610,18 +568,19 @@ class RingfaultBEMSource(EllipseBEMSource):
 
 
 def get_ellipse_points(
-    lon,
-    lat,
-    east_shift,
-    north_shift,
-    major_axis,
-    minor_axis,
-    dip,
-    plunge,
-    strike,
-    cs="xy",
-    npoints=50,
-):
+    lon: float,
+    lat: float,
+    east_shift: float,
+    north_shift: float,
+    major_axis: float,
+    minor_axis: float,
+    dip: float,
+    plunge: float,
+    strike: float,
+    cs: str = "xy",
+    npoints: int = 50,
+) -> num.ndarray:
+
     major_axis_rot = major_axis * num.cos(dip * DEG2RAD)
     minor_axis_rot = minor_axis * num.cos(plunge * DEG2RAD)
 
@@ -655,6 +614,42 @@ def get_ellipse_points(
             return latlon[:, ::-1]
     else:
         raise NotImplemented(f"Coordinate system '{cs}' is not implemented.")
+
+
+def check_intersection(sources: list, mesh_size: float = 0.5):
+    """
+    Computationally expensive check for source intersection.
+    """
+    n_sources = len(sources)
+    if n_sources > 1:
+        with pygmsh.occ.Geometry() as geom:
+            surfaces = []
+            for source in sources:
+                surf = source.get_source_surface(geom, mesh_size)
+                surfaces.append(surf)
+
+            gmsh.model.occ.synchronize()
+            before = len(gmsh.model.getEntities())
+            for i in range(n_sources - 1):
+                # surf1 = [s.dim_tag for s in surfaces[i]]
+                # surf2 = [s.dim_tag for s in surfaces[i + 1]]
+                # out, _ = gmsh.model.occ.intersect(
+                #     surf1, surf2, removeObject=False, removeTool=False
+                # )
+
+                surf1 = surfaces[i]
+                surf2 = surfaces[i + 1]
+                geom.boolean_fragments(surf1, surf2)
+
+            gmsh.model.occ.synchronize()
+            after = len(gmsh.model.getEntities())
+
+        if after - before:
+            logger.debug("Sources intersect")
+            return True
+
+    logger.debug("Sources do not intersect")
+    return False
 
 
 source_names = """

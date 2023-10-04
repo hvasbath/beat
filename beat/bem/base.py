@@ -9,7 +9,7 @@ from pyrocko.gf import StaticResult, Response, Request
 from pyrocko.guts_array import Array
 from pyrocko.guts import Int, Object, List
 
-from .sources import DiscretizedBEMSource, slip_comp_to_idx
+from .sources import DiscretizedBEMSource, slip_comp_to_idx, check_intersection
 
 try:
     from cutde import halfspace as HS
@@ -27,10 +27,12 @@ class BEMResponse(Object):
     sources = List.T(default=[])
     targets = List.T(default=[])
     discretized_sources = List.T()
-    displacements = Array.T(shape=(None,), dtype=num.float32, serialize_as="base64")
-    target_ordering = Array.T(shape=(None,), dtype=num.int64)
-    source_ordering = Array.T(shape=(None,), dtype=num.int64)
-    inverted_slip_vectors = Array.T(shape=(None, 3), dtype=num.float32)
+    displacements = Array.T(
+        shape=(None,), dtype=num.float32, serialize_as="base64", optional=True
+    )
+    target_ordering = Array.T(shape=(None,), dtype=num.int64, optional=True)
+    source_ordering = Array.T(shape=(None,), dtype=num.int64, optional=True)
+    inverted_slip_vectors = Array.T(shape=(None, 3), dtype=num.float32, optional=True)
 
     @property
     def n_sources(self):
@@ -39,6 +41,13 @@ class BEMResponse(Object):
     @property
     def n_targets(self):
         return len(self.targets)
+
+    @property
+    def is_valid(self):
+        if self.discretized_sources is None:
+            return False
+        else:
+            return True
 
     def static_results(self) -> list[StaticResult]:
         """
@@ -68,10 +77,12 @@ class BEMResponse(Object):
             where columns are: strike, dip and tensile slip-components"""
         slips = []
         for src_idx in range(self.n_sources):
-            start_idx = self.source_ordering[src_idx]
-            end_idx = self.source_ordering[src_idx + 1]
-            slips.append(self.inverted_slip_vectors[start_idx:end_idx, :])
-
+            if self.source_ordering is not None:
+                start_idx = self.source_ordering[src_idx]
+                end_idx = self.source_ordering[src_idx + 1]
+                slips.append(self.inverted_slip_vectors[start_idx:end_idx, :])
+            else:
+                slips.append(None)
         return slips
 
 
@@ -104,13 +115,30 @@ class BEMEngine(object):
         self._ncoords_targets = None
 
     def process(self, sources: list, targets: list) -> num.ndarray:
-        discretized_sources = [
-            source.discretize_basesource(
-                mesh_size=self.config.mesh_size * km, plot=False
+        mesh_size = self.config.mesh_size * km
+
+        if self.config.check_mesh_intersection:
+            intersect = check_intersection(sources, mesh_size=mesh_size)
+        else:
+            intersect = False
+
+        obs_points = self.cache_target_coords3(targets, dtype="float32")
+
+        if intersect:
+            return BEMResponse(
+                sources=sources,
+                targets=targets,
+                discretized_sources=None,
+                displacements=num.full((obs_points.shape[0], 3), -num.inf),
+                target_ordering=self._ncoords_targets,
+                source_ordering=None,
+                inverted_slip_vectors=None,
             )
+
+        discretized_sources = [
+            source.discretize_basesource(mesh_size=mesh_size, plot=False)
             for source in sources
         ]
-        obs_points = self.cache_target_coords3(targets, dtype="float32")
 
         coefficient_matrix = self.get_interaction_matrix(discretized_sources)
         tractions = self.config.boundary_conditions.get_traction_field(

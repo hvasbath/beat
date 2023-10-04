@@ -1201,6 +1201,9 @@ class BEMConfig(MediumConfig):
         default=0.5,
         help="Determines the size of triangles [km], the smaller the finer the discretization.",
     )
+    check_mesh_intersection = Bool.T(
+        default=True, help="If meshes intersect reject sample."
+    )
     boundary_conditions = BoundaryConditions.T(
         default=BoundaryConditions.D(),
         help="Boundary conditions for the interaction matrix and imposed traction field.",
