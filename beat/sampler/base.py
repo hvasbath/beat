@@ -286,8 +286,6 @@ def _sample(
 
     n = parallel.get_process_id()
 
-    os.environ["CUDA_DEVICE"] = str(n)
-
     if progressbar:
         sampling = tqdm(
             sampling,
