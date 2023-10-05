@@ -639,7 +639,7 @@ def check_intersection(sources: list, mesh_size: float = 0.5):
                 # out, _ = gmsh.model.occ.intersect(
                 #     surf1, surf2, removeObject=False, removeTool=False
                 # )
-                logger.debug("Source", i)
+                logger.debug("Source %i", i)
                 surf1 = surfaces[i]
                 surf2 = surfaces[i + 1]
                 geom.boolean_fragments(surf1, surf2)
