@@ -386,7 +386,7 @@ class DiskBEMSource(EllipseBEMSource):
 class RingfaultBEMSource(EllipseBEMSource):
     delta_east_shift_bottom = Float.T(default=0.0 * km)
     delta_north_shift_bottom = Float.T(default=0.0 * km)
-    delta_depth_bottom = Float.T(default=1.0 * km)
+    depth_bottom = Float.T(default=1.0 * km)
 
     major_axis = Float.T(default=0.5 * km)
     minor_axis = Float.T(default=0.3 * km)
@@ -401,7 +401,7 @@ class RingfaultBEMSource(EllipseBEMSource):
         return Origin(
             x=self._origin.x + self.delta_east_shift_bottom,
             y=self._origin.y + self.delta_north_shift_bottom,
-            z=self._origin.z - self.delta_depth_bottom,
+            z=-self.depth_bottom,
         )
 
     @property
