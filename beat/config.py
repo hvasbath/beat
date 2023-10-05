@@ -1508,7 +1508,7 @@ class ProblemConfig(Object):
         """
         from pymc3 import Uniform
 
-        logger.debug("Optimization for %i sources", list2string(self.n_sources))
+        logger.debug("Optimization for %s sources", list2string(self.n_sources))
 
         rvs = {}
         fixed_params = {}
