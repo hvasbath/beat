@@ -623,6 +623,8 @@ def check_intersection(sources: list, mesh_size: float = 0.5):
     n_sources = len(sources)
     if n_sources > 1:
         with pygmsh.occ.Geometry() as geom:
+            gmsh.option.setNumber("General.Verbosity", 1)  # silence warnings
+
             surfaces = []
             for source in sources:
                 surf = source.get_source_surface(geom, mesh_size)

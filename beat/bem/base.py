@@ -130,7 +130,7 @@ class BEMEngine(object):
                 targets=targets,
                 discretized_sources=None,
                 displacements=num.full(
-                    (obs_points.shape[0], 3), -999.0, dtype="float64"
+                    (obs_points.shape[0], 3), -99.0, dtype="float64"
                 ),
                 target_ordering=self._ncoords_targets,
                 source_ordering=None,
