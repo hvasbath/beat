@@ -1,5 +1,6 @@
 import logging
 import numpy as num
+from time import time
 
 from pyrocko.guts import Float, Tuple
 from pyrocko.orthodrome import ne_to_latlon
@@ -627,12 +628,14 @@ def check_intersection(sources: list, mesh_size: float = 0.5):
 
             surfaces = []
             for source in sources:
+                logger.debug(source.__str__())
                 surf = source.get_source_surface(geom, mesh_size)
                 surfaces.append(surf)
 
             gmsh.model.occ.synchronize()
             before = len(gmsh.model.getEntities())
             logger.debug("Building source fragments ...")
+            t0 = time()
             for i in range(n_sources - 1):
                 # surf1 = [s.dim_tag for s in surfaces[i]]
                 # surf2 = [s.dim_tag for s in surfaces[i + 1]]
@@ -643,6 +646,7 @@ def check_intersection(sources: list, mesh_size: float = 0.5):
                 surf1 = surfaces[i]
                 surf2 = surfaces[i + 1]
                 geom.boolean_fragments(surf1, surf2)
+                logger.debug("Time for fragmentation: %f", time() - t0)
 
             logger.debug("Synchronize")
             gmsh.model.occ.synchronize()

@@ -35,7 +35,7 @@ locationtypes = {
     "delta_depth",
     "delta_east_shift_bottom",
     "delta_north_shift_bottom",
-    "delta_depth_bottom",
+    "depth_bottom",
 }
 
 dimensiontypes = {
