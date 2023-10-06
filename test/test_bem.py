@@ -12,6 +12,7 @@ from beat.bem import (
     RingfaultBEMSource,
     DiskBEMSource,
     TriangleBEMSource,
+    QuadrangleBEMSource,
     check_intersection,
 )
 from beat.plotting.bem import slip_distribution_3d
@@ -86,7 +87,7 @@ def get_disk_setup():
             tensile_traction=0,
             north_shift=0.5 * km,
             depth=3.5 * km,
-            major_axis=2 * km,
+            major_axis=3 * km,
             minor_axis=1.8 * km,
             dip=0,
             strike=30,
@@ -141,7 +142,7 @@ def get_disk_ringfault_setup(intersect=False):
             delta_north_shift_bottom=0.5 * km,
             east_shift=3.55 * km,
             depth=0.5 * km,
-            delta_depth_bottom=4.0 * km,
+            depth_bottom=4.5 * km,
             major_axis=2 * km,
             minor_axis=1 * km,
             major_axis_bottom=major_axis_bottom,
@@ -159,12 +160,57 @@ def get_disk_ringfault_setup(intersect=False):
     return config, sources, targets
 
 
+def get_quadrangle_setup_strikeslip():
+    targets = [get_static_target([-10 * km, 10 * km], 100)]
+    sources = [
+        QuadrangleBEMSource(
+            traction=1.15e6,
+            rake=0,
+            north_shift=0.5 * km,
+            depth=3.5 * km,
+            length=10 * km,
+            width=5 * km,
+            dip=75,
+            strike=20,
+        )
+    ]
+    config = BEMConfig(mesh_size=mesh_size)
+    for bcond in config.boundary_conditions.iter_conditions():
+        if bcond.slip_component in ["normal"]:
+            bcond.source_idxs = []
+
+    return config, sources, targets
+
+
+def get_quadrangle_setup_dipslip():
+    targets = [get_static_target([-10 * km, 10 * km], 100)]
+    sources = [
+        QuadrangleBEMSource(
+            traction=1.15e6,
+            rake=90,
+            north_shift=0.5 * km,
+            depth=3.5 * km,
+            length=10 * km,
+            width=5 * km,
+            dip=60,
+            strike=0,
+        )
+    ]
+    config = BEMConfig(mesh_size=mesh_size)
+    for bcond in config.boundary_conditions.iter_conditions():
+        if bcond.slip_component in ["normal"]:
+            bcond.source_idxs = []
+
+    print(config)
+    return config, sources, targets
+
+
 class TestBEM(unittest.TestCase):
     def __init__(self, *args, **kwargs):
         unittest.TestCase.__init__(self, *args, **kwargs)
 
     def _run_bem_engine(self, setup_function, plot=True, **kwargs):
-        print(kwargs)
+
         config, sources, targets = setup_function(**kwargs)
 
         engine = BEMEngine(config)
@@ -188,6 +234,10 @@ class TestBEM(unittest.TestCase):
 
     def test_bem_engine_dike(self):
         self._run_bem_engine(get_disk_setup)
+
+    def test_bem_engine_quadrangle(self):
+        self._run_bem_engine(get_quadrangle_setup_strikeslip)
+        self._run_bem_engine(get_quadrangle_setup_dipslip)
 
     def test_bem_engine_dike_ringfault(self):
         kwargs = {"intersect": True}

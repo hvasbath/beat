@@ -44,16 +44,17 @@ __all__ = [
     "RingfaultBEMSource",
     "DiskBEMSource",
     "TriangleBEMSource",
+    "QuadrangleBEMSource",
     "source_catalog",
     "check_intersection",
 ]
 
 
-def get_node_name(ellipse_prefix, node_suffix):
-    if ellipse_prefix:
-        return f"{ellipse_prefix}_{node_suffix}_node"
+def get_node_name(prefix, suffix):
+    if prefix:
+        return f"{prefix}_{suffix}_node"
     else:
-        return f"{node_suffix}_node"
+        return f"{suffix}_node"
 
 
 class DiscretizedBEMSource(object):
@@ -155,15 +156,27 @@ class Origin:
 
 
 class BEMSource(Source):
-    strike_traction = Float.T(
-        default=0.0, help="Traction [Pa] in strike-direction of the Triangles"
-    )
-    dip_traction = Float.T(
-        default=0.0, help="Traction [Pa] in dip-direction of the Triangles"
-    )
-    tensile_traction = Float.T(
-        default=0.0, help="Traction [Pa] in normal-direction of the Triangles"
-    )
+    def _init_points_geometry(
+        self, geom=None, prefixes=(""), suffixes=(""), mesh_size=1.0
+    ):
+        for prefix in prefixes:
+            for suffix in suffixes:
+                node_name = get_node_name(prefix, suffix)
+                node = getattr(self, node_name)
+
+                if geom is not None:
+                    self.points[node_name] = geom.add_point(node, mesh_size=mesh_size)
+                else:
+                    raise ValueError("Geometry needs to be initialized first!")
+
+    def get_tractions(self):
+        raise NotImplementedError("Implement in inherited class")
+
+    def _get_arch_points(self, node_names):
+        try:
+            return [self.points[node_name] for node_name in node_names]
+        except KeyError:
+            raise ValueError("Points are not fully initialized in geometry!")
 
     def get_source_surface(self, geom, mesh_size):
         raise NotImplementedError
@@ -185,15 +198,21 @@ class BEMSource(Source):
             mesh=mesh,
             mesh_size=mesh_size,
             dtype="float32",
-            tractions=(
-                self.strike_traction,
-                self.dip_traction,
-                self.tensile_traction,
-            ),
+            tractions=self.get_tractions(),
         )
 
 
 class TriangleBEMSource(BEMSource):
+
+    strike_traction = Float.T(
+        default=0.0, help="Traction [Pa] in strike-direction of the Triangles"
+    )
+    dip_traction = Float.T(
+        default=0.0, help="Traction [Pa] in dip-direction of the Triangles"
+    )
+    tensile_traction = Float.T(
+        default=0.0, help="Traction [Pa] in normal-direction of the Triangles"
+    )
 
     p1 = Tuple.T(3, Float.T(), default=(0, 1, -1))
     p2 = Tuple.T(3, Float.T(), default=(1, 0, -1))
@@ -212,6 +231,13 @@ class TriangleBEMSource(BEMSource):
         edge = geom.add_curve_loop([l1, l2, l3])
         return [geom.add_surface(edge)]
 
+    def get_tractions(self):
+        return (
+            -self.strike_traction,  # coordinate transform ENU - NED
+            -self.dip_traction,
+            self.tensile_traction,
+        )
+
 
 class EllipseBEMSource(BEMSource):
     major_axis = Float.T(default=0.5 * km)
@@ -219,9 +245,26 @@ class EllipseBEMSource(BEMSource):
 
     strike = Float.T(default=0.0)
 
+    strike_traction = Float.T(
+        default=0.0, help="Traction [Pa] in strike-direction of the Triangles"
+    )
+    dip_traction = Float.T(
+        default=0.0, help="Traction [Pa] in dip-direction of the Triangles"
+    )
+    tensile_traction = Float.T(
+        default=0.0, help="Traction [Pa] in normal-direction of the Triangles"
+    )
+
     def __init__(self, **kwargs):
         BEMSource.__init__(self, **kwargs)
         self.points = {}
+
+    def get_tractions(self):
+        return (
+            -self.strike_traction,  # coordinate transform ENU - NED
+            -self.dip_traction,
+            self.tensile_traction,
+        )
 
     @property
     def _origin(self):
@@ -267,11 +310,14 @@ class EllipseBEMSource(BEMSource):
             self._origin.z,
         )
 
-    def _get_arch_points(self, node_names):
-        try:
-            return [self.points[node_name] for node_name in node_names]
-        except KeyError:
-            raise ValueError("Points are not fully initialized in geometry!")
+    def _get_node_suffixes(self):
+        return (
+            "left_major",
+            "right_major",
+            "upper_minor",
+            "lower_minor",
+            "origin",
+        )
 
     def get_top_upper_left_arch_points(self):
         return self._get_arch_points(
@@ -313,23 +359,6 @@ class EllipseBEMSource(BEMSource):
             ]
         )
 
-    def _init_points_geometry(self, geom=None, ellipse_prefixes=(""), mesh_size=1.0):
-        for ellipse_prefix in ellipse_prefixes:
-            for node_suffix in (
-                "left_major",
-                "right_major",
-                "upper_minor",
-                "lower_minor",
-                "origin",
-            ):
-                node_name = get_node_name(ellipse_prefix, node_suffix)
-                node = getattr(self, node_name)
-
-                if geom is not None:
-                    self.points[node_name] = geom.add_point(node, mesh_size=mesh_size)
-                else:
-                    raise ValueError("Geometry needs to be initialized first!")
-
 
 class DiskBEMSource(EllipseBEMSource):
     plunge = Float.T(default=0.0)
@@ -357,7 +386,12 @@ class DiskBEMSource(EllipseBEMSource):
 
     def get_source_surface(self, geom, mesh_size):
 
-        self._init_points_geometry(geom, ellipse_prefixes=("",), mesh_size=mesh_size)
+        self._init_points_geometry(
+            geom,
+            prefixes=("",),
+            suffixes=self._get_node_suffixes(),
+            mesh_size=mesh_size,
+        )
 
         rotations = (self.dip, self.plunge, self.strike)
         axes = ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))
@@ -500,7 +534,10 @@ class RingfaultBEMSource(EllipseBEMSource):
     def get_source_surface(self, geom, mesh_size):
 
         self._init_points_geometry(
-            geom, ellipse_prefixes=("", "bottom"), mesh_size=mesh_size
+            geom,
+            prefixes=("", "bottom"),
+            suffixes=self._get_node_suffixes(),
+            mesh_size=mesh_size,
         )
 
         if self.strike != 0:
@@ -566,6 +603,121 @@ class RingfaultBEMSource(EllipseBEMSource):
             npoints=npoints,
         )
         return num.vstack([upper_ellipse, lower_ellipse])
+
+
+class QuadrangleBEMSource(BEMSource):
+
+    width = Float.T(default=5 * km, help="Width [m] of the fault plane.")
+    length = Float.T(default=10 * km, help="Length [m] of the fault plane.")
+    dip = Float.T(default=0, help="Dip-angle [deg] towards the horizontal.")
+    strike = Float.T(default=0.0, help="Strike-angle [deg] towards the North.")
+    rake = Float.T(default=0.0, help="Rake-angle [deg] towards the North.")
+    traction = Float.T(default=0.0, help="Traction [Pa] in rake direction.")
+
+    def __init__(self, **kwargs):
+        BEMSource.__init__(self, **kwargs)
+        self.points = {}
+
+    def get_tractions(self):
+        strike_traction = -num.cos(self.rake * DEG2RAD) * self.traction
+        dip_traction = -num.sin(self.rake * DEG2RAD) * self.traction
+        normal_traction = 0.0
+        return (
+            strike_traction,
+            dip_traction,
+            normal_traction,
+        )
+
+    @property
+    def _origin(self):
+        return Origin(x=self.east_shift, y=self.north_shift, z=-self.depth)
+
+    @property
+    def origin_node(self):
+        return (
+            self._origin.x,
+            self._origin.y,
+            self._origin.z,
+        )
+
+    @property
+    def top_right_node(self):
+        return (
+            self._origin.x,
+            self._origin.y + self.length / 2,
+            self._origin.z,
+        )
+
+    @property
+    def top_left_node(self):
+        return (
+            self._origin.x,
+            self._origin.y - self.length / 2,
+            self._origin.z,
+        )
+
+    @property
+    def bottom_left_node(self):
+        return (
+            self._origin.x - self.width / 2,
+            self._origin.y - self.length / 2,
+            self._origin.z,
+        )
+
+    @property
+    def bottom_right_node(self):
+        return (
+            self._origin.x - self.width / 2,
+            self._origin.y + self.length / 2,
+            self._origin.z,
+        )
+
+    def _get_node_suffixes(self):
+        return ("left", "right")
+
+    def get_top_edge(self):
+        return self._get_arch_points(["top_left_node", "top_right_node"])
+
+    def get_bottom_edge(self):
+        return self._get_arch_points(["bottom_left_node", "bottom_right_node"])
+
+    def get_left_edge(self):
+        return self._get_arch_points(["top_left_node", "bottom_left_node"])
+
+    def get_right_edge(self):
+        return self._get_arch_points(["top_right_node", "bottom_right_node"])
+
+    def get_source_surface(self, geom, mesh_size):
+
+        self._init_points_geometry(
+            geom,
+            prefixes=("top", "bottom"),
+            suffixes=self._get_node_suffixes(),
+            mesh_size=mesh_size,
+        )
+
+        rotations = (self.dip, self.strike)
+        axes = ((0.0, 1.0, 0.0), (0.0, 0.0, 1.0))
+        for point in self.points.values():
+
+            for rot_angle, axis in zip(rotations, axes):
+                if rot_angle != 0:
+                    # TODO if rotation results in one point ending at the exact
+                    # same location of other point it will be removed
+                    geom.rotate(
+                        point,
+                        self.origin_node,
+                        -rot_angle * DEG2RAD,
+                        axis,
+                    )
+
+        top = geom.add_bezier(self.get_top_edge())
+        right = geom.add_bezier(self.get_right_edge())
+        bottom = geom.add_bezier(self.get_bottom_edge())
+        left = geom.add_bezier(self.get_left_edge())
+
+        quadrangle = geom.add_curve_loop([top, right, -bottom, -left])
+        return [geom.add_surface(quadrangle)]
 
 
 def get_ellipse_points(
@@ -661,8 +813,10 @@ def check_intersection(sources: list, mesh_size: float = 0.5):
 
 
 source_names = """
+    TriangleBEMSource
     DiskBEMSource
     RingfaultBEMSource
+    QuadrangleBEMSource
     """.split()
 
 source_classes = [DiskBEMSource, RingfaultBEMSource]
