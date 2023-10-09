@@ -52,7 +52,7 @@ degtypes = {"strike", "dip", "rake"}
 nucleationtypes = {"nucleation_x", "nucleation_y"}
 patch_anchor_points = {"center", "bottom_depth", "bottom_left"}
 
-patypes = {"strike_traction", "dip_traction", "tensile_traction"}
+patypes = {"traction", "strike_traction", "dip_traction", "tensile_traction"}
 kmtypes = set.union(locationtypes, dimensiontypes, patch_anchor_points)
 grouped_vars = set.union(kmtypes, mttypes, degtypes, nucleationtypes)
 
@@ -411,7 +411,11 @@ def weed_input_rvs(input_rvs, mode, datatype):
 
     elif mode == "bem":
         if datatype == "geodetic":
-            tobeweeded = burian
+            tobeweeded = [
+                "time",
+                "duration",
+                "peak_ratio",
+            ] + burian
 
     else:
         raise TypeError(f"Mode {mode} not supported!")

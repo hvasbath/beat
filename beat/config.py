@@ -1463,10 +1463,12 @@ class ProblemConfig(Object):
                 list_variables = []
                 for source_type, n_source in zip(self.source_types, self.n_sources):
                     variables = {}
-                    if source_type not in vars_catalog[datatype].keys():
+                    supported_sources = vars_catalog[datatype].keys()
+                    if source_type not in supported_sources:
                         raise ValueError(
-                            "Source Type not supported for type"
-                            " of problem, and datatype!"
+                            f"Source Type {source_type} not supported for type"
+                            f" of problem, and datatype '{datatype}'!"
+                            f" Supported sources: {list2string(supported_sources)}"
                         )
 
                     source = vars_catalog[datatype][source_type]

@@ -12,7 +12,8 @@ from beat.bem import (
     RingfaultBEMSource,
     DiskBEMSource,
     TriangleBEMSource,
-    QuadrangleBEMSource,
+    RectangularBEMSource,
+    CurvedBEMSource,
     check_intersection,
 )
 from beat.plotting.bem import slip_distribution_3d
@@ -160,10 +161,10 @@ def get_disk_ringfault_setup(intersect=False):
     return config, sources, targets
 
 
-def get_quadrangle_setup_strikeslip():
+def get_rectangular_setup_strikeslip():
     targets = [get_static_target([-10 * km, 10 * km], 100)]
     sources = [
-        QuadrangleBEMSource(
+        RectangularBEMSource(
             traction=1.15e6,
             rake=0,
             north_shift=0.5 * km,
@@ -182,10 +183,10 @@ def get_quadrangle_setup_strikeslip():
     return config, sources, targets
 
 
-def get_quadrangle_setup_dipslip():
+def get_rectangular_setup_dipslip():
     targets = [get_static_target([-10 * km, 10 * km], 100)]
     sources = [
-        QuadrangleBEMSource(
+        RectangularBEMSource(
             traction=1.15e6,
             rake=90,
             north_shift=0.5 * km,
@@ -202,6 +203,32 @@ def get_quadrangle_setup_dipslip():
             bcond.source_idxs = []
 
     print(config)
+    return config, sources, targets
+
+
+def get_curved_setup_dipslip():
+    targets = [get_static_target([-10 * km, 10 * km], 100)]
+    sources = [
+        CurvedBEMSource(
+            traction=1.15e6,
+            rake=90,
+            north_shift=0.5 * km,
+            depth=3.5 * km,
+            length=15 * km,
+            width=7 * km,
+            dip=70,
+            strike=0,
+            bend_location=0.5,
+            bend_amplitude=0.3,
+            curv_location_bottom=0.7,
+            curv_amplitude_bottom=0.4,
+        )
+    ]
+    config = BEMConfig(mesh_size=mesh_size)
+    for bcond in config.boundary_conditions.iter_conditions():
+        if bcond.slip_component in ["normal"]:
+            bcond.source_idxs = []
+
     return config, sources, targets
 
 
@@ -235,9 +262,13 @@ class TestBEM(unittest.TestCase):
     def test_bem_engine_dike(self):
         self._run_bem_engine(get_disk_setup)
 
-    def test_bem_engine_quadrangle(self):
-        self._run_bem_engine(get_quadrangle_setup_strikeslip)
-        self._run_bem_engine(get_quadrangle_setup_dipslip)
+    def test_bem_engine_rectangle(self):
+        self._run_bem_engine(get_rectangular_setup_strikeslip)
+        self._run_bem_engine(get_rectangular_setup_dipslip)
+
+    def test_bem_engine_curved(self):
+        # self._run_bem_engine(get_quadrangular_setup_strikeslip)
+        self._run_bem_engine(get_curved_setup_dipslip)
 
     def test_bem_engine_dike_ringfault(self):
         kwargs = {"intersect": True}

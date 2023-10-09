@@ -44,7 +44,8 @@ __all__ = [
     "RingfaultBEMSource",
     "DiskBEMSource",
     "TriangleBEMSource",
-    "QuadrangleBEMSource",
+    "RectangularBEMSource",
+    "CurvedBEMSource",
     "source_catalog",
     "check_intersection",
 ]
@@ -147,7 +148,7 @@ class DiscretizedBEMSource(object):
 
 
 @dataclass
-class Origin:
+class Node:
     """Class for storing coordinates of a node in a mesh."""
 
     x: float
@@ -191,8 +192,8 @@ class BEMSource(Source):
 
             mesh = geom.generate_mesh()
 
-        if plot:
-            gmsh.fltk.run()
+            if plot:
+                gmsh.fltk.run()
 
         return DiscretizedBEMSource(
             mesh=mesh,
@@ -268,7 +269,7 @@ class EllipseBEMSource(BEMSource):
 
     @property
     def _origin(self):
-        return Origin(x=self.east_shift, y=self.north_shift, z=-self.depth)
+        return Node(x=self.east_shift, y=self.north_shift, z=-self.depth)
 
     @property
     def origin_node(self):
@@ -433,7 +434,7 @@ class RingfaultBEMSource(EllipseBEMSource):
 
     @property
     def _bottom_origin(self):
-        return Origin(
+        return Node(
             x=self._origin.x + self.delta_east_shift_bottom,
             y=self._origin.y + self.delta_north_shift_bottom,
             z=-self.depth_bottom,
@@ -605,7 +606,7 @@ class RingfaultBEMSource(EllipseBEMSource):
         return num.vstack([upper_ellipse, lower_ellipse])
 
 
-class QuadrangleBEMSource(BEMSource):
+class RectangularBEMSource(BEMSource):
 
     width = Float.T(default=5 * km, help="Width [m] of the fault plane.")
     length = Float.T(default=10 * km, help="Length [m] of the fault plane.")
@@ -630,7 +631,7 @@ class QuadrangleBEMSource(BEMSource):
 
     @property
     def _origin(self):
-        return Origin(x=self.east_shift, y=self.north_shift, z=-self.depth)
+        return Node(x=self.east_shift, y=self.north_shift, z=-self.depth)
 
     @property
     def origin_node(self):
@@ -641,17 +642,41 @@ class QuadrangleBEMSource(BEMSource):
         )
 
     @property
-    def top_right_node(self):
-        return (
+    def _top_right(self):
+        return Node(
             self._origin.x,
             self._origin.y + self.length / 2,
             self._origin.z,
         )
 
     @property
+    def top_right_node(self):
+        return (
+            self._top_right.x,
+            self._top_right.y,
+            self._top_right.z,
+        )
+
+    @property
+    def _top_left(self):
+        return Node(
+            self._origin.x,
+            self._origin.y - self.length / 2,
+            self._origin.z,
+        )
+
+    @property
     def top_left_node(self):
         return (
-            self._origin.x,
+            self._top_left.x,
+            self._top_left.y,
+            self._top_left.z,
+        )
+
+    @property
+    def _bottom_left(self):
+        return Node(
+            self._origin.x - self.width,
             self._origin.y - self.length / 2,
             self._origin.z,
         )
@@ -659,17 +684,25 @@ class QuadrangleBEMSource(BEMSource):
     @property
     def bottom_left_node(self):
         return (
-            self._origin.x - self.width / 2,
-            self._origin.y - self.length / 2,
+            self._bottom_left.x,
+            self._bottom_left.y,
+            self._bottom_left.z,
+        )
+
+    @property
+    def _bottom_right(self):
+        return Node(
+            self._origin.x - self.width,
+            self._origin.y + self.length / 2,
             self._origin.z,
         )
 
     @property
     def bottom_right_node(self):
         return (
-            self._origin.x - self.width / 2,
-            self._origin.y + self.length / 2,
-            self._origin.z,
+            self._bottom_right.x,
+            self._bottom_right.y,
+            self._bottom_right.z,
         )
 
     def _get_node_suffixes(self):
@@ -696,20 +729,96 @@ class QuadrangleBEMSource(BEMSource):
             mesh_size=mesh_size,
         )
 
+        top = geom.add_bezier(self.get_top_edge())
+        right = geom.add_bezier(self.get_right_edge())
+        bottom = geom.add_bezier(self.get_bottom_edge())
+        left = geom.add_bezier(self.get_left_edge())
+
+        rectangle = geom.add_curve_loop([top, right, -bottom, -left])
+        rectangle_surface = geom.add_surface(rectangle)
+
         rotations = (self.dip, self.strike)
         axes = ((0.0, 1.0, 0.0), (0.0, 0.0, 1.0))
-        for point in self.points.values():
 
-            for rot_angle, axis in zip(rotations, axes):
-                if rot_angle != 0:
-                    # TODO if rotation results in one point ending at the exact
-                    # same location of other point it will be removed
-                    geom.rotate(
-                        point,
-                        self.origin_node,
-                        -rot_angle * DEG2RAD,
-                        axis,
-                    )
+        for rot_angle, axis in zip(rotations, axes):
+            if rot_angle != 0:
+                geom.rotate(
+                    rectangle_surface,
+                    self.origin_node,
+                    -rot_angle * DEG2RAD,
+                    axis,
+                )
+
+        return [rectangle_surface]
+
+
+class CurvedBEMSource(RectangularBEMSource):
+    curv_location_bottom = Float.T(0.0)
+    curv_amplitude_bottom = Float.T(0.0)
+    bend_location = Float.T(0.0)
+    bend_amplitude = Float.T(0.0)
+
+    @property
+    def bend_left_node(self):
+        return (
+            self._top_left.x - self.width * self.bend_location,
+            self._top_left.y,
+            self._top_left.z + self.width * self.bend_amplitude,
+        )
+
+    @property
+    def bend_right_node(self):
+        return (
+            self._top_right.x - self.width * self.bend_location,
+            self._top_right.y,
+            self._top_right.z + self.width * self.bend_amplitude,
+        )
+
+    @property
+    def curve_left_node(self):
+        """Shallow edge - no curve for now"""
+        return (
+            self._origin.x,
+            self._origin.y,
+            self._origin.z,
+        )
+
+    @property
+    def curve_right_node(self):
+        return (
+            self._bottom_left.x,
+            self._bottom_left.y + self.length * self.curv_location_bottom,
+            self._bottom_left.z + self.length * self.curv_amplitude_bottom,
+        )
+
+    def get_top_edge(self):
+        return self._get_arch_points(
+            ["top_left_node", "curve_left_node", "top_right_node"]
+        )
+
+    def get_bottom_edge(self):
+        return self._get_arch_points(
+            ["bottom_left_node", "curve_right_node", "bottom_right_node"]
+        )
+
+    def get_left_edge(self):
+        return self._get_arch_points(
+            ["top_left_node", "bend_left_node", "bottom_left_node"]
+        )
+
+    def get_right_edge(self):
+        return self._get_arch_points(
+            ["top_right_node", "bend_right_node", "bottom_right_node"]
+        )
+
+    def get_source_surface(self, geom, mesh_size):
+
+        self._init_points_geometry(
+            geom,
+            prefixes=("top", "bottom", "curve", "bend"),
+            suffixes=self._get_node_suffixes(),
+            mesh_size=mesh_size,
+        )
 
         top = geom.add_bezier(self.get_top_edge())
         right = geom.add_bezier(self.get_right_edge())
@@ -717,7 +826,20 @@ class QuadrangleBEMSource(BEMSource):
         left = geom.add_bezier(self.get_left_edge())
 
         quadrangle = geom.add_curve_loop([top, right, -bottom, -left])
-        return [geom.add_surface(quadrangle)]
+        quad_surface = geom.add_surface(quadrangle)
+
+        rotations = (self.dip, self.strike)
+        axes = ((0.0, 1.0, 0.0), (0.0, 0.0, 1.0))
+
+        for rot_angle, axis in zip(rotations, axes):
+            if rot_angle != 0:
+                geom.rotate(
+                    quad_surface,
+                    self.origin_node,
+                    -rot_angle * DEG2RAD,
+                    axis,
+                )
+        return [quad_surface]
 
 
 def get_ellipse_points(
@@ -816,9 +938,16 @@ source_names = """
     TriangleBEMSource
     DiskBEMSource
     RingfaultBEMSource
-    QuadrangleBEMSource
+    RectangularBEMSource
+    CurvedBEMSource
     """.split()
 
-source_classes = [DiskBEMSource, RingfaultBEMSource]
+source_classes = [
+    TriangleBEMSource,
+    DiskBEMSource,
+    RingfaultBEMSource,
+    RectangularBEMSource,
+    CurvedBEMSource,
+]
 
 source_catalog = dict(zip(source_names, source_classes))
