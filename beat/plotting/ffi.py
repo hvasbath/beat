@@ -906,14 +906,16 @@ def draw_3d_slip_distribution(problem, po):
     else:
         slip_label = "slip"
 
-    outpath = os.path.join(
+    perspective_outstr = perspective.replace("/", "_")
+    basepath = os.path.join(
         problem.outfolder,
         po.figure_dir,
-        "3d_%s_distribution_%i_%s_%i.%s"
-        % (slip_label, po.load_stage, llk_str, po.nensemble, po.outformat),
+        "3d_%s_distribution_%i_%s_%i_%s"
+        % (slip_label, po.load_stage, llk_str,
+           po.nensemble, perspective_outstr),
     )
 
-    if plot_exists(outpath, po.outformat, po.force):
+    if plot_exists(basepath, po.outformat, po.force):
         return
 
     if mode == ffi_mode_str:
@@ -934,6 +936,7 @@ def draw_3d_slip_distribution(problem, po):
             source_idxs=source_idxs,
         )
 
+        outpath = f"{basepath}.{po.outformat}"
         logger.info("saving figure to %s" % outpath)
         gmt.save(outpath, resolution=300, size=10)
     elif mode == bem_mode_str:
@@ -952,7 +955,7 @@ def draw_3d_slip_distribution(problem, po):
             perspective=perspective,
             debug=False,
         )
-        save_figs([fig], outpath, po.outformat, po.dpi)
+        save_figs([fig], basepath, po.outformat, po.dpi)
 
 
 def slip_distribution_3d_gmt(
