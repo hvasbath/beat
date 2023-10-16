@@ -216,12 +216,12 @@ def get_curved_setup_dipslip():
             depth=3.5 * km,
             length=15 * km,
             width=7 * km,
-            dip=70,
-            strike=0,
+            dip=30,
+            strike=310,
             bend_location=0.5,
             bend_amplitude=0.3,
-            curv_location_bottom=0.7,
-            curv_amplitude_bottom=0.4,
+            curv_location_bottom=0.0,
+            curv_amplitude_bottom=0.0,
         )
     ]
     config = BEMConfig(mesh_size=mesh_size)

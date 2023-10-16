@@ -676,7 +676,7 @@ class RectangularBEMSource(BEMSource):
     @property
     def _bottom_left(self):
         return Node(
-            self._origin.x - self.width,
+            self._origin.x + self.width,
             self._origin.y - self.length / 2,
             self._origin.z,
         )
@@ -692,7 +692,7 @@ class RectangularBEMSource(BEMSource):
     @property
     def _bottom_right(self):
         return Node(
-            self._origin.x - self.width,
+            self._origin.x + self.width,
             self._origin.y + self.length / 2,
             self._origin.z,
         )
@@ -737,7 +737,7 @@ class RectangularBEMSource(BEMSource):
         rectangle = geom.add_curve_loop([top, right, -bottom, -left])
         rectangle_surface = geom.add_surface(rectangle)
 
-        rotations = (self.dip, self.strike)
+        rotations = (-self.dip, self.strike)
         axes = ((0.0, 1.0, 0.0), (0.0, 0.0, 1.0))
 
         for rot_angle, axis in zip(rotations, axes):
@@ -761,7 +761,7 @@ class CurvedBEMSource(RectangularBEMSource):
     @property
     def bend_left_node(self):
         return (
-            self._top_left.x - self.width * self.bend_location,
+            self._top_left.x + self.width * self.bend_location,
             self._top_left.y,
             self._top_left.z + self.width * self.bend_amplitude,
         )
@@ -769,7 +769,7 @@ class CurvedBEMSource(RectangularBEMSource):
     @property
     def bend_right_node(self):
         return (
-            self._top_right.x - self.width * self.bend_location,
+            self._top_right.x + self.width * self.bend_location,
             self._top_right.y,
             self._top_right.z + self.width * self.bend_amplitude,
         )
@@ -828,7 +828,7 @@ class CurvedBEMSource(RectangularBEMSource):
         quadrangle = geom.add_curve_loop([top, right, -bottom, -left])
         quad_surface = geom.add_surface(quadrangle)
 
-        rotations = (self.dip, self.strike)
+        rotations = (-self.dip, self.strike)
         axes = ((0.0, 1.0, 0.0), (0.0, 0.0, 1.0))
 
         for rot_angle, axis in zip(rotations, axes):
