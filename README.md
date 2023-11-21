@@ -3,10 +3,38 @@
 
 # Bayesian Earthquake Analysis Tool
 
-If you came looking for the beat package calculating internet time you can find it [here](https://github.com/tonyskapunk/beat).
+Documentation of the current version moved to the pyrocko server can be found here:
+https://pyrocko.org/beat/
 
 Based on pyrocko, theano and pymc3
 
+## Tutorials
+Step by step points on how to use the tool for several scenarios can be found here:
+[Examples](https://pyrocko.org/beat/docs/current/examples/index.html#)
+
+## Citation
+If your work results in an publication where you used BEAT we kindly ask you to consider citing the BEAT software package and the related article.:
+
+ > Vasyura-Bathke, Hannes; Dettmer, Jan; Steinberg, Andreas; Heimann, Sebastian; Isken, Marius; Zielke, Olaf; Mai, Paul Martin; Sudhaus, Henriette; Jónsson, Sigurjón: The Bayesian Earthquake Analysis Tool. Seismological Research Letters. https://doi.org/10.1785/0220190075
+
+ > Vasyura-Bathke, Hannes; Dettmer, Jan; Steinberg, Andreas; Heimann, Sebastian; Isken, Marius; Zielke, Olaf; Mai, Paul Martin; Sudhaus, Henriette; Jónsson, Sigurjón (2019): BEAT - Bayesian Earthquake Analysis Tool. V. 1.0. GFZ Data Services. http://doi.org/10.5880/fidgeo.2019.024
+
+
+## Support
+For substantial issues please use and check the "issues" tab here in the repository.
+For common issues please check out the BEAT [FAQ](https://pyrocko.org/beat/docs/current/faq.html).
+For smaller issues or short clarifications there is a support [chat](https://hive.pyrocko.org/pyrocko-support/channels/beat). This is provided by the pyrocko project and is accessible after a short account creation.
+
+Finally, there is the option to write an email to:
+
+Hannes Vasyura-Bathke
+hvasbath@uni-potsdam.de
+
+Andreas Steinberg
+andreas.steinberg@ifg.uni-kiel.de
+
+
+## Changelog
 14 February 2023
 Version 1.2.4 is released. Details in the [changelog](https://github.com/hvasbath/beat/blob/master/CHANGELOG.md).
 
@@ -34,8 +62,6 @@ New [tutorial](https://pyrocko.org/beat/docs/current/examples/FFI_static_resolut
 A new version 1.1.0 is released adding support for multi-segmented fault setups and tensile dislocations.
 Checkout the [changelog](https://github.com/hvasbath/beat/blob/master/CHANGELOG.md) for all the details.
 
-Documentation of the current version moved to the pyrocko server can be found here:
-https://pyrocko.org/beat/
 
 New [tutorial](https://pyrocko.org/beat/docs/current/examples/Rectangular_tensile.html) on tensile dislocation modeling.
 
@@ -58,18 +84,6 @@ BEAT is free software: you can redistribute it and/or modify it under the terms 
 BEAT is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 You should have received a copy of the GNU General Public License along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-
-## Citation
-If your work results in an publication where you used BEAT we kindly ask you to consider citing the BEAT software package and the related article.:
-
- > Vasyura-Bathke, Hannes; Dettmer, Jan; Steinberg, Andreas; Heimann, Sebastian; Isken, Marius; Zielke, Olaf; Mai, Paul Martin; Sudhaus, Henriette; Jónsson, Sigurjón: The Bayesian Earthquake Analysis Tool. Seismological Research Letters. https://doi.org/10.1785/0220190075
-
- > Vasyura-Bathke, Hannes; Dettmer, Jan; Steinberg, Andreas; Heimann, Sebastian; Isken, Marius; Zielke, Olaf; Mai, Paul Martin; Sudhaus, Henriette; Jónsson, Sigurjón (2019): BEAT - Bayesian Earthquake Analysis Tool. V. 1.0. GFZ Data Services. http://doi.org/10.5880/fidgeo.2019.024
-
-
-## Tutorials
-Step by step points on how to use the tool for several scenarios can be found here:
-[Examples](https://hvasbath.github.io/beat/examples/index.html)
 
 ## Data import
 ### Geodetic
@@ -105,18 +119,7 @@ containing a list of 2 lists:
 We invite the users to propose data formats or outputs of specific programs that they would
 like to see implemented.
 
-## Support
-For substantial issues please use and check the "issues" tab here in the repository.
-For common issues please check out the BEAT [FAQ](https://hvasbath.github.io/beat/faq.html).
-For smaller issues or short clarifications there is a support [chat](https://hive.pyrocko.org/pyrocko-support/channels/beat). This is provided by the pyrocko project and is accessible after a short account creation.
-
-Finally, there is the option to write an email to:
-
-Hannes Vasyura-Bathke
-hvasbath@uni-potsdam.de
-
-Andreas Steinberg
-andreas.steinberg@ifg.uni-kiel.de
+P.S.: If you came looking for the beat package calculating internet time you can find it [here](https://github.com/tonyskapunk/beat).
 
 ## Contributions
 This is an open source project and contributions to the repository are welcome!
