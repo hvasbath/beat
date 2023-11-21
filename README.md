@@ -49,8 +49,6 @@ current academic system, I had to decide for a delayed release of the documentat
 be available provided by someone. Thus, in case you are willing to contribute I would be more than happy to guide/ support
 you in writing parts of the documentation for a particular feature-if you want to try it out.
 
-The legacy documentation of beat v1.0. can be found under: https://hvasbath.github.io/beat/
-
 ## License
 GNU General Public License, Version 3, 29 June 2007
 
