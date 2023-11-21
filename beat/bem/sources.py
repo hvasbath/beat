@@ -4,7 +4,7 @@ from time import time
 
 from pyrocko.guts import Float, Tuple
 from pyrocko.orthodrome import ne_to_latlon
-from pyrocko.gf.seismosizer import Source
+from pyrocko.gf.seismosizer import Source, outline_rect_source
 
 from dataclasses import dataclass
 
@@ -618,6 +618,27 @@ class RectangularBEMSource(BEMSource):
     def __init__(self, **kwargs):
         BEMSource.__init__(self, **kwargs)
         self.points = {}
+
+    def outline(self, cs="xyz"):
+        points = outline_rect_source(
+            self.strike, self.dip, self.length, self.width, anchor="top"
+        )
+
+        points[:, 0] += self.north_shift
+        points[:, 1] += self.east_shift
+        points[:, 2] += self.depth
+        if cs == "xyz":
+            return points
+        elif cs == "xy":
+            return points[:, :2]
+        elif cs in ("latlon", "lonlat"):
+            latlon = ne_to_latlon(self.lat, self.lon, points[:, 0], points[:, 1])
+
+            latlon = num.array(latlon).T
+            if cs == "latlon":
+                return latlon
+            else:
+                return latlon[:, ::-1]
 
     def get_tractions(self):
         strike_traction = -num.cos(self.rake * DEG2RAD) * self.traction

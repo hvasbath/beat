@@ -193,7 +193,7 @@ def get_rectangular_setup_dipslip():
             depth=3.5 * km,
             length=10 * km,
             width=5 * km,
-            dip=60,
+            dip=30,
             strike=0,
         )
     ]
