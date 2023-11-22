@@ -9,6 +9,8 @@ from pyrocko.gf import StaticResult, Response, Request
 from pyrocko.guts_array import Array
 from pyrocko.guts import Int, Object, List
 
+from matplotlib import pyplot as plt
+
 from .sources import DiscretizedBEMSource, slip_comp_to_idx, check_intersection
 
 try:
@@ -114,7 +116,7 @@ class BEMEngine(object):
         self._obs_points = None
         self._ncoords_targets = None
 
-    def process(self, sources: list, targets: list) -> num.ndarray:
+    def process(self, sources: list, targets: list, debug=False) -> num.ndarray:
         mesh_size = self.config.mesh_size * km
 
         if self.config.check_mesh_intersection:
@@ -142,10 +144,19 @@ class BEMEngine(object):
             for source in sources
         ]
 
-        coefficient_matrix = self.get_interaction_matrix(discretized_sources)
+        coefficient_matrix = self.get_interaction_matrix(
+            discretized_sources, debug=debug
+        )
         tractions = self.config.boundary_conditions.get_traction_field(
             discretized_sources
         )
+
+        if debug:
+            ax = plt.axes()
+            im = ax.matshow(coefficient_matrix)
+            ax.set_title("Interaction matrix")
+            plt.colorbar(im)
+            print("CEF shape", coefficient_matrix.shape)
 
         # solve with least squares
         inv_slips = num.linalg.multi_dot(
@@ -193,9 +204,12 @@ class BEMEngine(object):
             inverted_slip_vectors=slips,
         )
 
-    def get_interaction_matrix(self, discretized_sources: list) -> num.ndarray:
+    def get_interaction_matrix(
+        self, discretized_sources: list, debug: bool
+    ) -> num.ndarray:
         G_slip_components = [[], [], []]
         for bcond in self.config.boundary_conditions.iter_conditions():
+
             for source_idx in bcond.source_idxs:
                 source_mesh = discretized_sources[source_idx]
 
@@ -211,6 +225,18 @@ class BEMEngine(object):
                         nu=self.config.nu,
                         mu=self.config.mu,
                     )
+
+                    if debug:
+                        figs, axs = plt.subplots(1, 3)
+                        for k, (comp, g_comp) in enumerate(
+                            zip(
+                                ("strike", "dip", "normal"), (g_strike, g_dip, g_normal)
+                            )
+                        ):
+                            axs[k].matshow(g_comp)
+                            axs[k].set_title(comp)
+
+                        plt.show()
 
                     Gs_strike.append(g_strike)
                     Gs_dip.append(g_dip)
@@ -244,23 +270,25 @@ def get_coefficient_matrices_tdcs(
     Returns
     -------
     """
+
     strain_mat = HS.strain_matrix(
         discretized_bem_source.centroids, triangles_xyz, nu=nu
     )
 
-    strain_mat_T = num.transpose(strain_mat, (0, 3, 2, 1))
-    stress_mat_T = strain_to_stress(strain_mat_T, mu=mu, nu=nu)
-
-    stress_mat_T = num.transpose(stress_mat_T, (0, 2, 1, 3))
-    stress_mat_m9s = symmat6(*stress_mat_T.T).T
-
     # select relevant source slip vector component indexs (0-strike, 1-dip, 2-tensile)
     slip_idx = slip_comp_to_idx[slip_component]
+    comp_strain_mat = strain_mat[:, :, :, slip_idx]
+    comp_strain_mat_T = num.transpose(comp_strain_mat, (0, 2, 1))
+
+    comp_stress_mat_T = strain_to_stress(
+        comp_strain_mat_T.reshape((-1, 6)), mu, nu
+    ).reshape(comp_strain_mat_T.shape)
+
+    stress_mat_m9s = symmat6(*comp_stress_mat_T.T).T
 
     # get traction vector from Stress tensor
     tvs = num.sum(
-        stress_mat_m9s[:, :, slip_idx]
-        * discretized_bem_source.unit_normal_vectors[:, None, None, :],
+        stress_mat_m9s * discretized_bem_source.unit_normal_vectors[:, None, None, :],
         axis=-1,
     )
 

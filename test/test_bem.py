@@ -90,7 +90,7 @@ def get_disk_setup():
             depth=3.5 * km,
             major_axis=3 * km,
             minor_axis=1.8 * km,
-            dip=0,
+            dip=45,
             strike=30,
         )
     ]
@@ -121,38 +121,40 @@ def get_disk_ringfault_setup(intersect=False):
     targets = [get_static_target([-10 * km, 10 * km], 100)]
 
     if intersect:
-        major_axis_bottom = 1.5 * km
-        minor_axis_bottom = 1.0 * km
+        major_axis_bottom = 2.5 * km
+        minor_axis_bottom = 2.5 * km
+        depth = 3.0 * km
     else:
         major_axis_bottom = 3.5 * km
-        minor_axis_bottom = 3.0 * km
+        minor_axis_bottom = 3.5 * km
+        depth = 4.2 * km
 
     sources = [
         DiskBEMSource(
             tensile_traction=2.15e6,
-            north_shift=0.5 * km,
+            north_shift=0.0 * km,
             east_shift=3.5 * km,
-            depth=4.0 * km,
-            major_axis=2 * km,
-            minor_axis=1.8 * km,
-            dip=10,
+            depth=depth,
+            major_axis=major_axis_bottom,
+            minor_axis=minor_axis_bottom,
+            dip=0,
             strike=0,
         ),
         RingfaultBEMSource(
             north_shift=0.0,
-            delta_north_shift_bottom=0.5 * km,
-            east_shift=3.55 * km,
+            east_shift=3.5 * km,
+            delta_north_shift_bottom=0.0 * km,
             depth=0.5 * km,
-            depth_bottom=4.5 * km,
+            depth_bottom=3.9 * km,
             major_axis=2 * km,
-            minor_axis=1 * km,
+            minor_axis=2 * km,
             major_axis_bottom=major_axis_bottom,
             minor_axis_bottom=minor_axis_bottom,
             strike=5,
         ),
     ]
 
-    config = BEMConfig(mesh_size=mesh_size)
+    config = BEMConfig(mesh_size=1.5)
     for bcond in config.boundary_conditions.iter_conditions():
         bcond.receiver_idxs = [0, 1]
         if bcond.slip_component in ["strike", "dip"]:
@@ -184,6 +186,7 @@ def get_rectangular_setup_strikeslip():
 
 
 def get_rectangular_setup_dipslip():
+    # mesh_size = 1. * km
     targets = [get_static_target([-10 * km, 10 * km], 100)]
     sources = [
         RectangularBEMSource(

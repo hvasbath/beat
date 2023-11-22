@@ -11,7 +11,7 @@ from .common import set_locator_axes, scale_axes, set_axes_equal_3d
 km = 1000.0
 
 
-def cb_round(value, decimal=2):
+def cb_round(value, decimal=3):
     return num.round(value, decimal)
 
 
@@ -41,7 +41,6 @@ def slip_distribution_3d(
         ax = fig.add_subplot(
             1, len(slip_comps), j + 1, projection="3d", computed_zorder=False
         )
-
         for k, (dsource, slips3d) in enumerate(zip(discretized_sources, slip_vectors)):
             pa_col = Poly3DCollection(
                 dsource.triangles_xyz,
@@ -91,16 +90,33 @@ def slip_distribution_3d(
                 unit_vectors = getattr(dsource, f"unit_{comp}_vectors")
 
                 ax.quiver(
-                    dsource.centroids[::4, 0],
-                    dsource.centroids[::4, 1],
-                    dsource.centroids[::4, 2],
-                    unit_vectors[::4, 0],
-                    unit_vectors[::4, 1],
-                    unit_vectors[::4, 2],
+                    dsource.centroids[::3, 0],
+                    dsource.centroids[::3, 1],
+                    dsource.centroids[::3, 2],
+                    unit_vectors[::3, 0],
+                    unit_vectors[::3, 1],
+                    unit_vectors[::3, 2],
                     color="k",
-                    length=dsource.mesh_size / 2,
+                    length=dsource.mesh_size,
                     linewidth=1.0,
                 )
+
+                if False:
+                    # plot vector normals for debugging
+                    unit_vectors = getattr(dsource, f"unit_normal_vectors")
+
+                    ax.quiver(
+                        dsource.centroids[::, 0],
+                        dsource.centroids[::, 1],
+                        dsource.centroids[::, 2],
+                        unit_vectors[::, 0],
+                        unit_vectors[::, 1],
+                        unit_vectors[::, 2],
+                        color="k",
+                        length=dsource.mesh_size,
+                        normalize=True,
+                        linewidth=1.0,
+                    )
             if debug:
                 for tri_idx in range(dsource.n_triangles):
                     ax.text(

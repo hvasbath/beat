@@ -234,8 +234,8 @@ class TriangleBEMSource(BEMSource):
 
     def get_tractions(self):
         return (
-            -self.strike_traction,  # coordinate transform ENU - NED
-            -self.dip_traction,
+            self.strike_traction,  # coordinate transform ENU - NED
+            self.dip_traction,
             self.tensile_traction,
         )
 
@@ -263,7 +263,7 @@ class EllipseBEMSource(BEMSource):
     def get_tractions(self):
         return (
             -self.strike_traction,  # coordinate transform ENU - NED
-            -self.dip_traction,
+            self.dip_traction,
             self.tensile_traction,
         )
 
@@ -394,7 +394,7 @@ class DiskBEMSource(EllipseBEMSource):
             mesh_size=mesh_size,
         )
 
-        rotations = (self.dip, self.plunge, self.strike)
+        rotations = (-self.plunge, -self.dip, self.strike)
         axes = ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))
         for point in self.points.values():
 
@@ -755,7 +755,7 @@ class RectangularBEMSource(BEMSource):
         bottom = geom.add_bezier(self.get_bottom_edge())
         left = geom.add_bezier(self.get_left_edge())
 
-        rectangle = geom.add_curve_loop([top, right, -bottom, -left])
+        rectangle = geom.add_curve_loop([-top, left, bottom, -right])
         rectangle_surface = geom.add_surface(rectangle)
 
         rotations = (-self.dip, self.strike)
