@@ -65,7 +65,6 @@ class GFLibrary(object):
     """
 
     def __init__(self, config):
-
         self.config = config
         self._gfmatrix = None
         self._sgfmatrix = None
@@ -112,7 +111,6 @@ class GFLibrary(object):
             return self.spatchidxs
 
     def save_config(self, outdir="", filename=None):
-
         filename = filename or "%s" % self.filename
         outpath = os.path.join(outdir, filename + ".yaml")
         logger.debug("Dumping GF config to %s" % outpath)
@@ -122,7 +120,6 @@ class GFLibrary(object):
         self.config.dump(filename=outpath, header=header)
 
     def load_config(self, filename):
-
         try:
             config = load(filename=filename)
         except IOError:
@@ -202,7 +199,6 @@ class GeodeticGFLibrary(GFLibrary):
     """
 
     def __init__(self, config=GeodeticGFLibraryConfig()):
-
         super(GeodeticGFLibrary, self).__init__(config=config)
 
         self._sgfmatrix = None
@@ -237,7 +233,6 @@ filename: %s""" % (
         self.save_config(outdir=outdir, filename=filename)
 
     def setup(self, npatches, nsamples, allocate=False):
-
         self.dimensions = (npatches, nsamples)
 
         if allocate:
@@ -247,7 +242,6 @@ filename: %s""" % (
         self.set_stack_mode(mode="numpy")
 
     def init_optimization(self):
-
         logger.info("Setting %s GF Library to optimization mode." % self.filename)
         self._sgfmatrix = shared(
             self._gfmatrix.astype(tconfig.floatX), name=self.filename, borrow=True
@@ -337,7 +331,6 @@ class SeismicGFLibrary(GFLibrary):
     """
 
     def __init__(self, config=SeismicGFLibraryConfig()):
-
         super(SeismicGFLibrary, self).__init__(config=config)
 
         self._sgfmatrix = None
@@ -382,7 +375,6 @@ filename: %s""" % (
     def setup(
         self, ntargets, npatches, ndurations, nstarttimes, nsamples, allocate=False
     ):
-
         self.dimensions = (ntargets, npatches, ndurations, nstarttimes, nsamples)
 
         if allocate:
@@ -393,7 +385,6 @@ filename: %s""" % (
         self.set_stack_mode(mode="numpy")
 
     def init_optimization(self):
-
         logger.info("Setting %s GF Library to optimization mode." % self.filename)
         self._sgfmatrix = shared(
             self._gfmatrix.astype(tconfig.floatX), name=self.filename, borrow=True
@@ -656,7 +647,6 @@ filename: %s""" % (
         )
 
         if interpolation == "nearest_neighbor":
-
             cd = (
                 self._stack_switch[self._mode][
                     targetidxs, patchidxs, durationidxs, starttimeidxs, :
@@ -670,7 +660,6 @@ filename: %s""" % (
             )
 
         elif interpolation == "multilinear":
-
             d_st_ceil_rt_ceil = self._stack_switch[self._mode][
                 targetidxs, patchidxs, durationidxs, starttimeidxs, :
             ].reshape((self.ntargets, npatches, self.nsamples))
@@ -813,7 +802,6 @@ filename: %s""" % (
 
 
 def _process_patch_geodetic(engine, gfs, targets, patch, patchidx, los_vectors, odws):
-
     logger.debug("Patch Number %i", patchidx)
     logger.debug("Calculating synthetics ...")
 
@@ -1017,7 +1005,6 @@ def geo_construct_gf_linear_patches(
 def _process_patch_seismic(
     engine, gfs, targets, patch, patchidx, durations, starttimes
 ):
-
     # ensur event reference time
     logger.debug("Using reference event source time ...")
     patch.time = gfs.config.event.time
@@ -1033,7 +1020,6 @@ def _process_patch_seismic(
         source_patches_durations.append(pcopy)
 
     for j, target in enumerate(targets):
-
         traces, _ = heart.seis_synthetics(
             engine=engine,
             sources=source_patches_durations,
@@ -1141,7 +1127,7 @@ def seis_construct_gf_linear(
             rupture_velocities = fault.vector2subfault(
                 idx, velocities_prior.get_lower(fault.subfault_npatches)
             )
-        except (IndexError):
+        except IndexError:
             raise ValueError(
                 "Velocities need to be of size either"
                 " npatches or number of fault segments"
