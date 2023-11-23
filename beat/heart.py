@@ -8,12 +8,10 @@ import logging
 import os
 import shutil
 from collections import OrderedDict
-from random import choice, choices
 from time import time
 
 import numpy as num
-from pymc3 import plots as pmp
-from pyrocko import cake, crust2x2, gf, orthodrome, trace, util
+from pyrocko import cake, crust2x2, gf, orthodrome, trace
 from pyrocko.cake import GradientLayer
 from pyrocko.fomosto import qseis, qssp
 from pyrocko.guts import (
@@ -28,7 +26,7 @@ from pyrocko.guts import (
     Tuple,
 )
 from pyrocko.guts_array import Array
-from pyrocko.model import gnss, Event, get_effective_latlon
+from pyrocko.model import Event, gnss
 from pyrocko.moment_tensor import to6
 from pyrocko.spit import OutOfBounds
 from scipy import linalg
@@ -695,8 +693,9 @@ class Parameter(Object):
             return (self.get_upper(shape) - lower) * rands + lower
         except ValueError:
             raise ValueError(
-                "Value inconsistency shapes: {} parameter "
-                "dimension {}".format(shape, self.dimension)
+                "Value inconsistency shapes: {} parameter " "dimension {}".format(
+                    shape, self.dimension
+                )
             )
 
     @property
@@ -2385,7 +2384,7 @@ def polarity_construct_gf(
                 # create dummy files for engine to recognize the store
                 for fn in ["index", "traces"]:
                     dummy_fn = os.path.join(store_dir, fn)
-                    with open(dummy_fn, "a") as f:
+                    with open(dummy_fn, "a"):
                         pass
             else:
                 logger.info("Phases exist use force=True to overwrite!")
@@ -4170,10 +4169,10 @@ def geo_synthetics(
         for target in targets:
             sapp(num.zeros([target.lons.size, 3]))
 
-        for k in range(ns):
-            for l in range(nt):
-                idx = l + (k * nt)
-                stacked_arrays[l] += disp_arrays[idx]
+        for i_s in range(ns):
+            for i_t in range(nt):
+                idx = i_t + (i_s * nt)
+                stacked_arrays[i_t] += disp_arrays[idx]
 
         return stacked_arrays
 
