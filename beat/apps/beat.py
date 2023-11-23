@@ -12,30 +12,30 @@ os.environ["OPENBLAS_NUM_THREADS"] = nthreads
 os.environ["MKL_NUM_THREADS"] = nthreads
 os.environ["VECLIB_MAXIMUM_THREADS"] = nthreads
 
-import copy
-import logging
-import shutil
-import sys
-from collections import OrderedDict
-from optparse import OptionParser
+if True:  # noqa: E402
+    import copy
+    import logging
+    import shutil
+    import sys
+    from collections import OrderedDict
+    from optparse import OptionParser
 
-from numpy import array, atleast_2d, floor, zeros, cumsum
-from pyrocko import model, util
-from pyrocko.gf import LocalEngine
-from pyrocko.guts import Dict, dump, load
-from pyrocko.trace import snuffle
-from tqdm import tqdm
+    from numpy import array, floor, zeros
+    from pyrocko import model, util
+    from pyrocko.gf import LocalEngine
+    from pyrocko.guts import dump, load
+    from pyrocko.trace import snuffle
+    from tqdm import tqdm
 
-from beat import config as bconfig
-from beat import heart, inputf, plotting, utility
-from beat.backend import backend_catalog, extract_bounds_from_summary, thin_buffer
-from beat.config import dist_vars, ffi_mode_str, geometry_mode_str, bem_mode_str
-from beat.info import version
-from beat.models import Stage, estimate_hypers, load_model, sample
-from beat.sampler.pt import SamplingHistory
-from beat.sampler.smc import sample_factor_final_stage
-from beat.sources import MTQTSource, MTSourceWithMagnitude
-from beat.utility import list2string, string2slice
+    from beat import config as bconfig
+    from beat import heart, inputf, plotting, utility
+    from beat.backend import backend_catalog, extract_bounds_from_summary, thin_buffer
+    from beat.config import bem_mode_str, dist_vars, ffi_mode_str, geometry_mode_str
+    from beat.info import version
+    from beat.models import Stage, estimate_hypers, load_model, sample
+    from beat.sampler.smc import sample_factor_final_stage
+    from beat.sources import MTSourceWithMagnitude
+    from beat.utility import list2string, string2slice
 
 logger = logging.getLogger("beat")
 
@@ -145,7 +145,6 @@ def add_common_options(parser):
 
 
 def get_project_directory(args, options, nargs=1, popflag=False):
-
     largs = len(args)
 
     if largs == nargs - 1 or largs != nargs:
@@ -213,11 +212,9 @@ def get_sampled_slip_variables(config):
 
 
 def command_init(args):
-
     command_str = "init"
 
     def setup(parser):
-
         parser.add_option(
             "--min_mag",
             dest="min_mag",
@@ -324,7 +321,7 @@ def command_init(args):
             " for each station!",
         )
 
-    parser, options, args = cl_parse("init", args, setup=setup)
+    parser, options, args = cl_parse(command_str, args, setup=setup)
 
     la = len(args)
 
@@ -362,7 +359,6 @@ def command_init(args):
 
 
 def command_import(args):
-
     from pyrocko import io
 
     command_str = "import"
@@ -370,7 +366,6 @@ def command_import(args):
     data_formats = io.allowed_formats("load")[2::]
 
     def setup(parser):
-
         parser.add_option(
             "--main_path",
             dest="main_path",
@@ -460,7 +455,6 @@ def command_import(args):
                 stations = model.load_stations(pjoin(sc.datadir, "stations.txt"))
 
                 if options.seismic_format == "autokiwi":
-
                     data_traces = inputf.load_data_traces(
                         datadir=sc.datadir, stations=stations, divider="-"
                     )
@@ -496,7 +490,6 @@ def command_import(args):
 
             geodetic_outpath = pjoin(c.project_dir, bconfig.geodetic_data_name)
             if not os.path.exists(geodetic_outpath) or options.force:
-
                 gtargets = []
                 for typ, config in gc.types.items():
                     logger.info(
@@ -583,7 +576,6 @@ def command_import(args):
 
         else:
             # load kite model
-            from kite import sandbox_scene
 
             kite_model = load(filename=options.results)
             n_sources = len(kite_model.sources)
@@ -615,7 +607,6 @@ def command_import(args):
             logger.info("Geodetic datatype listed-importing ...")
             gc = problem.composites["geodetic"]
             if c.geodetic_config.corrections_config.has_enabled_corrections:
-
                 logger.info("Importing correction parameters ...")
                 new_bounds = OrderedDict()
 
@@ -693,7 +684,6 @@ def command_import(args):
                     c.seismic_config.gf_config.reference_sources = reference_sources
 
                 if "seismic" in problem.config.problem_config.datatypes:
-
                     new_bounds = {}
                     for param in ["time"]:
                         new_bounds[param] = extract_bounds_from_summary(
@@ -761,11 +751,9 @@ def command_import(args):
 
 
 def command_update(args):
-
     command_str = "update"
 
     def setup(parser):
-
         parser.add_option(
             "--main_path",
             dest="main_path",
@@ -816,13 +804,11 @@ def command_update(args):
 
 
 def command_clone(args):
-
     command_str = "clone"
 
     from beat.config import _datatype_choices as datatype_choices
 
     def setup(parser):
-
         parser.add_option(
             "--main_path",
             dest="main_path",
@@ -1009,7 +995,6 @@ def command_clone(args):
 
 
 def command_sample(args):
-
     command_str = "sample"
 
     def setup(parser):
@@ -1059,16 +1044,13 @@ def result_check(mtrace, min_length):
 
 
 def command_summarize(args):
-
-    from numpy import hstack, ravel, split, vstack
+    from numpy import ravel, split, vstack
     from pymc3 import summary
     from pyrocko.gf import RectangularSource
-    from pyrocko.moment_tensor import MomentTensor
 
     command_str = "summarize"
 
     def setup(parser):
-
         parser.add_option(
             "--main_path",
             dest="main_path",
@@ -1141,7 +1123,6 @@ def command_summarize(args):
         rm_flag = False
 
     for stage_number in stage_numbers:
-
         stage_path = stage.handler.stage_path(stage_number)
         logger.info("Summarizing stage under: %s" % stage_path)
 
@@ -1338,11 +1319,9 @@ def command_summarize(args):
 
 
 def command_build_gfs(args):
-
     command_str = "build_gfs"
 
     def setup(parser):
-
         parser.add_option(
             "--main_path",
             dest="main_path",
@@ -1612,7 +1591,6 @@ def command_build_gfs(args):
                         )
 
                         if not fault.is_discretized and fault.needs_optimization:
-
                             ffidir = os.path.join(c.project_dir, options.mode)
 
                             if options.plot:
@@ -1664,7 +1642,6 @@ def command_build_gfs(args):
                         )
 
                 elif datatype == "seismic":
-
                     sc = c.seismic_config
                     gf = sc.gf_config
                     pc = c.problem_config
@@ -1716,11 +1693,9 @@ def command_build_gfs(args):
 
 
 def command_plot(args):
-
     command_str = "plot"
 
     def setup(parser):
-
         parser.add_option(
             "--main_path",
             dest="main_path",
@@ -1845,9 +1820,7 @@ def command_plot(args):
     plots_avail = plotting.available_plots()
 
     details = """Available <plot types> are: %s or "all". Multiple plots can be
-selected giving a comma separated list.""" % list2string(
-        plots_avail
-    )
+selected giving a comma separated list.""" % list2string(plots_avail)
 
     parser, options, args = cl_parse(command_str, args, setup, details)
 
@@ -1938,7 +1911,6 @@ selected giving a comma separated list.""" % list2string(
         # except Exception as err:
         #    pass
         except (TypeError, plotting.ModeError, NotImplementedError) as err:
-
             logger.warning(
                 "Could not plot %s got Error: %s \n %s"
                 % (plot, err, traceback.format_exc())
@@ -1946,7 +1918,6 @@ selected giving a comma separated list.""" % list2string(
 
 
 def command_check(args):
-
     command_str = "check"
     what_choices = ["stores", "traces", "library", "geometry", "discretization"]
 
@@ -2046,7 +2017,6 @@ def command_check(args):
 
             for datatype in options.datatypes:
                 for var in get_sampled_slip_variables(problem.config):
-
                     outdir = pjoin(
                         problem.config.project_dir,
                         options.mode,
@@ -2130,7 +2100,7 @@ def command_check(args):
         try:
             from kite import SandboxScene
             from kite import sources as ksources
-            from kite.scene import Scene, UserIOWarning
+            from kite.scene import UserIOWarning
             from kite.talpa import Talpa
 
             talpa_source_catalog = {
@@ -2231,11 +2201,9 @@ def command_check(args):
 
 
 def command_export(args):
-
     command_str = "export"
 
     def setup(parser):
-
         parser.add_option(
             "--main_path",
             dest="main_path",
@@ -2303,7 +2271,7 @@ def command_export(args):
     problem = load_model(project_dir, options.mode, hypers=False, build=False)
     problem.init_hierarchicals()
 
-    sc = problem.config.sampler_config
+    # sc = problem.config.sampler_config
 
     trace_name = "chain--1.{}".format(problem.config.sampler_config.backend)
     results_path = pjoin(problem.outfolder, bconfig.results_dir_name)
@@ -2415,7 +2383,6 @@ def command_export(args):
 
 
 def main():
-
     if len(sys.argv) < 2:
         sys.exit("Usage: %s" % usage)
 

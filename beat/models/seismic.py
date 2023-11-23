@@ -11,8 +11,6 @@ from pyrocko.gf import LocalEngine
 from pyrocko.trace import Trace
 from theano import config as tconfig
 from theano import shared
-from theano.printing import Print
-from theano.tensor import fft
 
 from beat import config as bconfig
 from beat import covariance as cov
@@ -24,7 +22,7 @@ from beat.models.base import (
     FaultGeometryNotFoundError,
     get_hypervalue_from_point,
 )
-from beat.models.distributions import get_hyper_name, multivariate_normal_chol
+from beat.models.distributions import multivariate_normal_chol
 
 logger = getLogger("seismic")
 
@@ -54,7 +52,6 @@ class SeismicComposite(Composite):
     _hierarchicalnames = None
 
     def __init__(self, sc, events, project_dir, hypers=False):
-
         super(SeismicComposite, self).__init__(events)
 
         logger.debug("Setting up seismic structure ...\n")
@@ -122,7 +119,6 @@ class SeismicComposite(Composite):
                 )
 
     def _hyper2wavemap(self, hypername):
-
         dummy = "_".join(hypername.split("_")[1:-1])
         for wmap in self.wavemaps:
             if wmap._mapid == dummy:
@@ -330,7 +326,6 @@ class SeismicComposite(Composite):
         for traces, attribute in heart.results_for_export(
             results=results, datatype="seismic"
         ):
-
             filename = "%s_%i.mseed" % (attribute, stage_number)
             outpath = os.path.join(results_path, filename)
             try:
@@ -479,7 +474,6 @@ class SeismicComposite(Composite):
 
             wmap_results = []
             for j, obs_tr in enumerate(obs_proc_traces[i]):
-
                 taper = at.get_pyrocko_taper(float(obs_tr.tmin - at.a))
 
                 if outmode != "tapered_data":
@@ -555,7 +549,6 @@ class SeismicComposite(Composite):
 
         stdz_residuals = OrderedDict()
         for dataset, result, target in zip(self.datasets, results, self.targets):
-
             hp = get_hypervalue_from_point(
                 point, dataset, counter, hp_specific=hp_specific
             )
@@ -661,7 +654,6 @@ class SeismicGeometryComposite(SeismicComposite):
     """
 
     def __init__(self, sc, project_dir, sources, mapping, events, hypers=False):
-
         super(SeismicGeometryComposite, self).__init__(
             sc, events, project_dir, hypers=hypers
         )
@@ -924,7 +916,7 @@ class SeismicGeometryComposite(SeismicComposite):
                 chop_bounds=chop_bounds,
                 nprocs=nprocs,
                 # plot=True,
-                **kwargs
+                **kwargs,
             )
 
             if self.config.station_corrections and wc.domain == "time":
@@ -939,7 +931,6 @@ class SeismicGeometryComposite(SeismicComposite):
                         tr.tmax = dtr.tmax
 
             if wc.domain == "spectrum":
-
                 valid_spectrum_indices = wmap.get_valid_spectrum_indices(
                     chop_bounds=chop_bounds, pad_to_pow2=True
                 )
@@ -1009,7 +1000,6 @@ class SeismicGeometryComposite(SeismicComposite):
                 for channel in wmap.channels:
                     tidxs = wmap.get_target_idxs([channel])
                     for station, tidx in zip(wmap.stations, tidxs):
-
                         logger.debug(
                             "Channel %s of Station %s " % (channel, station.station)
                         )
@@ -1071,7 +1061,6 @@ class SeismicDistributerComposite(SeismicComposite):
     """
 
     def __init__(self, sc, project_dir, events, hypers=False):
-
         super(SeismicDistributerComposite, self).__init__(
             sc, events, project_dir, hypers=hypers
         )
@@ -1220,7 +1209,6 @@ class SeismicDistributerComposite(SeismicComposite):
                     self.gfs[key] = gfs
 
     def get_formula(self, input_rvs, fixed_rvs, hyperparams, problem_config):
-
         # no a, d taper bounds as GF library saved between b c
         chop_bounds = ["b", "c"]
 

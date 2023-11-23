@@ -19,7 +19,6 @@ from timeit import Timer
 import numpy as num
 from pyrocko import catalog, orthodrome, util
 from pyrocko.cake import LayeredModel, m2d, read_nd_model_str
-from pyrocko.gf.seismosizer import RectangularSource
 from pyrocko.guts import Float, Int, Object
 from theano import config as tconfig
 
@@ -89,7 +88,6 @@ class Counter(object):
         self.d = dict()
 
     def __call__(self, string, multiplier=1):
-
         if string not in self.d:
             self.d[string] = 0
         else:
@@ -755,7 +753,7 @@ def update_source(source, **point):
         :func:`pymc3.model.Point`
     """
 
-    for (k, v) in point.items():
+    for k, v in point.items():
         if k not in source.keys():
             if source.stf is not None:
                 try:
@@ -1151,7 +1149,7 @@ def slice2string(slice_obj):
         return slice_obj
 
 
-def list2string(l, fill=", "):
+def list2string(any_list, fill=", "):
     """
     Convert list of string to single string.
 
@@ -1160,7 +1158,7 @@ def list2string(l, fill=", "):
     l: list
         of strings
     """
-    return fill.join("%s" % slice2string(listentry) for listentry in l)
+    return fill.join("%s" % slice2string(listentry) for listentry in any_list)
 
 
 def string2slice(slice_string):
@@ -1176,7 +1174,7 @@ def string2slice(slice_string):
     return slice(*[int(idx) for idx in slice_string.split(":")])
 
 
-def unique_list(l):
+def unique_list(any_list):
     """
     Find unique entries in list and return them in a list.
     Keeps variable order.
@@ -1190,7 +1188,7 @@ def unique_list(l):
     list with only unique elements
     """
     used = []
-    return [x for x in l if x not in used and (used.append(x) or True)]
+    return [x for x in any_list if x not in used and (used.append(x) or True)]
 
 
 def join_models(global_model, crustal_model):
@@ -1218,7 +1216,7 @@ def join_models(global_model, crustal_model):
     return joined_model
 
 
-def split_off_list(l, off_length):
+def split_off_list(any_list, off_length):
     """
     Split a list with length 'off_length' from the beginning of an input
     list l.
@@ -1236,7 +1234,7 @@ def split_off_list(l, off_length):
     list
     """
 
-    return [l.pop(0) for i in range(off_length)]
+    return [any_list.pop(0) for i in range(off_length)]
 
 
 def mod_i(i, cycle):
@@ -1282,12 +1280,12 @@ def biggest_common_divisor(a, b):
     return int(a)
 
 
-def gather(l, key, sort=None, filter=None):
+def gather(any_list, key, sort=None, filter=None):
     """
     Return dictionary of input l grouped by key.
     """
     d = {}
-    for x in l:
+    for x in any_list:
         if filter is not None and not filter(x):
             continue
 
@@ -1532,7 +1530,6 @@ def positions2idxs(positions, cell_size, min_pos=0.0, backend=num, dtype="int16"
 
 
 def rotate_coords_plane_normal(coords, sf):
-
     coords -= sf.bottom_left / km
 
     rots = get_rotation_matrix()
@@ -1630,12 +1627,10 @@ def find_elbow(data, theta=None, rotate_left=False):
 
 
 class StencilOperator(Object):
-
     h = Float.T(default=0.1, help="step size left and right of the reference value")
     order = Int.T(default=3, help="number of points of central differences")
 
     def __init__(self, **kwargs):
-
         stencil_order = kwargs["order"]
         if stencil_order not in [3, 5]:
             raise ValueError(

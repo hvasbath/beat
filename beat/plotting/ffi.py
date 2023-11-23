@@ -2,13 +2,11 @@ import logging
 import os
 
 import numpy as num
-
+import pyrocko.moment_tensor as mt
 from matplotlib import pyplot as plt
 from matplotlib.collections import PatchCollection
-from matplotlib.patches import FancyArrow, Rectangle
+from matplotlib.patches import Rectangle
 from matplotlib.ticker import FormatStrFormatter, MaxNLocator
-
-import pyrocko.moment_tensor as mt
 from pyrocko import gmtpy
 from pyrocko import orthodrome as otd
 from pyrocko.cake_plot import str_to_mpl_color as scolor
@@ -21,8 +19,8 @@ from pyrocko.plot import (
 )
 
 from beat import utility
-from beat.config import ffi_mode_str, bem_mode_str
-from beat.models import Stage, load_stage
+from beat.config import bem_mode_str, ffi_mode_str
+from beat.models import load_stage
 
 from .common import (
     draw_line_on_array,
@@ -30,9 +28,9 @@ from .common import (
     get_gmt_config,
     get_result_point,
     km,
-    scale_axes,
-    save_figs,
     plot_exists,
+    save_figs,
+    scale_axes,
     set_axes_equal_3d,
 )
 
@@ -205,7 +203,6 @@ def source_geometry(
         of :class:'beat.sources.RectangularSource'
     """
 
-    from mpl_toolkits.mplot3d import Axes3D
     from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
     alpha = 0.7
@@ -252,7 +249,6 @@ def source_geometry(
 
     arr_coords = []
     for idx, (refs, exts) in enumerate(zip(ref_sources, extfs)):
-
         plot_subfault(ax, exts, color=mpl_graph_color(idx), refloc=event)
         plot_subfault(ax, refs, color=scolor("aluminium4"), refloc=event)
         for i, patch in enumerate(fault.get_subfault_patches(idx)):
@@ -281,7 +277,6 @@ def source_geometry(
             )
 
     if values is not None:
-
         if cmap is None:
             cmap = plt.cm.get_cmap("RdYlBu_r")
 
@@ -324,10 +319,10 @@ def source_geometry(
     set_axes_equal_3d(ax, axes="xy")
 
     strikes = num.array([extf.strike for extf in extfs])
-    dips = num.array([extf.strike for extf in extfs])
-
     azim = strikes.mean() - 270
-    elev = dips.mean()
+
+    # dips = num.array([extf.strike for extf in extfs])
+    # elev = dips.mean()
     logger.debug("Viewing azimuth %s and elevation angles %s", azim, ax.elev)
     ax.view_init(ax.elev, azim)
 
@@ -430,15 +425,12 @@ def fault_slip_distribution(
         normalisation=None,
         zorder=0,
     ):
-
         # positive uperp is always dip-normal- have to multiply -1
         angles = num.arctan2(-uperp, uparr) * mt.r2d + rake
         slips = num.sqrt((uperp**2 + uparr**2)).ravel()
 
         if normalisation is None:
-            from beat.models.laplacian import distances
-
-            centers = num.vstack((xgr, ygr)).T
+            # centers = num.vstack((xgr, ygr)).T
             # interpatch_dists = distances(centers, centers)
             normalisation = slips.max()
 
@@ -467,17 +459,20 @@ def fault_slip_distribution(
                 num.ceil(num.max(slips * normalisation) * 10.0) / 10.0
             )
 
-            # ax.quiverkey(
-            #    quivers, 0.9, 0.8, quiver_legend_length,
-            #    '{} [m]'.format(quiver_legend_length), labelpos='E',
-            #    coordinates='figure')
-
+            ax.quiverkey(
+                quivers,
+                0.9,
+                0.8,
+                quiver_legend_length,
+                "{} [m]".format(quiver_legend_length),
+                labelpos="E",
+                coordinates="figure",
+            )
         return quivers, normalisation
 
     def draw_patches(
         ax, fault, subfault_idx, patch_values, cmap, alpha, cbounds=None, xlim=None
     ):
-
         lls = fault.get_subfault_patch_attributes(
             subfault_idx, attributes=["bottom_left"]
         )
@@ -618,10 +613,10 @@ def fault_slip_distribution(
 
             # rupture durations
             if False:
-                durations = transform(
-                    mtrace.get_values("durations", combine=True, squeeze=True)
-                )
-                std_durations = durations.std(axis=0)
+                # durations = transform(
+                #     mtrace.get_values("durations", combine=True, squeeze=True)
+                # )
+                # std_durations = durations.std(axis=0)
                 # alphas = std_durations.min() / std_durations
 
                 fig2, ax2 = plt.subplots(
@@ -749,7 +744,7 @@ def fault_slip_distribution(
                 ygr,
                 ext_source.rake,
                 color="black",
-                draw_legend=True,
+                draw_legend=False,
                 normalisation=normalisation,
                 zorder=3,
             )
@@ -769,7 +764,6 @@ class ModeError(Exception):
 
 
 def draw_slip_dist(problem, po):
-
     mode = problem.config.problem_config.mode
 
     if mode != ffi_mode_str:
@@ -815,7 +809,6 @@ def draw_slip_dist(problem, po):
 
 
 def draw_3d_slip_distribution(problem, po):
-
     varname_choices = ["coupling", "euler_slip", "slip_variation"]
 
     if po.outformat == "svg":
@@ -911,15 +904,13 @@ def draw_3d_slip_distribution(problem, po):
         problem.outfolder,
         po.figure_dir,
         "3d_%s_distribution_%i_%s_%i_%s"
-        % (slip_label, po.load_stage, llk_str,
-           po.nensemble, perspective_outstr),
+        % (slip_label, po.load_stage, llk_str, po.nensemble, perspective_outstr),
     )
 
     if plot_exists(basepath, po.outformat, po.force):
         return
 
     if mode == ffi_mode_str:
-
         if po.source_idxs is None:
             source_idxs = [0, fault.nsubfaults]
         else:
@@ -940,7 +931,6 @@ def draw_3d_slip_distribution(problem, po):
         logger.info("saving figure to %s" % outpath)
         gmt.save(outpath, resolution=300, size=10)
     elif mode == bem_mode_str:
-
         from .bem import slip_distribution_3d
 
         composite = problem.composites["geodetic"]
@@ -972,7 +962,6 @@ def slip_distribution_3d_gmt(
     transparency=0,
     source_idxs=None,
 ):
-
     if len(gmtpy.detect_gmt_installations()) < 1:
         raise gmtpy.GmtPyError("GMT needs to be installed for station_map plot!")
 
@@ -980,8 +969,8 @@ def slip_distribution_3d_gmt(
     # bin_width = 1  # major grid and tick increment in [deg]
 
     if gmt is None:
-        font_size = 12
-        font = "1"
+        #  font_size = 12
+        #  font = "1"
         h = 15  # outsize in cm
         w = 22
 

@@ -21,7 +21,7 @@ import logging
 import numpy as num
 from matplotlib.path import Path
 from pyrocko.gf import RectangularSource as RS
-from pyrocko.orthodrome import earthradius, latlon_to_ne_numpy, latlon_to_xyz
+from pyrocko.orthodrome import latlon_to_ne_numpy
 
 from beat import utility
 from beat.heart import geo_synthetics

@@ -15,7 +15,7 @@ import numpy as num
 from pyrocko import gf, model, trace, util
 from pyrocko.cake import load_model
 from pyrocko.gf import RectangularSource as PyrockoRS
-from pyrocko.gf.seismosizer import Cloneable, LocalEngine
+from pyrocko.gf.seismosizer import Cloneable
 from pyrocko.guts import (
     ArgumentError,
     Bool,
@@ -35,7 +35,7 @@ from typing import List as TList
 
 from theano import config as tconfig
 
-from beat import utility, bem
+from beat import utility
 from beat.covariance import available_noise_structures, available_noise_structures_2d
 from beat.heart import (
     ArrivalTaper,
@@ -1222,11 +1222,9 @@ def get_parameter(variable, nvars=1, lower=1, upper=2):
 
 
 class DatatypeParameterMapping(Object):
-
     sources_variables = List.T(Dict.T(String.T(), Int.T()))
 
     def __init__(self, **kwargs):
-
         Object.__init__(self, **kwargs)
 
         self._mapping = None
@@ -1242,7 +1240,6 @@ class DatatypeParameterMapping(Object):
         return self._mapping[k]
 
     def point_to_sources_mapping(self) -> TDict[str, TList[int]]:
-
         if self._mapping is None:
             start_idx = 0
             total_variables = {}
@@ -1265,7 +1262,6 @@ class DatatypeParameterMapping(Object):
         return self.point_to_sources_mapping().keys()
 
     def total_variables_sizes(self) -> TDict[str, int]:
-
         mapping = self.point_to_sources_mapping()
         variables_sizes = {}
         for variable, idxs in mapping.items():
@@ -1285,7 +1281,6 @@ class SourcesParameterMapping(Object):
     mappings = Dict.T(String.T(), DatatypeParameterMapping.T())
 
     def __init__(self, **kwargs):
-
         Object.__init__(self, **kwargs)
 
         for datatype in self.datatypes:
@@ -1586,9 +1581,7 @@ class ProblemConfig(Object):
                         raise InconsistentParameterNaming(name, param.name, self.mode)
                     double_check.append(name)
                 else:
-                    raise ValueError(
-                        "Parameter %s not unique in %s!".format(name, dict_name)
-                    )
+                    raise ValueError("Parameter %s not unique in %s!".format())
 
             logger.info(f"All {dict_name} ok!")
         else:
@@ -2165,7 +2158,6 @@ def init_config(
     c.project_dir = os.path.join(os.path.abspath(main_path), name)
 
     if mode in [geometry_mode_str, bem_mode_str]:
-
         for datatype in datatypes:
             init_dataset_config(c, datatype=datatype, mode=mode)
 

@@ -1,8 +1,4 @@
 import multiprocessing
-
-# mp_context = multiprocessing.get_context("spawn")
-mp_context = multiprocessing
-
 import signal
 import sys
 import traceback
@@ -13,6 +9,9 @@ from itertools import count
 from logging import getLogger
 
 import numpy as num
+
+# mp_context = multiprocessing.get_context("spawn")
+mp_context = multiprocessing
 
 logger = getLogger("parallel")
 

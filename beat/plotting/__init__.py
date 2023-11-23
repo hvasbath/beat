@@ -5,22 +5,22 @@ from .marginals import *  # noqa
 from .seismic import *  # noqa
 
 plots_catalog = {
-    "correlation_hist": draw_correlation_hist,
-    "stage_posteriors": draw_posteriors,
-    "waveform_fits": draw_seismic_fits,
-    "scene_fits": draw_scene_fits,
-    "gnss_fits": draw_gnss_fits,
-    "geodetic_covariances": draw_geodetic_covariances,
-    "velocity_models": draw_earthmodels,
-    "slip_distribution": draw_slip_dist,
-    "slip_distribution_3d": draw_3d_slip_distribution,
-    "hudson": draw_hudson,
-    "lune": draw_lune_plot,
-    "fuzzy_beachball": draw_fuzzy_beachball,
-    "fuzzy_mt_decomp": draw_fuzzy_mt_decomposition,
-    "moment_rate": draw_moment_rate,
-    "station_map": draw_station_map_gmt,
-    "station_variance_reductions": draw_station_variance_reductions,
+    "correlation_hist": draw_correlation_hist,  # noqa: F405
+    "stage_posteriors": draw_posteriors,  # noqa: F405
+    "waveform_fits": draw_seismic_fits,  # noqa: F405
+    "scene_fits": draw_scene_fits,  # noqa: F405
+    "gnss_fits": draw_gnss_fits,  # noqa: F405
+    "geodetic_covariances": draw_geodetic_covariances,  # noqa: F405
+    "velocity_models": draw_earthmodels,  # noqa: F405
+    "slip_distribution": draw_slip_dist,  # noqa: F405
+    "slip_distribution_3d": draw_3d_slip_distribution,  # noqa: F405
+    "hudson": draw_hudson,  # noqa: F405
+    "lune": draw_lune_plot,  # noqa: F405
+    "fuzzy_beachball": draw_fuzzy_beachball,  # noqa: F405
+    "fuzzy_mt_decomp": draw_fuzzy_mt_decomposition,  # noqa: F405
+    "moment_rate": draw_moment_rate,  # noqa: F405
+    "station_map": draw_station_map_gmt,  # noqa: F405
+    "station_variance_reductions": draw_station_variance_reductions,  # noqa: F405
 }
 
 

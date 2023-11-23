@@ -6,7 +6,7 @@ from logging import getLogger
 import numpy as num
 from matplotlib import pyplot as plt
 from pyrocko.gf.seismosizer import Cloneable
-from pyrocko.guts import Dict, Float, Int, List, Object, dump, load
+from pyrocko.guts import Dict, Float, Int, List, Object, dump
 from pyrocko.moment_tensor import moment_to_magnitude
 from pyrocko.orthodrome import latlon_to_ne_numpy, ne_to_latlon
 from pyrocko.plot import mpl_papersize
@@ -146,7 +146,6 @@ total number of patches: %i """ % (
             return None
 
     def get_subfault_key(self, index, datatype, component):
-
         if datatype is not None:
             self._check_datatype(datatype)
         else:
@@ -162,7 +161,6 @@ total number of patches: %i """ % (
         return datatype + "_" + component + "_" + str(index)
 
     def setup_subfaults(self, datatype, component, ext_sources, replace=False):
-
         if len(ext_sources) != self.nsubfaults:
             raise FaultGeometryError("Setup does not match fault ordering!")
 
@@ -205,7 +203,6 @@ total number of patches: %i """ % (
             yield self.get_subfault(index=i, datatype=datatype, component=component)
 
     def get_subfault(self, index, datatype=None, component=None):
-
         datatype = self._assign_datatype(datatype)
         component = self._assign_component(component)
 
@@ -229,7 +226,6 @@ total number of patches: %i """ % (
         return subfaults
 
     def set_subfault_patches(self, index, patches, datatype, component, replace=False):
-
         source_key = self.get_subfault_key(index, datatype, component)
 
         if source_key not in list(self._discretized_patches.keys()) or replace:
@@ -272,9 +268,7 @@ total number of patches: %i """ % (
             'geodetic' or 'seismic'
         component : str
             slip component to return may be %s
-        """ % list2string(
-            slip_directions.keys()
-        )
+        """ % list2string(slip_directions.keys())
 
         datatype = self._assign_datatype(datatype)
         component = self._assign_component(component)
@@ -390,7 +384,6 @@ total number of patches: %i """ % (
             for i, rs in enumerate(
                 self.get_subfault_patches(index=idx, datatype=datatype)
             ):
-
                 if starttimes.size != self.subfault_npatches[idx]:
                     starttimes_idx = self.vector2subfault(index=idx, vector=starttimes)
                     durations_idx = self.vector2subfault(index=idx, vector=durations)
@@ -409,7 +402,6 @@ total number of patches: %i """ % (
         return patch_times, patch_amplitudes
 
     def get_subfault_moment_rate_function(self, index, point, target, store):
-
         deltat = store.config.deltat
         slips = self.get_total_slip(index, point, components=["uparr", "uperp"])
         starttimes = self.point2starttimes(point, index=index).ravel()
@@ -445,7 +437,6 @@ total number of patches: %i """ % (
         return mrf_rates, mrf_times
 
     def get_moment_rate_function(self, index, point, target, store):
-
         if isinstance(index, list):
             pass
         else:
@@ -635,7 +626,6 @@ total number of patches: %i """ % (
         )
 
     def var_from_point(self, index=None, point={}, varname=None):
-
         try:
             rv = point[varname]
         except KeyError:
@@ -945,7 +935,6 @@ total number of patches: %i """ % (
         return True if self.npatches else False
 
     def get_derived_parameters(self, point=None, store=None, target=None, event=None):
-
         has_pole, _ = check_point_keys(point, phrase="*_pole_lat")
         if has_pole:
             euler_slips = euler_pole2slips(point=point, fault=self, event=event)
@@ -1134,7 +1123,6 @@ class FaultOrdering(object):
     """
 
     def __init__(self, npls, npws, patch_sizes_strike, patch_sizes_dip):
-
         self.patch_sizes_dip = patch_sizes_dip
         self.patch_sizes_strike = patch_sizes_strike
         self.vmap = []
@@ -1304,7 +1292,6 @@ def initialise_fault_geometry(
 
 
 class InvalidDiscretizationError(Exception):
-
     context = (
         "Resolution based discretizeation" + " is available for geodetic data only! \n"
     )
@@ -1422,7 +1409,6 @@ def get_division_mapping(patch_idxs, div_idxs, subfault_npatches):
     count("npatches_old")
     count("npatches_new")
     for patch_idx in patch_idxs:
-
         if patch_idx in div_idxs:
             div2new[count("new")] = count("tot")
             div2new[count("new")] = count("tot")
@@ -1761,7 +1747,7 @@ def optimize_discretization(
         assert_array_equal(num.array(fault.subfault_npatches), new_subfault_npatches)
 
         if False:
-            fig, axs = plt.subplots(2, 3)
+            fig, axs = plt.subplots(2, 3)  # noqa: F823
             for i, gfidx in enumerate(
                 num.linspace(0, fault.npatches, 6, dtype="int", endpoint=False)
             ):
@@ -1788,19 +1774,19 @@ def optimize_discretization(
                 # U data-space, L singular values, V model space
 
                 ndata, nparams = comp_gfs.shape
-                U, l, V = svd(comp_gfs, full_matrices=True)
+                U, l_raw, V = svd(comp_gfs, full_matrices=True)
 
                 # apply singular value damping
-                ldamped_inv = 1.0 / (l + config.epsilon**2)
+                ldamped_inv = 1.0 / (l_raw + config.epsilon**2)
                 Linv = sv_vec2matrix(ldamped_inv, ndata=ndata, nparams=nparams)
-                L = sv_vec2matrix(l, ndata=ndata, nparams=nparams)
+                L = sv_vec2matrix(l_raw, ndata=ndata, nparams=nparams)
 
                 # calculate resolution matrix and take trace
                 if 0:
                     # for debugging
                     print("full_GFs", comp_gfs.shape)
                     print("V", V.shape)
-                    print("l", l.shape)
+                    print("l", l_raw.shape)
                     print("L", L.shape)
                     print("Linnv", Linv.shape)
                     print("U", U.shape)
@@ -1996,14 +1982,12 @@ def optimize_discretization(
 
 
 class ResolutionDiscretizationResult(Object):
-
     epsilons = List.T(Float.T(), default=[0])
     normalized_rspreads = List.T(Float.T(), default=[1.0])
     faults_npatches = List.T(Int.T(), default=[1])
     optimum = Dict.T(default=dict(), help="Optimum fault discretization parameters")
 
     def plot(self):
-
         fig, ax = plt.subplots(1, 1, figsize=mpl_papersize("a6", "landscape"))
         ax.plot(
             num.array(self.epsilons),
@@ -2032,7 +2016,6 @@ class ResolutionDiscretizationResult(Object):
         return fig, ax
 
     def derive_optimum_fault_geometry(self, debug=False):
-
         data = num.vstack(
             (num.array(self.epsilons), num.array(self.normalized_rspreads))
         ).T
@@ -2119,7 +2102,6 @@ def optimize_damping(
     model_resolutions = []
     dfaults = []
     for epsilon in epsilons:
-
         logger.info("Epsilon: %g", epsilon)
         logger.info("--------------")
         fault_discr_path = os.path.join(

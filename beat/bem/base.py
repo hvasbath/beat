@@ -3,11 +3,10 @@ from __future__ import annotations
 import logging
 
 import numpy as num
-from time import time
 from pyrocko.moment_tensor import symmat6
-from pyrocko.gf import StaticResult, Response, Request
+from pyrocko.gf import StaticResult
 from pyrocko.guts_array import Array
-from pyrocko.guts import Int, Object, List
+from pyrocko.guts import Object, List
 
 from matplotlib import pyplot as plt
 
@@ -209,7 +208,6 @@ class BEMEngine(object):
     ) -> num.ndarray:
         G_slip_components = [[], [], []]
         for bcond in self.config.boundary_conditions.iter_conditions():
-
             for source_idx in bcond.source_idxs:
                 source_mesh = discretized_sources[source_idx]
 

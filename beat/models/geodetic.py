@@ -10,7 +10,6 @@ from pymc3 import Deterministic, Uniform
 from pyrocko.gf import LocalEngine, RectangularSource
 from theano import config as tconfig
 from theano import shared
-from theano.printing import Print
 
 from beat import config as bconfig
 from beat import covariance as cov
@@ -453,11 +452,11 @@ class GeodeticComposite(Composite):
             with numpy array-like items and variable name keys
         """
         results = self.assemble_results(point)
-        for l, result in enumerate(results):
-            choli = self.datasets[l].covariance.chol_inverse
+        for i_l, result in enumerate(results):
+            choli = self.datasets[i_l].covariance.chol_inverse
             tmp = choli.dot(result.processed_res)
             _llk = num.asarray([num.dot(tmp, tmp)])
-            self._llks[l].set_value(_llk)
+            self._llks[i_l].set_value(_llk)
 
     def get_variance_reductions(self, point, results=None, weights=None):
         """
@@ -903,7 +902,6 @@ class GeodeticBEMComposite(GeodeticSourceComposite):
         crust_inds = range(*gc.gf_config.n_variations)
         thresh = 5
         if len(crust_inds) > thresh:
-
             raise NotImplementedError(
                 "Needs updating for this composite to vary elastic parameters."
             )

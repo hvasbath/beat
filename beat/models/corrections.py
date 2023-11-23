@@ -1,7 +1,7 @@
 import logging
 from collections import OrderedDict
 
-from numpy import array, zeros
+from numpy import array
 from pyrocko import orthodrome
 from theano import config as tconfig
 from theano import shared
@@ -50,7 +50,6 @@ class RampCorrection(Correction):
     def setup_correction(
         self, locy, locx, los_vector, data_mask, dataset_name, number=0
     ):
-
         self.east_shifts = locx
         self.north_shifts = locy
 
@@ -95,7 +94,6 @@ class EulerPoleCorrection(Correction):
     def setup_correction(
         self, locy, locx, los_vector, data_mask, dataset_name, number=0
     ):
-
         self.los_vector = los_vector
         self.lats = locy
         self.lons = locx
@@ -149,7 +147,6 @@ class StrainRateCorrection(Correction):
     def setup_correction(
         self, locy, locx, los_vector, data_mask, dataset_name, number=0
     ):
-
         self.los_vector = los_vector
         self.lats = locy
         self.lons = locx

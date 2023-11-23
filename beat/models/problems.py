@@ -27,7 +27,6 @@ __all__ = ["GeometryOptimizer", "DistributionOptimizer", "load_model"]
 
 
 class InconsistentNumberHyperparametersError(Exception):
-
     context = (
         "Configuration file has to be updated!"
         + " Hyperparameters have to be re-estimated. \n"
@@ -77,7 +76,6 @@ class Problem(object):
     _hierarchicalnames = None
 
     def __init__(self, config, hypers=False):
-
         self.model = None
 
         self._like_name = "like"
@@ -224,7 +222,6 @@ class Problem(object):
         pc = self.config.problem_config
 
         with Model() as self.model:
-
             self.rvs, self.fixed_params = pc.get_random_variables()
 
             self.init_hyperparams()
@@ -251,7 +248,7 @@ class Problem(object):
             like = Deterministic("tmp", total_llk)
 
             # will overwrite deterministic name ...
-            llk = Potential(self._like_name, like)
+            llk = Potential(self._like_name, like)  # noqa: F841
             logger.info("Model building was successful! \n")
 
     def plant_lijection(self):
@@ -286,7 +283,6 @@ class Problem(object):
                 point[param.name] = param.testvalue
 
         with Model() as self.model:
-
             self.init_hyperparams()
 
             total_llk = tt.zeros((1), tconfig.floatX)
@@ -301,7 +297,7 @@ class Problem(object):
                 total_llk += composite.get_hyper_formula(self.hyperparams)
 
             like = Deterministic("tmp", total_llk)
-            llk = Potential(self._like_name, like)
+            llk = Potential(self._like_name, like)  # noqa: F841
             logger.info("Hyper model building was successful!")
 
     def get_random_point(self, include=["priors", "hierarchicals", "hypers"]):
@@ -628,7 +624,6 @@ class SourceOptimizer(Problem):
     """
 
     def __init__(self, config, hypers=False):
-
         super(SourceOptimizer, self).__init__(config, hypers)
 
         pc = config.problem_config
@@ -856,7 +851,6 @@ class DistributionOptimizer(Problem):
                 ds.extend(displacements)
 
             elif datatype == "seismic":
-
                 targets_gfs = [[] for i in range(composite.n_t)]
                 for pidx in range(npatches):
                     Gseis, dseis = composite.get_synthetics(

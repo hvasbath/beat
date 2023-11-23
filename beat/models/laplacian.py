@@ -10,7 +10,7 @@ from theano import tensor as tt
 from beat import config as bconfig
 from beat.heart import log_determinant
 from beat.models.base import Composite, FaultGeometryNotFoundError
-from beat.utility import load_objects, distances
+from beat.utility import distances, load_objects
 
 logger = getLogger("ffi.laplacian")
 
@@ -26,7 +26,6 @@ __all__ = [
 
 class LaplacianDistributerComposite(Composite):
     def __init__(self, config, project_dir, events, hypers):
-
         super(LaplacianDistributerComposite, self).__init__(events)
 
         self.config = config
@@ -127,12 +126,12 @@ class LaplacianDistributerComposite(Composite):
         self.input_rvs.update(fixed_rvs)
 
         logpts = tt.zeros((self.n_t), tconfig.floatX)
-        for l, var in enumerate(self.slip_varnames):
+        for i_l, var in enumerate(self.slip_varnames):
             Ls = self.shared_smoothing_op.dot(input_rvs[var])
             exponent = Ls.T.dot(Ls)
 
             logpts = tt.set_subtensor(
-                logpts[l : l + 1],
+                logpts[i_l : i_l + 1],
                 self._eval_prior(hyperparams[hp_name], exponent=exponent),
             )
 
@@ -149,10 +148,10 @@ class LaplacianDistributerComposite(Composite):
         point : dict
             with numpy array-like items and variable name keys
         """
-        for l, varname in enumerate(self.slip_varnames):
+        for i_l, varname in enumerate(self.slip_varnames):
             Ls = self.smoothing_op.dot(point[varname])
             _llk = num.asarray([Ls.T.dot(Ls)])
-            self._llks[l].set_value(_llk)
+            self._llks[i_l].set_value(_llk)
 
     def get_hyper_formula(self, hyperparams):
         """

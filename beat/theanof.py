@@ -6,7 +6,6 @@ Far future:
     include a 'def grad:' -method to each Op in order to enable the use of
     gradient based optimization algorithms
 """
-import copy
 import logging
 from collections import OrderedDict
 
@@ -14,8 +13,8 @@ import numpy as num
 import theano
 import theano.tensor as tt
 from pymc3.model import FreeRV
-from pyrocko.trace import nextpow2
 from pyrocko.gf import LocalEngine
+from pyrocko.trace import nextpow2
 
 from beat import heart, interseismic, utility
 from beat.fast_sweeping import fast_sweep
@@ -475,7 +474,7 @@ class SeisSynthesizer(theano.Op):
                 pad_to_pow2=True,
             )
         else:
-            ValueError('Domain "%" not supported!' % self.domain)
+            ValueError('Domain "%s" not supported!' % self.domain)
 
     def infer_shape(self, node, input_shapes):
         nrow = len(self.targets)

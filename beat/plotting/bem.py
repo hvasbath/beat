@@ -1,7 +1,6 @@
 from matplotlib import pyplot as plt
-from pyrocko.plot import mpl_graph_color, mpl_papersize
+from pyrocko.plot import mpl_papersize
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
-import matplotlib.cm as cm
 from matplotlib.ticker import MaxNLocator
 
 from beat.bem import slip_comp_to_idx
@@ -18,7 +17,6 @@ def cb_round(value, decimal=3):
 def slip_distribution_3d(
     discretized_sources, slip_vectors, perspective="150/30", debug=False
 ):
-
     # fontsize_title = 12
     fontsize = 8
 
@@ -63,7 +61,6 @@ def slip_distribution_3d(
                 pa_col.set_facecolor(colors)
                 pa_col.set(edgecolor="k", linewidth=0.1, alpha=0.25)
             else:
-
                 cbl = 0.1 + j * 0.3
                 cbb = 0.2 - k * 0.08
                 cbw = 0.15
@@ -103,7 +100,7 @@ def slip_distribution_3d(
 
                 if False:
                     # plot vector normals for debugging
-                    unit_vectors = getattr(dsource, f"unit_normal_vectors")
+                    unit_vectors = getattr(dsource, "unit_normal_vectors")
 
                     ax.quiver(
                         dsource.centroids[::, 0],

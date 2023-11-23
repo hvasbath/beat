@@ -17,7 +17,6 @@ from beat.heart import (
     ResultPoint,
     init_polarity_targets,
     pol_synthetics,
-    results_for_export,
 )
 from beat.models.base import Composite
 from beat.models.distributions import polarity_llk
@@ -32,7 +31,6 @@ __all__ = ["PolarityComposite"]
 
 class PolarityComposite(Composite):
     def __init__(self, polc, project_dir, sources, mapping, events, hypers=False):
-
         super(PolarityComposite, self).__init__(events)
 
         logger.debug("Setting up polarity structure ...\n")
@@ -104,7 +102,6 @@ class PolarityComposite(Composite):
             return False
 
     def get_formula(self, input_rvs, fixed_rvs, hyperparams, problem_config):
-
         self.input_rvs = input_rvs
         self.fixed_rvs = fixed_rvs
 
@@ -118,7 +115,6 @@ class PolarityComposite(Composite):
 
         logpts = []
         for i, pmap in enumerate(self.wavemaps):
-
             self.synthesizers[i] = PolaritySynthesizer(
                 self.engine,
                 self.sources[pmap.config.event_idx],
@@ -233,7 +229,6 @@ class PolarityComposite(Composite):
         force=False,
         update=False,
     ):
-
         results = self.assemble_results(point)
         for i, result in enumerate(results):
             # TODO need human readable format like e.g.: .csv
@@ -242,7 +237,6 @@ class PolarityComposite(Composite):
             dump(result, filename=output)
 
     def assemble_results(self, point, order="list"):
-
         if point is None:
             raise ValueError("A point has to be provided!")
 
@@ -275,7 +269,6 @@ class PolarityComposite(Composite):
         return results
 
     def get_synthetics(self, point, **kwargs):
-
         order = kwargs.pop("order", "list")
 
         self.point2sources(point)

@@ -50,7 +50,6 @@ from beat.utility import (
     ListArrayOrdering,
     ListToArrayBijection,
     dump_objects,
-    list2string,
     load_objects,
 )
 
@@ -142,7 +141,6 @@ class BaseChain(object):
     """
 
     def __init__(self, model=None, vars=None, buffer_size=5000, buffer_thinning=1):
-
         self.model = None
         self.vars = None
         self.var_shapes = None
@@ -244,7 +242,6 @@ class FileChain(BaseChain):
         progressbar=False,
         k=None,
     ):
-
         super(FileChain, self).__init__(
             model=model,
             vars=vars,
@@ -314,7 +311,6 @@ class FileChain(BaseChain):
         return self._df
 
     def record_buffer(self):
-
         if self.chain is None:
             raise ValueError("Chain has not been setup. Saving samples not possible!")
 
@@ -368,7 +364,6 @@ class MemoryChain(BaseChain):
     """
 
     def __init__(self, buffer_size=5000):
-
         super(MemoryChain, self).__init__(buffer_size=buffer_size)
 
     def setup(self, draws, chain, overwrite=False):
@@ -423,7 +418,6 @@ class TextChain(FileChain):
         progressbar=False,
         k=None,
     ):
-
         super(TextChain, self).__init__(
             dir_path,
             model,
@@ -545,7 +539,7 @@ class TextChain(FileChain):
             shape = (self._df.shape[0],) + self.var_shapes[varname]
             vals = var_df.values.ravel().reshape(shape)
             return vals[burn::thin]
-        except (KeyError):
+        except KeyError:
             raise ValueError(
                 'Did not find varname "%s" in sampling ' "results! Fixed?" % varname
             )
@@ -622,7 +616,6 @@ class NumpyChain(FileChain):
         k=None,
         buffer_thinning=1,
     ):
-
         super(NumpyChain, self).__init__(
             dir_path,
             model,
@@ -772,7 +765,6 @@ class NumpyChain(FileChain):
             print("Error on write file: ", e)
 
     def _load_df(self):
-
         if not self.__data_structure:
             try:
                 self.__data_structure = self.construct_data_structure()
@@ -800,7 +792,7 @@ class NumpyChain(FileChain):
             shape = (self._df.shape[0],) + self.var_shapes[varname]
             vals = data.ravel().reshape(shape)
             return vals[burn::thin]
-        except (ValueError):
+        except ValueError:
             raise ValueError(
                 'Did not find varname "%s" in sampling ' "results! Fixed?" % varname
             )
@@ -840,7 +832,6 @@ class TransDTextChain(object):
     def __init__(
         self, name, model=None, vars=None, buffer_size=5000, progressbar=False
     ):
-
         self._straces = {}
         self.buffer_size = buffer_size
         self.progressbar = progressbar
@@ -1051,7 +1042,6 @@ class SampleStage(object):
     def recover_existing_results(
         self, stage, draws, step, buffer_thinning=1, varnames=None, update=None
     ):
-
         if stage > 0:
             prev = stage - 1
             if update is not None:

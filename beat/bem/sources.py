@@ -183,9 +183,7 @@ class BEMSource(Source):
         raise NotImplementedError
 
     def discretize_basesource(self, mesh_size, target=None, plot=False):
-
         with pygmsh.geo.Geometry() as geom:
-
             surf = self.get_source_surface(geom, mesh_size)
             if len(surf) > 1:
                 geom.add_surface_loop(surf)
@@ -204,7 +202,6 @@ class BEMSource(Source):
 
 
 class TriangleBEMSource(BEMSource):
-
     strike_traction = Float.T(
         default=0.0, help="Traction [Pa] in strike-direction of the Triangles"
     )
@@ -220,7 +217,6 @@ class TriangleBEMSource(BEMSource):
     p3 = Tuple.T(3, Float.T(), default=(-1, 0, -1))
 
     def get_source_surface(self, geom, mesh_size):
-
         gp1 = geom.add_point(self.p1, mesh_size=mesh_size)
         gp2 = geom.add_point(self.p2, mesh_size=mesh_size)
         gp3 = geom.add_point(self.p3, mesh_size=mesh_size)
@@ -386,7 +382,6 @@ class DiskBEMSource(EllipseBEMSource):
         )
 
     def get_source_surface(self, geom, mesh_size):
-
         self._init_points_geometry(
             geom,
             prefixes=("",),
@@ -397,7 +392,6 @@ class DiskBEMSource(EllipseBEMSource):
         rotations = (-self.plunge, -self.dip, self.strike)
         axes = ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))
         for point in self.points.values():
-
             for rot_angle, axis in zip(rotations, axes):
                 if rot_angle != 0:
                     # TODO if rotation results in one point ending at the exact
@@ -533,7 +527,6 @@ class RingfaultBEMSource(EllipseBEMSource):
         return self._get_arch_points(["lower_minor_node", "bottom_lower_minor_node"])
 
     def get_source_surface(self, geom, mesh_size):
-
         self._init_points_geometry(
             geom,
             prefixes=("", "bottom"),
@@ -607,7 +600,6 @@ class RingfaultBEMSource(EllipseBEMSource):
 
 
 class RectangularBEMSource(BEMSource):
-
     width = Float.T(default=5 * km, help="Width [m] of the fault plane.")
     length = Float.T(default=10 * km, help="Length [m] of the fault plane.")
     dip = Float.T(default=0, help="Dip-angle [deg] towards the horizontal.")
@@ -742,7 +734,6 @@ class RectangularBEMSource(BEMSource):
         return self._get_arch_points(["top_right_node", "bottom_right_node"])
 
     def get_source_surface(self, geom, mesh_size):
-
         self._init_points_geometry(
             geom,
             prefixes=("top", "bottom"),
@@ -833,7 +824,6 @@ class CurvedBEMSource(RectangularBEMSource):
         )
 
     def get_source_surface(self, geom, mesh_size):
-
         self._init_points_geometry(
             geom,
             prefixes=("top", "bottom", "curve", "bend"),
@@ -876,7 +866,6 @@ def get_ellipse_points(
     cs: str = "xy",
     npoints: int = 50,
 ) -> num.ndarray:
-
     major_axis_rot = major_axis * num.cos(dip * DEG2RAD)
     minor_axis_rot = minor_axis * num.cos(plunge * DEG2RAD)
 
@@ -909,7 +898,7 @@ def get_ellipse_points(
         else:
             return latlon[:, ::-1]
     else:
-        raise NotImplemented(f"Coordinate system '{cs}' is not implemented.")
+        raise NotImplementedError(f"Coordinate system '{cs}' is not implemented.")
 
 
 def check_intersection(sources: list, mesh_size: float = 0.5):

@@ -4,16 +4,15 @@ import os
 import numpy as num
 from matplotlib import pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
-from matplotlib.ticker import MaxNLocator, FixedLocator
+from matplotlib.ticker import FixedLocator, MaxNLocator
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 from pymc3 import quantiles
-from pyrocko import orthodrome as otd
-from pyrocko.guts import Bool, Dict, Int, List, Object, String, StringChoice, load
+from pyrocko.guts import Bool, Dict, Int, List, Object, String, StringChoice
 from pyrocko.plot import mpl_graph_color, mpl_papersize
 from scipy.stats import kde
 from theano import config as tconfig
 
-from beat import utility, defaults
+from beat import utility
 
 logger = logging.getLogger("plotting.common")
 
@@ -32,11 +31,13 @@ transforms = {
 
 
 def get_transform(varname):
+    def do_nothing(x):
+        return x
 
     try:
         new_varname, transform = transforms[varname]
     except KeyError:
-        transform = lambda x: x
+        transform = do_nothing
         new_varname = varname
 
     return new_varname, transform
@@ -57,7 +58,6 @@ def cbtick(x):
 
 
 def plot_cov(target, point_size=20):
-
     ax = plt.axes()
     im = ax.scatter(
         target.lons,
@@ -91,7 +91,6 @@ def plot_log_cov(cov_mat):
 
 
 def get_gmt_config(gmtpy, fontsize=14, h=20.0, w=20.0):
-
     if gmtpy.is_gmt5(version="newest"):
         gmtconfig = {
             "MAP_GRID_PEN_PRIMARY": "0.1p",
@@ -236,7 +235,6 @@ def get_result_point(mtrace, point_llk="max"):
 
 
 def hist_binning(mind, maxd, nbins=40):
-
     step = ((maxd - mind) / nbins).astype(tconfig.floatX)
 
     if step == 0:
@@ -385,7 +383,6 @@ def histplot_op(
 
 
 def hist2d_plot_op(ax, data_x, data_y, bins=(None, None), cmap=None):
-
     if cmap is None:
         cmap = plt.get_cmap("afmhot_r")
 
@@ -404,7 +401,6 @@ def hist2d_plot_op(ax, data_x, data_y, bins=(None, None), cmap=None):
 
 
 def variance_reductions_hist_plot(axs, variance_reductions, labels):
-
     n_vrs = len(variance_reductions)
 
     if n_vrs != len(labels):
@@ -460,7 +456,6 @@ def kde2plot(x, y, grid=200, ax=None, **kwargs):
 def spherical_kde_op(
     lats0, lons0, lats=None, lons=None, grid_size=(200, 200), sigma=None
 ):
-
     from beat.models.distributions import vonmises_fisher, vonmises_std
 
     if sigma is None:
@@ -579,7 +574,6 @@ def plot_inset_hist(
     alpha=0.4,
     background_alpha=1.0,
 ):
-
     in_ax = inset_axes(
         axes,
         width="100%",
@@ -804,7 +798,6 @@ def get_nice_plot_bounds(dmin, dmax, override_mode="min-max"):
 
 
 def plot_covariances(datasets, covariances):
-
     cmap = plt.get_cmap("seismic")
 
     ndata = len(covariances)
@@ -842,7 +835,6 @@ def plot_covariances(datasets, covariances):
     cbw = 0.15
 
     for kidx, (cov, dataset) in enumerate(zip(covariances, datasets)):
-
         figidx, rowidx = utility.mod_i(kidx, ndmax)
         axs = axes[figidx][rowidx, :]
 
@@ -855,11 +847,10 @@ def plot_covariances(datasets, covariances):
             cbb = 0.06
 
         vmin, vmax = cov.get_min_max_components()
-        for l, attr in enumerate(["data", "pred_v"]):
+        for i_l, attr in enumerate(["data", "pred_v"]):
             cmat = getattr(cov, attr)
-            ax = axs[l]
+            ax = axs[i_l]
             if cmat is not None and cmat.sum() != 0.0:
-
                 im = ax.imshow(
                     cmat,
                     cmap=cmap,
@@ -872,7 +863,7 @@ def plot_covariances(datasets, covariances):
                 yticker = MaxNLocator(nbins=2)
                 ax.xaxis.set_major_locator(xticker)
                 ax.yaxis.set_major_locator(yticker)
-                if l == 0:
+                if i_l == 0:
                     ax.set_ylabel("Sample idx")
                     ax.set_xlabel("Sample idx")
                     ax.set_title(dataset.name)
@@ -927,7 +918,6 @@ def set_axes_equal_3d(ax, axes="xyz"):
 
 
 def get_weights_point(composite, best_point, config):
-
     if composite.config.noise_estimator.structure == "non-toeplitz":
         # nT run is done with test point covariances!
         if config.sampler_config.parameters.update_covariances:
@@ -952,7 +942,6 @@ def plot_exists(outpath, outformat, force):
 
 
 def save_figs(figs, outpath, outformat, dpi):
-
     if outformat == "display":
         plt.show()
 

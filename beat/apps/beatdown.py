@@ -9,7 +9,7 @@ import tempfile
 
 try:
     from urllib.error import HTTPError
-except:
+except ImportError:
     from urllib2 import HTTPError
 
 import glob
@@ -82,7 +82,7 @@ def get_events(time_range, region=None, catalog=geofon, **kwargs):
         return catalog.get_events(time_range, **kwargs)
 
     events = []
-    for (west, east, south, north) in automap.split_region(region):
+    for west, east, south, north in automap.split_region(region):
         events.extend(
             catalog.get_events(
                 time_range=time_range,
@@ -90,7 +90,7 @@ def get_events(time_range, region=None, catalog=geofon, **kwargs):
                 lonmax=east,
                 latmin=south,
                 latmax=north,
-                **kwargs
+                **kwargs,
             )
         )
 
@@ -171,7 +171,6 @@ class PhaseWindow(object):
         for ray in self.model.arrivals(
             phases=self.phases, zstart=depth, distances=[distance * cake.m2d]
         ):
-
             return time + ray.t + self.omin, time + ray.t + self.omax
 
         raise NoArrival
@@ -452,7 +451,6 @@ def main():
         options.local_responses_resp,
         options.local_responses_stationxml,
     ):
-
         if resp_opt:
             n_resp_opt += 1
 
@@ -813,7 +811,7 @@ def main():
                         dist = orthodrome.distance_accurate50m_numpy(
                             lat_, lon_, channel.latitude.value, channel.longitude.value
                         )
-                    except:
+                    except AttributeError:
                         dist = orthodrome.distance_accurate50m_numpy(
                             lat_, lon_, channel.latitude, channel.longitude
                         )
@@ -835,7 +833,7 @@ def main():
                     if channel.sample_rate:
                         try:
                             deltat = 1.0 / int(channel.sample_rate.value)
-                        except:
+                        except AttributeError:
                             deltat = 1.0 / int(channel.sample_rate)
                     else:
                         deltat = 1.0
@@ -854,7 +852,7 @@ def main():
                             )
                         )
             if options.dry_run:
-                for (net, sta, loc, cha, tmin, tmax) in selection:
+                for net, sta, loc, cha, tmin, tmax in selection:
                     available_through[net, sta, loc, cha].add(site)
 
             else:
@@ -873,7 +871,7 @@ def main():
                         data = fdsn.dataselect(
                             site=site,
                             selection=selection_now,
-                            **get_user_credentials(site)
+                            **get_user_credentials(site),
                         )
 
                         while True:
@@ -956,7 +954,6 @@ def main():
         for sites in sorted(
             all_channels.keys(), key=lambda sites: (-len(sites), sites)
         ):
-
             nchannels = len(all_channels[sites])
             nstations = len(all_stations[sites])
             nchannels_all += nchannels
@@ -1022,7 +1019,6 @@ def main():
         for traces in plocal.chopper_grouped(
             gather=lambda tr: tr.nslc_id, tmin=tmin, tmax=tmax, tinc=tinc
         ):
-
             for tr in traces:
                 if tr.nslc_id not in have_data:
                     fns.extend(io.save(traces, fn_template_raw))
@@ -1086,7 +1082,6 @@ def main():
     for traces_a in p.chopper_grouped(
         gather=lambda tr: tr.nslc_id, tmin=otmin, tmax=otmax, tinc=otinc, tpad=otpad
     ):
-
         rest_traces_a = []
         win_a = None
         for tr in traces_a:
@@ -1204,8 +1199,7 @@ def main():
         else:
             assert False
 
-        for (proj, in_channels, out_channels) in pios:
-
+        for proj, in_channels, out_channels in pios:
             proc = trace.project(traces, proj, in_channels, out_channels)
             for tr in proc:
                 tr_beat = heart.SeismicDataset.from_pyrocko_trace(tr)

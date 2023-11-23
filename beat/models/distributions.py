@@ -4,7 +4,6 @@ import numpy as num
 import theano.tensor as tt
 from theano import config as tconfig
 from theano import shared
-from theano.printing import Print
 
 from beat.utility import Counter
 
@@ -52,18 +51,18 @@ def multivariate_normal(datasets, weights, hyperparams, residuals):
 
     logpts = tt.zeros((n_t), tconfig.floatX)
 
-    for l, data in enumerate(datasets):
+    for i_l, data in enumerate(datasets):
         M = tt.cast(shared(data.samples, name="nsamples", borrow=True), "int16")
         hp_name = get_hyper_name(data)
         norm = M * (2 * hyperparams[hp_name] + log_2pi)
         logpts = tt.set_subtensor(
-            logpts[l : l + 1],
+            logpts[i_l : i_l + 1],
             (-0.5)
             * (
                 data.covariance.slog_pdet
                 + norm
                 + (1 / tt.exp(hyperparams[hp_name] * 2))
-                * (residuals[l].dot(weights[l]).dot(residuals[l].T))
+                * (residuals[i_l].dot(weights[i_l]).dot(residuals[i_l].T))
             ),
         )
 
@@ -117,7 +116,7 @@ def multivariate_normal_chol(
     logpts = tt.zeros((n_t), tconfig.floatX)
     count = Counter()
 
-    for l, data in enumerate(datasets):
+    for i_l, data in enumerate(datasets):
         M = tt.cast(shared(data.samples, name="nsamples", borrow=True), "int16")
         hp_name = get_hyper_name(data)
 
@@ -126,10 +125,10 @@ def multivariate_normal_chol(
         else:
             hp = hyperparams[hp_name]
 
-        tmp = dot(weights[l], (residuals[l]))
+        tmp = dot(weights[i_l], (residuals[i_l]))
         norm = M * (2 * hp + log_2pi)
         logpts = tt.set_subtensor(
-            logpts[l : l + 1],
+            logpts[i_l : i_l + 1],
             (-0.5)
             * (
                 data.covariance.slog_pdet

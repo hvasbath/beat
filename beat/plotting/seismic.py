@@ -1,10 +1,6 @@
 import logging
 import os
 
-from scipy import stats
-
-from tqdm import tqdm
-
 import numpy as num
 from matplotlib import pyplot as plt
 from matplotlib.ticker import MaxNLocator
@@ -20,6 +16,8 @@ from pyrocko.plot import (
     mpl_margins,
     mpl_papersize,
 )
+from scipy import stats
+from tqdm import tqdm
 
 from beat import utility
 from beat.heart import calculate_radiation_weights
@@ -28,18 +26,18 @@ from beat.models import Stage, load_stage
 from .common import (
     draw_line_on_array,
     format_axes,
-    hide_ticks,
     get_gmt_config,
     get_result_point,
+    get_weights_point,
+    hide_ticks,
+    hist2d_plot_op,
+    plot_exists,
     plot_inset_hist,
+    save_figs,
     spherical_kde_op,
     str_dist,
     str_duration,
     str_unit,
-    get_weights_point,
-    hist2d_plot_op,
-    save_figs,
-    plot_exists,
 )
 
 km = 1000.0
@@ -47,6 +45,10 @@ SQRT2 = num.sqrt(2.0)
 PI = num.pi
 
 logger = logging.getLogger("plotting.seismic")
+
+
+def skey(tr):
+    return tr.channel
 
 
 def n_model_plot(models, axes=None, draw_bg=True, highlightidx=[]):
@@ -112,7 +114,6 @@ def n_model_plot(models, axes=None, draw_bg=True, highlightidx=[]):
 
 
 def load_earthmodels(store_superdir, store_ids, depth_max="cmb"):
-
     ems = []
     emr = []
     for store_id in store_ids:
@@ -128,13 +129,11 @@ def load_earthmodels(store_superdir, store_ids, depth_max="cmb"):
 
 
 def draw_earthmodels(problem, plot_options):
-
     from beat.heart import init_geodetic_targets, init_seismic_targets
 
     po = plot_options
 
     for datatype, composite in problem.composites.items():
-
         if datatype == "seismic":
             models_dict = {}
             sc = problem.config.seismic_config
@@ -280,7 +279,6 @@ def fuzzy_waveforms(
 
     if extent is None:
         key = traces[0].channel
-        skey = lambda tr: tr.channel
 
         ymin, ymax = trace.minmax(traces, key=skey)[key]
         xmin, xmax = trace.minmaxtime(traces, key=skey)[key]
@@ -293,7 +291,6 @@ def fuzzy_waveforms(
     grid = num.zeros(grid_size, dtype="float64")
 
     for tr in traces:
-
         draw_line_on_array(
             tr.get_xdata(),
             tr.ydata,
@@ -335,7 +332,6 @@ def fuzzy_spectrum(
     cmap=None,
     alpha=0.5,
 ):
-
     if cmap is None:
         cmap = get_fuzzy_cmap()
 
@@ -344,7 +340,6 @@ def fuzzy_spectrum(
 
     if extent is None:
         key = traces[0].channel
-        skey = lambda tr: tr.channel
 
         ymin, ymax = trace.minmax(traces, key=skey)[key]
 
@@ -353,10 +348,7 @@ def fuzzy_spectrum(
         )
 
         extent = [*taper_frequencies, 0, ypad_factor * ymax]
-    else:
-        lower_idx, upper_idx = 0, -1
 
-    # fxdata = fxdata[lower_idx:upper_idx]
     for tr in traces:
         ydata = zero_pad_spectrum(tr)
         draw_line_on_array(
@@ -401,7 +393,6 @@ def extract_time_shifts(point, hierarchicals, wmap):
 def form_result_ensemble(
     stage, composite, nensemble, chop_bounds, target_index, bresults, bvar_reductions
 ):
-
     if nensemble > 1:
         logger.info("Collecting ensemble of %i synthetic waveforms ..." % nensemble)
         nchains = len(stage.mtrace)
@@ -492,7 +483,6 @@ def subplot_waveforms(
         t2 = num.concatenate((t, t[::-1]))
         axes.fill(t2, y2, **kwargs)
 
-    skey = lambda tr: tr.channel
     inset_axs_width, inset_axs_height = 0.2, 0.18
 
     plot_taper(
@@ -603,7 +593,6 @@ def subplot_waveforms(
             "bottom",
         ),
     ]:
-
         axes2.annotate(
             text,
             xy=(xtmark, ytmark),
@@ -652,7 +641,6 @@ def subplot_spectrum(
     tap_color_annot,
     ypad_factor,
 ):
-
     from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
     inset_axs_width, inset_axs_height = 0.2, 0.18
@@ -720,7 +708,6 @@ def subplot_spectrum(
     colors = [obs_color, syn_color, misfit_color]
     ymaxs = []
     for attr_suffix, lw, color in zip(["obs", "syn", "res"], linewidths, colors):
-
         tr = getattr(result, "processed_{}".format(attr_suffix))
         ydata = zero_pad_spectrum(tr)
         ymaxs.append(ydata.max())
@@ -915,11 +902,9 @@ def seismic_fits(problem, stage, plot_options):
         )
         cg_to_target_codes = utility.gather(unique_target_codes, lambda t: t[3])
         cgs = cg_to_target_codes.keys()
-        target_domains = list(utility.gather(event_targets, lambda t: t.domain).keys())
+        # target_domains = list(utility.gather(event_targets, lambda t: t.domain).keys())
 
         channel_index = dict((channel, i) for (i, channel) in enumerate(cgs))
-
-        skey = lambda tr: tr.channel
 
         figs = []
         logger.info("Plotting waveforms ... for event number: %i" % event_idx)
@@ -943,7 +928,7 @@ def seismic_fits(problem, stage, plot_options):
         # draw station specific data-fits
         for istation, ns_id in enumerate(ns_id_codes_sorted):
             target_codes = ns_id_to_target_codes[ns_id]
-            have_drawn = []
+
             for target_code in target_codes:
                 domain_targets = target_codes_to_targets[target_code]
                 for k_subf, target in enumerate(domain_targets):
@@ -1098,7 +1083,6 @@ def seismic_fits(problem, stage, plot_options):
 
 
 def draw_seismic_fits(problem, po):
-
     if "seismic" not in list(problem.composites.keys()):
         raise TypeError("No seismic composite defined for this problem!")
 
@@ -1310,7 +1294,6 @@ def draw_ray_piercing_points_bb(
             raise ValueError("Number of stations is inconsistent with polarity data!")
 
         for i_s, station in enumerate(stations):
-
             ax.text(
                 y[i_s],
                 x[i_s],
@@ -1329,7 +1312,6 @@ def draw_ray_piercing_points_bb(
 
 
 def lower_focalsphere_angles(grid_resolution, projection):
-
     nx = grid_resolution
     ny = grid_resolution
 
@@ -1391,7 +1373,6 @@ def mts2amps(
     view="top",
     wavename="any_P",
 ):
-
     n_balls = len(mts)
     nx = ny = grid_resolution
 
@@ -1400,7 +1381,6 @@ def mts2amps(
     )
 
     for mt in mts:
-
         mt = beachball.deco_part(mt, mt_type=beachball_type, view=view)
 
         radiation_weights = calculate_radiation_weights(
@@ -1552,7 +1532,6 @@ def plot_fuzzy_beachball_mpl_pixmap(
 
 
 def draw_fuzzy_beachball(problem, po):
-
     if po.load_stage is None:
         po.load_stage = -1
 
@@ -1582,7 +1561,6 @@ def draw_fuzzy_beachball(problem, po):
         wavenames = ["any_P"]
 
     for k_pamp, wavename in enumerate(wavenames):
-
         for idx_source, (m6s, best_mt) in enumerate(zip(list_m6s, list_best_mt)):
             outpath = os.path.join(
                 problem.outfolder,
@@ -1684,7 +1662,6 @@ def fuzzy_mt_decomposition(axes, list_m6s, labels=None, colors=None, fontsize=12
     }
 
     def get_decomps(source_vals):
-
         isos = []
         dcs = []
         clvds = []
@@ -1726,7 +1703,6 @@ def fuzzy_mt_decomposition(axes, list_m6s, labels=None, colors=None, fontsize=12
         (6.0, "CLVD"),
         (8.0, "DC"),
     ]:
-
         axes.annotate(
             label,
             xy=(1 + xpos, nlines_max),
@@ -1764,7 +1740,6 @@ def fuzzy_mt_decomposition(axes, list_m6s, labels=None, colors=None, fontsize=12
             (6.0, clvds, "+"),
             (8.0, dcs, None),
         ]:
-
             ratios = num.array([comp[1] for comp in decomp])
             ratio = ratios.mean()
             ratios_diff = ratios.max() - ratios.min()
@@ -1853,7 +1828,6 @@ def fuzzy_mt_decomposition(axes, list_m6s, labels=None, colors=None, fontsize=12
 
 
 def draw_fuzzy_mt_decomposition(problem, po):
-
     fontsize = 10
 
     n_sources = problem.config.problem_config.n_sources
@@ -1880,7 +1854,7 @@ def draw_fuzzy_mt_decomposition(problem, po):
 
     fuzzy_mt_decomposition(axes, list_m6s=list_m6s, fontsize=fontsize)
 
-    save_figs([figs], outpath, po.outformat, po.dpi)
+    save_figs([fig], outpath, po.outformat, po.dpi)
 
 
 def station_variance_reductions(problem, stage, plot_options):
@@ -1897,7 +1871,7 @@ def station_variance_reductions(problem, stage, plot_options):
     composite = problem.composites["seismic"]
 
     fontsize = 8
-    fontsize_title = 10
+    # fontsize_title = 10
     labelpad = 1  # distance between ticks and label
 
     target_index = dict((target, i) for (i, target) in enumerate(composite.targets))
@@ -1923,13 +1897,13 @@ def station_variance_reductions(problem, stage, plot_options):
         bresults = composite.assemble_results(
             best_point, outmode="tapered_data", chop_bounds=chop_bounds
         )
-        synth_plot_flag = True
+        # synth_plot_flag = True
     else:
         # get dummy results for data
         logger.warning('Got "None" post_llk, still loading MAP for VR calculation')
         best_point = get_result_point(stage.mtrace, "max")
         bresults = composite.assemble_results(best_point, chop_bounds=chop_bounds)
-        synth_plot_flag = False
+        # synth_plot_flag = False
 
     tpoint = get_weights_point(composite, best_point, problem.config)
 
@@ -2140,7 +2114,6 @@ def station_variance_reductions(problem, stage, plot_options):
 
 
 def draw_station_variance_reductions(problem, po):
-
     if "seismic" not in list(problem.composites.keys()):
         raise TypeError("No seismic composite defined for this problem!")
 
@@ -2356,7 +2329,6 @@ def draw_data_stations(
 
 
 def draw_events(gmt, events, *args, **kwargs):
-
     ev_lons = [ev.lon for ev in events]
     ev_lats = [ev.lat for ev in events]
 
@@ -2600,7 +2572,6 @@ def draw_station_map_gmt(problem, po):
 
 
 def draw_lune_plot(problem, po):
-
     if po.outformat == "svg":
         raise NotImplementedError("SVG format is not supported for this plot!")
 
@@ -2674,7 +2645,6 @@ def draw_lune_plot(problem, po):
 
 
 def lune_plot(v_tape=None, w_tape=None, reference_v_tape=None, reference_w_tape=None):
-
     from beat.sources import v_to_gamma, w_to_delta
 
     if len(gmtpy.detect_gmt_installations()) < 1:
@@ -2684,14 +2654,12 @@ def lune_plot(v_tape=None, w_tape=None, reference_v_tape=None, reference_w_tape=
     font = "1"
 
     def draw_lune_arcs(gmt, R, J):
-
         lons = [30.0, -30.0, 30.0, -30.0]
         lats = [54.7356, 35.2644, -35.2644, -54.7356]
 
         gmt.psxy(in_columns=(lons, lats), N=True, W="1p,black", R=R, J=J)
 
     def draw_lune_points(gmt, R, J, labels=True):
-
         lons = [0.0, -30.0, -30.0, -30.0, 0.0, 30.0, 30.0, 30.0, 0.0]
         lats = [-90.0, -54.7356, 0.0, 35.2644, 90.0, 54.7356, 0.0, -35.2644, 0.0]
         annotations = ["-ISO", "", "+CLVD", "+LVD", "+ISO", "", "-CLVD", "-LVD", "DC"]
@@ -2703,7 +2671,6 @@ def lune_plot(v_tape=None, w_tape=None, reference_v_tape=None, reference_w_tape=
         if labels:
             farg = ["-F+f+j"]
             for lon, lat, text, align in zip(lons, lats, annotations, alignments):
-
                 rows.append(
                     (lon, lat, "%i,%s,%s" % (fontsize, font, "black"), align, text)
                 )
@@ -2763,7 +2730,6 @@ def lune_plot(v_tape=None, w_tape=None, reference_v_tape=None, reference_w_tape=
         # -Ctmp_$out.cpt -I -N -A- -O -K >> $ps
 
     def draw_reference_lune(gmt, R, J, reference_v_tape, reference_w_tape):
-
         gamma = num.rad2deg(v_to_gamma(reference_v_tape))  # lune longitude [rad]
         delta = num.rad2deg(w_to_delta(reference_w_tape))  # lune latitude [rad]
 

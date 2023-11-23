@@ -5,27 +5,25 @@ import os
 import numpy as num
 from matplotlib import pyplot as plt
 from matplotlib.ticker import MaxNLocator
-
 from pymc3 import plots as pmp
 from pymc3 import quantiles
 from pyrocko.cake_plot import str_to_mpl_color as scolor
 from pyrocko.plot import AutoScaler, mpl_graph_color, mpl_papersize, nice_value
-from scipy.stats import kde
 
 from beat import utility
-from beat.config import dist_vars, geometry_mode_str, bem_mode_str
+from beat.config import bem_mode_str, dist_vars, geometry_mode_str
+from beat.defaults import hypername
 from beat.heart import defaults
 from beat.models import Stage, load_stage
-from beat.defaults import hypername
 
 from .common import (
     format_axes,
     get_result_point,
+    get_transform,
     histplot_op,
     kde2plot,
-    get_transform,
-    save_figs,
     plot_exists,
+    save_figs,
 )
 
 logger = logging.getLogger("plotting.marginals")
@@ -201,11 +199,9 @@ def traceplot(
 
     ax : matplotlib axes
     """
-    ntickmarks = 2
     fontsize = 10
     ntickmarks_max = kwargs.pop("ntickmarks_max", 3)
     scale_factor = kwargs.pop("scale_factor", 2 / 3)
-    lines_color = kwargs.pop("lines_color", "red")
 
     num.set_printoptions(precision=3)
 
@@ -285,7 +281,6 @@ def traceplot(
     var_idx = 0
     varname_page_idx = 0
     for nsubplots in nsubplots_page:
-
         width, height = mpl_papersize("a4", "portrait")
         height_subplot = height / nrow_max
         nrow = int(num.ceil(nsubplots / ncol))
@@ -294,7 +289,6 @@ def traceplot(
         axs = num.atleast_2d(axs)
 
         for i in range(nsubplots):
-
             coli, rowi = utility.mod_i(i, nrow)
             ax = axs[rowi, coli]
 
@@ -394,7 +388,6 @@ def traceplot(
                             xticker = MaxNLocator(nbins=5)
                             xax.set_major_locator(xticker)
                         elif plot_style in ["pdf", "cdf"]:
-
                             kwargs["label"] = source_idxs
                             # following determine quantile annotations in cdf
                             kwargs["nsources"] = nsources
@@ -571,33 +564,36 @@ def correlation_plot(
 
         d[var] = vals
 
-    for k in range(nvar - 1):
-        a = d[varnames[k]]
-        for l in range(k + 1, nvar):
-            logger.debug("%s, %s" % (varnames[k], varnames[l]))
-            b = d[varnames[l]]
+    for i_k in range(nvar - 1):
+        varname_a = varnames[i_k]
+        a = d[varname_a]
+        for i_l in range(i_k + 1, nvar):
+            ax = axs[i_l - 1, i_k]
+            varname_b = varnames[i_l]
+            logger.debug("%s, %s" % (varname_a, varname_b))
+            b = d[varname_b]
 
-            kde2plot(a, b, grid=grid, ax=axs[l - 1, k], cmap=cmap, aspect="auto")
+            kde2plot(a, b, grid=grid, ax=ax, cmap=cmap, aspect="auto")
 
             if point is not None:
-                axs[l - 1, k].plot(
-                    point[varnames[k]],
-                    point[varnames[l]],
+                ax.plot(
+                    point[varnames[i_k]],
+                    point[varnames[i_l]],
                     color=point_color,
                     marker=point_style,
                     markersize=point_size,
                 )
 
-            axs[l - 1, k].tick_params(direction="in")
+            ax.tick_params(direction="in")
 
-            if k == 0:
-                axs[l - 1, k].set_ylabel(varnames[l])
+            if i_k == 0:
+                ax.set_ylabel(varname_b)
 
-        axs[l - 1, k].set_xlabel(varnames[k])
+        axs[i_l - 1, i_k].set_xlabel(varname_a)
 
-    for k in range(nvar - 1):
-        for l in range(k):
-            fig.delaxes(axs[l, k])
+    for i_k in range(nvar - 1):
+        for i_l in range(i_k):
+            fig.delaxes(axs[i_l, i_k])
 
     fig.tight_layout()
     fig.subplots_adjust(wspace=0.05, hspace=0.05)
@@ -701,17 +697,17 @@ def correlation_plot_hist(
         else:
             pcolor = hist_color
 
-        for k in range(nvar):
-            v_namea = varnames[k]
+        for i_k in range(nvar):
+            v_namea = varnames[i_k]
             a = d[v_namea][:, source_i]
 
-            for l in range(k, nvar):
-                ax = axs[l, k]
-                v_nameb = varnames[l]
+            for i_l in range(i_k, nvar):
+                ax = axs[i_l, i_k]
+                v_nameb = varnames[i_l]
                 plot_name_a, transform_a = get_transform(v_namea)
                 plot_name_b, transform_b = get_transform(v_nameb)
                 logger.debug("%s, %s" % (v_namea, v_nameb))
-                if l == k:
+                if i_l == i_k:
                     if point is not None:
                         if v_namea in point.keys():
                             reference = transform_a(point[v_namea][source_i])
@@ -766,15 +762,15 @@ def correlation_plot_hist(
                     yax = ax.get_yaxis()
                     yax.set_major_locator(yticker)
 
-                if l != nvar - 1:
+                if i_l != nvar - 1:
                     ax.get_xaxis().set_ticklabels([])
 
-                if k == 0:
+                if i_k == 0:
                     ax.set_ylabel(
                         plot_name_b + "\n " + defaults[hypername(plot_name_b)].unit,
                         fontsize=fontsize,
                     )
-                    if utility.is_odd(l):
+                    if utility.is_odd(i_l):
                         ax.tick_params(axis="y", pad=label_pad)
                 else:
                     ax.get_yaxis().set_ticklabels([])
@@ -784,10 +780,10 @@ def correlation_plot_hist(
                 try:  # matplotlib version issue workaround
                     ax.tick_params(axis="both", labelrotation=50.0)
                 except Exception:
-                    ax.set_xticklabels(axs[l, k].get_xticklabels(), rotation=50)
-                    ax.set_yticklabels(axs[l, k].get_yticklabels(), rotation=50)
+                    ax.set_xticklabels(axs[i_l, i_k].get_xticklabels(), rotation=50)
+                    ax.set_yticklabels(axs[i_l, i_k].get_yticklabels(), rotation=50)
 
-                if utility.is_odd(k):
+                if utility.is_odd(i_k):
                     ax.tick_params(axis="x", pad=label_pad)
 
             # put transformed varname back to varnames for unification
@@ -823,13 +819,13 @@ def correlation_plot_hist(
                 ntickmarks_max=ntickmarks_max,
             )
 
-        for k in range(nvar):
+        for i_k in range(nvar):
             if unify:
                 # reset histogram ylims after unify
-                axs[k, k].set_ylim(hist_ylims[k])
+                axs[i_k, i_k].set_ylim(hist_ylims[i_k])
 
-            for l in range(k):
-                fig.delaxes(axs[l, k])
+            for i_l in range(i_k):
+                fig.delaxes(axs[i_l, i_k])
 
         fig.tight_layout()
         fig.subplots_adjust(wspace=0.05, hspace=0.05)

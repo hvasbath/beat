@@ -1,9 +1,10 @@
-import numpy as num
-import os
 import logging
-from pyrocko.guts import Float, Object, Dict, String, Tuple, load, dump
-from pyrocko.config import expand
+import os
+
+import numpy as num
 from pyrocko import util
+from pyrocko.config import expand
+from pyrocko.guts import Dict, Float, Object, String, Tuple, dump, load
 
 logger = logging.getLogger("pyrocko.config")
 
@@ -107,7 +108,7 @@ parameter_info = {
     "nucleation_x": Bounds(physical_bounds=moffdiag, default_bounds=moffdiag, unit=""),
     "nucleation_y": Bounds(physical_bounds=moffdiag, default_bounds=moffdiag, unit=""),
     "time_shift": Bounds(
-        physical_bounds=(0.0, 40.0), default_bounds=(-5.0, 5.0), unit="$[s]$"
+        physical_bounds=(-20.0, 20.0), default_bounds=(-5.0, 5.0), unit="$[s]$"
     ),
     "coupling": Bounds(physical_bounds=(0, 100), default_bounds=(0, 1), unit="[$\%$]"),
     "uperp": Bounds(
@@ -201,22 +202,8 @@ parameter_info = {
     "width": Bounds(
         physical_bounds=(0.0, 500.0), default_bounds=(5.0, 20.0), unit="$[km]$"
     ),
-    "slip": Bounds(
-        physical_bounds=(0.0, 150.0), default_bounds=(0.1, 8.0), unit="$[m]$"
-    ),
-    "nucleation_x": Bounds(physical_bounds=moffdiag, default_bounds=moffdiag, unit=""),
-    "nucleation_y": Bounds(physical_bounds=moffdiag, default_bounds=moffdiag, unit=""),
-    "opening_fraction": Bounds(
-        physical_bounds=moffdiag, default_bounds=moffdiag, unit=""
-    ),
-    "magnitude": Bounds(
-        physical_bounds=(-5.0, 10.0), default_bounds=(4.0, 7.0), unit=""
-    ),
     "time": Bounds(
         physical_bounds=(-200.0, 200.0), default_bounds=(-5.0, 5.0), unit="$[s]$"
-    ),
-    "time_shift": Bounds(
-        physical_bounds=(0.0, 40.0), default_bounds=(-5.0, 5.0), unit="$[s]$"
     ),
     "delta_time": Bounds(
         physical_bounds=(0.0, 100.0), default_bounds=(0.0, 10.0), unit="$[s]$"
@@ -233,36 +220,6 @@ parameter_info = {
     "peak_ratio": Bounds(
         physical_bounds=(0.0, 1.0), default_bounds=(0.0, 1.0), unit=""
     ),
-    "durations": Bounds(
-        physical_bounds=(0.0, 600.0), default_bounds=(0.5, 29.5), unit="$[s]$"
-    ),
-    "uparr": Bounds(
-        physical_bounds=(-0.05, 6.0), default_bounds=(-0.05, 6.0), unit="$[m]$"
-    ),
-    "uperp": Bounds(
-        physical_bounds=(-0.3, 4.0), default_bounds=(-0.3, 4.0), unit="$[m]$"
-    ),
-    "utens": Bounds(
-        physical_bounds=(0.0, 0.0), default_bounds=(0.0, 0.0), unit="$[m]$"
-    ),
-    "nucleation_strike": Bounds(
-        physical_bounds=(0.0, 10.0), default_bounds=(0.0, 10.0), unit="$[^\circ]$"
-    ),
-    "nucleation_dip": Bounds(
-        physical_bounds=(0.0, 7.0), default_bounds=(0.0, 7.0), unit="$[^\circ]$"
-    ),
-    "velocities": Bounds(
-        physical_bounds=(0.5, 4.2), default_bounds=(0.5, 4.2), unit="$[km/s]$"
-    ),
-    "azimuth": Bounds(
-        physical_bounds=(0, 180), default_bounds=(0, 180), unit="$[^\circ]$"
-    ),
-    "amplitude": Bounds(
-        physical_bounds=(1e10, 1e20), default_bounds=(1e10, 1e20), unit="$[Nm]$"
-    ),
-    "locking_depth": Bounds(
-        physical_bounds=(1.0, 10.0), default_bounds=(1.0, 10.0), unit="$[km]$"
-    ),
     "hypers": Bounds(physical_bounds=(-2.0, 6.0), default_bounds=(-2.0, 6.0), unit=""),
     "ramp": Bounds(
         physical_bounds=(-0.005, 0.005), default_bounds=(-0.005, 0.005), unit="$[rad]$"
@@ -275,9 +232,6 @@ parameter_info = {
     ),
     "lon": Bounds(
         physical_bounds=(30.0, 30.5), default_bounds=(30.0, 30.5), unit="$[^\circ]$"
-    ),
-    "omega": Bounds(
-        physical_bounds=(0.5, 0.6), default_bounds=(0.5, 0.6), unit="$[^\circ/myr]$"
     ),
     "traction": Bounds(
         physical_bounds=(0, 10000), default_bounds=(0, 10000), unit="$[MPa]$"
@@ -311,9 +265,6 @@ parameter_info = {
     ),
     "delta_north_shift_bottom": Bounds(
         physical_bounds=(-500, 500), default_bounds=(-10, 10), unit="$[km]$"
-    ),
-    "depth_bottom": Bounds(
-        physical_bounds=(-20, 20), default_bounds=(-1, 1), unit="$[km]$"
     ),
     "curv_amplitude_bottom": Bounds(
         physical_bounds=moffdiag, default_bounds=moffdiag, unit=""
@@ -357,4 +308,5 @@ def get_defaults(force=True):
     return defaults
 
 
+defaults = get_defaults()
 defaults = get_defaults()

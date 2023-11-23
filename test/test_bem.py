@@ -2,23 +2,23 @@ import logging
 import unittest
 
 import numpy as num
+from matplotlib import pyplot as plt
 
-from numpy.testing import assert_allclose
+# from numpy.testing import assert_allclose
 from pyrocko import util
 from pyrocko.gf.targets import StaticTarget
 
 from beat.bem import (
     BEMEngine,
-    RingfaultBEMSource,
-    DiskBEMSource,
-    TriangleBEMSource,
-    RectangularBEMSource,
     CurvedBEMSource,
+    DiskBEMSource,
+    RectangularBEMSource,
+    RingfaultBEMSource,
+    TriangleBEMSource,
     check_intersection,
 )
-from beat.plotting.bem import slip_distribution_3d
 from beat.config import BEMConfig
-from matplotlib import pyplot as plt
+from beat.plotting.bem import slip_distribution_3d
 
 km = 1.0e3
 pi = num.pi
@@ -240,7 +240,6 @@ class TestBEM(unittest.TestCase):
         unittest.TestCase.__init__(self, *args, **kwargs)
 
     def _run_bem_engine(self, setup_function, plot=True, **kwargs):
-
         config, sources, targets = setup_function(**kwargs)
 
         engine = BEMEngine(config)
@@ -284,12 +283,12 @@ class TestBEM(unittest.TestCase):
         config, sources, _ = get_disk_ringfault_setup(intersect=True)
 
         intersect = check_intersection(sources, mesh_size=config.mesh_size * km)
-        assert intersect == True
+        assert intersect is True
 
         config, sources, _ = get_disk_ringfault_setup(intersect=False)
 
         intersect = check_intersection(sources, mesh_size=config.mesh_size * km)
-        assert intersect == False
+        assert intersect is False
 
 
 if __name__ == "__main__":

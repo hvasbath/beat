@@ -8,7 +8,6 @@ the course of sampling the chain.
 import logging
 import os
 import shutil
-from copy import deepcopy
 from time import time
 
 import numpy as num
@@ -93,9 +92,8 @@ class Metropolis(backend.ArrayStepSharedLLK):
         likelihood_name="like",
         backend="csv",
         proposal_name="MultivariateNormal",
-        **kwargs
+        **kwargs,
     ):
-
         model = modelcontext(model)
 
         if vars is None:
@@ -279,7 +277,6 @@ class Metropolis(backend.ArrayStepSharedLLK):
                     q = q0 + delta
                     q = q[self.discrete].astype(int)
             else:
-
                 q = q0 + delta
 
             try:
@@ -474,7 +471,6 @@ def metropolis_sample(
     )
 
     with model:
-
         chains = stage_handler.clean_directory(step.stage, chains, rm_flag)
 
         logger.info("Sampling stage ...")
