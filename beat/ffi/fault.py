@@ -11,8 +11,8 @@ from pyrocko.moment_tensor import moment_to_magnitude
 from pyrocko.orthodrome import latlon_to_ne_numpy, ne_to_latlon
 from pyrocko.plot import mpl_papersize
 from pyrocko.util import ensuredir
+from pytensor import shared
 from scipy.linalg import block_diag, svd
-from theano import shared
 
 from beat.config import (
     ResolutionDiscretizationConfig,
@@ -870,7 +870,7 @@ total number of patches: %i """ % (
         positions_strike : :class:`numpy.NdArray` float
             of positions in strike direction of the fault [km]
         backend : str
-            which implementation backend to use [numpy/theano]
+            which implementation backend to use [numpy/pytensor]
         """
         backend = get_backend(backend)
         dipidx = positions2idxs(

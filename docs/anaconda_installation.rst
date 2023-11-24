@@ -22,13 +22,13 @@ Download the beat source package from github (requires git to be installed on yo
 
 Download and install several required packages::
 
-  conda install -n beat libgfortran openblas theano pygpu openmpi pandas numpy openmpi
+  conda install -n beat libgfortran openblas pytensor pygpu openmpi pandas numpy openmpi
 
 Install mpi4py through conda-forge::
 
   conda install -c conda-forge mpi4py
 
-Configure theano to find your libraries by creating a file ".theanorc" in your home directory containing::
+Configure pytensor to find your libraries by creating a file ".pytensorrc" in your home directory containing::
 
   [blas]
   ldflags = -L/path/to/your/anaconda/environments/beat/lib -lopenblas -lgfortran
@@ -40,11 +40,11 @@ Configure theano to find your libraries by creating a file ".theanorc" in your h
   device = cpu
   floatX = float64
 
-For testing if numpy and theano installations worked fine::
+For testing if numpy and pytensor installations worked fine::
 
   cd ~/src/beat
   python3 test/numpy_test.py
-  THEANO_FLAGS=mode=FAST_RUN,device=cpu,floatX=float32 python3 test/gpu_test.py
+  PYTENSOR_FLAGS=mode=FAST_RUN,device=cpu,floatX=float32 python3 test/gpu_test.py
 
 Install pymc3 and pyrocko packages::
 

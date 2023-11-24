@@ -3,12 +3,12 @@ from collections import OrderedDict
 from logging import getLogger
 
 import numpy as num
-from pymc3 import Deterministic
+from pymc import Deterministic
 from pyrocko.util import ensuredir
 
 from beat import config as bconfig
 from beat.backend import SampleStage, thin_buffer
-from beat.models.distributions import hyper_normal, get_hyper_name
+from beat.models.distributions import get_hyper_name, hyper_normal
 
 logger = getLogger("models.base")
 
@@ -59,7 +59,6 @@ class Composite(object):
     """
 
     def __init__(self, events):
-
         self.input_rvs = OrderedDict()
         self.fixed_rvs = OrderedDict()
         self.hierarchicals = OrderedDict()
@@ -114,7 +113,7 @@ class Composite(object):
 
         Parameters
         ----------
-        list : of Theano shared variables
+        list : of Pytensor shared variables
             containing weight matrixes to use for updates
         """
 
@@ -184,7 +183,7 @@ def sample(step, problem):
     Parameters
     ----------
 
-    step : :class:`SMC` or :class:`pymc3.metropolis.Metropolis`
+    step : :class:`SMC` or :class:`pymc.metropolis.Metropolis`
         from problem.init_sampler()
     problem : :class:`Problem` with characteristics of problem to solve
     """
@@ -374,7 +373,6 @@ class Stage(object):
     mtrace = None
 
     def __init__(self, handler=None, homepath=None, stage_number=-1, backend="csv"):
-
         if handler is not None:
             self.handler = handler
         elif handler is None and homepath is not None:
@@ -393,7 +391,7 @@ class Stage(object):
 
         Parameters
         ----------
-        model : :class:`pymc3.model.Model`
+        model : :class:`pymc.model.Model`
         stage_number : int
             Number of stage to load
         chains : list, optional
@@ -443,7 +441,6 @@ class Stage(object):
 
 
 def load_stage(problem, stage_number, load="trace", chains=[-1]):
-
     stage = Stage(
         homepath=problem.outfolder,
         stage_number=stage_number,

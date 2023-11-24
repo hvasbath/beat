@@ -20,7 +20,7 @@ import numpy as num
 from pyrocko import catalog, orthodrome, util
 from pyrocko.cake import LayeredModel, m2d, read_nd_model_str
 from pyrocko.guts import Float, Int, Object
-from theano import config as tconfig
+from pytensor import config as tconfig
 
 logger = logging.getLogger("utility")
 
@@ -112,13 +112,13 @@ class Counter(object):
 
 class ListArrayOrdering(object):
     """
-    An ordering for a list to an array space. Takes also non theano.tensors.
+    An ordering for a list to an array space. Takes also non pytensor.tensors.
     Modified from pymc3 blocking.
 
     Parameters
     ----------
     list_arrays : list
-        :class:`numpy.ndarray` or :class:`theano.tensor.Tensor`
+        :class:`numpy.ndarray` or :class:`pytensor.tensor.Tensor`
     intype : str
         defining the input type 'tensor' or 'numpy'
     """
@@ -333,12 +333,12 @@ class ListToArrayBijection(object):
 
         Parameters
         ----------
-        tarray : :class:`theano.tensor.Tensor`
+        tarray : :class:`pytensor.tensor.Tensor`
 
         Returns
         -------
         a_list : list
-            of :class:`theano.tensor.Tensor`
+            of :class:`pytensor.tensor.Tensor`
         """
 
         a_list = copy.copy(self.list_arrays)

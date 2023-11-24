@@ -41,7 +41,7 @@ For all the heavy details I refer to these links:
 
 `Numpy configure <https://hunseblog.wordpress.com/2014/09/15/installing-numpy-and-openblas/>`__
 
-`Theano configure <http://www.johnwittenauer.net/configuring-theano-for-high-performance-deep-learning/>`__
+`Pytensor/Pytensor configure <http://www.johnwittenauer.net/configuring-Pytensor-for-high-performance-deep-learning/>`__
 
 
 OpenBlas
@@ -140,27 +140,27 @@ Depending on your hardware something around these numbers should be fine!::
     Eigendecomp of (1500,1500) matrix in 36.625 s
 
 
-Theano
+Pytensor
 """"""
-Theano is a package that was originally designed for deep learning and enables
+Pytensor is a package that was originally designed for deep learning and enables
 to compile the python code into GPU cuda code or CPU C++. Therefore, you can
 decide to use the GPU of your computer rather than the CPU, without needing to
 reimplement all the codes. Using the GPU is very much useful, if many heavy
 matrix multiplications have to be done, which is the case for some of the BEAT
 models (static and kinematic optimizers). Thus, it is worth to spent the time
-to configure your theano to efficiently use your GPU. Even if you dont plan to
+to configure your Pytensor to efficiently use your GPU. Even if you dont plan to
 use your GPU, these instructions will help boosting your CPU performance as
 well.
 
 For the bleeding edge installation do::
 
     cd ~/src
-    git clone https://github.com/Theano/Theano
-    cd Theano
-    python3 setup.py install
+    git clone https://github.com/pymc-devs/pytensor/
+    cd pytensor
+    pip3 install .
 
 For any troubleshooting and detailed installation instructions I refer to the
-`Theano <http://deeplearning.net/software/theano/install.html>`__ webpage.
+`Pytensor <http://deeplearning.net/software/Pytensor/install.html>`__ webpage.
 
 CPU setup
 #########
@@ -168,7 +168,7 @@ CPU setup
 Optional: Setup for libamdm
 ___________________________
 Only for 64-bit machines!
-This again speeds up the elementary operations! Theano will for sure work
+This again speeds up the elementary operations! Pytensor will for sure work
 without including this, but the performance increase (below)
 will convince you to do so ;) .
 
@@ -192,7 +192,7 @@ $ROOT=/usr/local/ ::
 
 General
 _______
-In your home directory create a file `.theanorc`.
+In your home directory create a file `.Pytensorrc`.
 The file has to be edited depending on the type of processing unit that is
 intended to be used. Set amdlibm = True if you did the optional step! ::
 
@@ -212,7 +212,7 @@ intended to be used. Set amdlibm = True if you did the optional step! ::
 
 GPU setup DEPRECATED
 ####################
-Only for Theano version < 0.9.
+Only for Pytensor version < 0.9.
 For NVIDIA graphics cards there is the CUDA package that needs to be installed.::
 
     sudo apt-get install nvidia-current
@@ -225,7 +225,7 @@ To check if the installation worked well type::
 
 This should display stats about your graphics card model.
 
-Now we have to tell theano where to find the cuda package.
+Now we have to tell Pytensor where to find the cuda package.
 For doing so we have to add the library folder to the $LD_LIBRARY_PATH and the
 CUDA root direct to the $PATH.
 
@@ -238,10 +238,10 @@ installation) add to your .bashrc file in the home directory::
     export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:$CUDA_LIB
     export PATH=${PATH}:$CUDA_ROOT
 
-Theano also supports OpenCL, however, I haven't set it up myself so far and
+Pytensor also supports OpenCL, however, I haven't set it up myself so far and
 cannot provide instructions on how to do it.
 
-In your home directory create a file `.theanorc` with these settings::
+In your home directory create a file `.Pytensorrc` with these settings::
 
     [blas]
     ldflags = -L/usr/local/lib -lopenblas -lgfortran
@@ -264,7 +264,7 @@ as intended::
 
 Using the CPU (amdlibm = False)::
 
-    THEANO_FLAGS=mode=FAST_RUN,device=cpu,floatX=float32 python3 test/gpu_test.py
+    Pytensor_FLAGS=mode=FAST_RUN,device=cpu,floatX=float32 python3 test/gpu_test.py
 
     [Elemwise{exp,no_inplace}(<TensorType(float32, vector)>)]
     Looping 1000 times took 2.717895 seconds
@@ -274,7 +274,7 @@ Using the CPU (amdlibm = False)::
 
 Using the CPU (amdlibm = True)::
 
-    THEANO_FLAGS=mode=FAST_RUN,device=cpu,floatX=float32 python3 test/gpu_test.py
+    Pytensor_FLAGS=mode=FAST_RUN,device=cpu,floatX=float32 python3 test/gpu_test.py
 
     [Elemwise{exp,no_inplace}(<TensorType(float32, vector)>)]
     Looping 1000 times took 0.703979 seconds
@@ -287,7 +287,7 @@ That's a speedup of 3.86! On the ELEMENTARY operations like exp(), log(), cos() 
 
 Using the GPU::
 
-    THEANO_FLAGS=mode=FAST_RUN,device=gpu,floatX=float32 python3 src/test/gpu_test.py
+    Pytensor_FLAGS=mode=FAST_RUN,device=gpu,floatX=float32 python3 src/test/gpu_test.py
 
     Using gpu device 0: Quadro 5000 (CNMeM is disabled, cuDNN not available)
     [GpuElemwise{exp,no_inplace}(<CudaNdarrayType(float32, vector)>),

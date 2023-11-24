@@ -3,12 +3,12 @@ import os
 from collections import OrderedDict
 from logging import getLogger
 
-from pymc3 import Deterministic
+from pymc import Deterministic
 from pyrocko.gf import LocalEngine
 from pyrocko.guts import dump
 from pyrocko.model import load_stations
-from theano import shared
-from theano.tensor import concatenate
+from pytensor import shared
+from pytensor.tensor import concatenate
 
 from beat import config as bconfig
 from beat.heart import (
@@ -20,7 +20,7 @@ from beat.heart import (
 )
 from beat.models.base import Composite
 from beat.models.distributions import polarity_llk
-from beat.theanof import PolaritySynthesizer
+from beat.pytensorf import PolaritySynthesizer
 from beat.utility import adjust_point_units, split_point, unique_list, update_source
 
 logger = getLogger("polarity")

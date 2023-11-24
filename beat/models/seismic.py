@@ -5,16 +5,16 @@ from logging import getLogger
 from time import time
 
 import numpy as num
-import theano.tensor as tt
-from pymc3 import Deterministic, Uniform
+import pytensor.tensor as tt
+from pymc import Deterministic, Uniform
 from pyrocko.gf import LocalEngine
 from pyrocko.trace import Trace
-from theano import config as tconfig
-from theano import shared
+from pytensor import config as tconfig
+from pytensor import shared
 
 from beat import config as bconfig
 from beat import covariance as cov
-from beat import heart, theanof, utility
+from beat import heart, pytensorf, utility
 from beat.ffi import get_gf_prefix, load_gf_library
 from beat.models.base import (
     Composite,
@@ -448,7 +448,7 @@ class SeismicComposite(Composite):
 
         Parameters
         ----------
-        point : :func:`pymc3.Point`
+        point : :func:`pymc.Point`
             Dictionary with model parameters
         force : bool
             force preparation of data with input params otherwise cached is
@@ -744,16 +744,16 @@ class SeismicGeometryComposite(SeismicComposite):
         Parameters
         ----------
         input_rvs : list
-            of :class:`pymc3.distribution.Distribution` of source parameters
+            of :class:`pymc.distribution.Distribution` of source parameters
         fixed_rvs : dict
             of :class:`numpy.array`
         hyperparams : dict
-            of :class:`pymc3.distribution.Distribution`
+            of :class:`pymc.distribution.Distribution`
         problem_config : :class:`config.ProblemConfig`
 
         Returns
         -------
-        posterior_llk : :class:`theano.tensor.Tensor`
+        posterior_llk : :class:`pytensor.tensor.Tensor`
         """
         chop_bounds = ["b", "c"]  # we want llk calculation only between b c
 
@@ -809,7 +809,7 @@ class SeismicGeometryComposite(SeismicComposite):
                 )
                 sources = [self.sources[wc.event_idx]]
 
-            self.synthesizers[wmap._mapid] = theanof.SeisSynthesizer(
+            self.synthesizers[wmap._mapid] = pytensorf.SeisSynthesizer(
                 engine=self.engine,
                 sources=sources,
                 targets=wmap.targets,
@@ -848,7 +848,7 @@ class SeismicGeometryComposite(SeismicComposite):
 
         Parameters
         ----------
-        point : :func:`pymc3.Point`
+        point : :func:`pymc.Point`
             Dictionary with model parameters
         kwargs especially to change output of seismic forward model
             outmode = 'traces'/ 'array' / 'data'
@@ -1103,7 +1103,7 @@ class SeismicDistributerComposite(SeismicComposite):
                 )
 
                 self.sweepers.append(
-                    theanof.Sweeper(
+                    pytensorf.Sweeper(
                         dgc.patch_lengths[idx],
                         n_p_dip,
                         n_p_strike,
@@ -1158,7 +1158,7 @@ class SeismicDistributerComposite(SeismicComposite):
         crust_inds : list
             of int to indexes of Green's Functions
         make_shared : bool
-            if True transforms gfs to :class:`theano.shared` variables
+            if True transforms gfs to :class:`pytensor.shared` variables
         """
         if not isinstance(crust_inds, list):
             raise TypeError("crust_inds need to be a list!")
@@ -1257,7 +1257,7 @@ class SeismicDistributerComposite(SeismicComposite):
                 index=index,
                 positions_dip=nuc_dip[index],
                 positions_strike=nuc_strike[index],
-                backend="theano",
+                backend="pytensor",
             )
 
             sf_patch_indexs = self.fault.cum_subfault_npatches[index : index + 2]
@@ -1355,7 +1355,7 @@ class SeismicDistributerComposite(SeismicComposite):
 
         Parameters
         ----------
-        point : :func:`pymc3.Point`
+        point : :func:`pymc.Point`
             Dictionary with model parameters
         kwargs especially to change output of the forward model
             outmode: stacked_traces/ tapered_data/ array

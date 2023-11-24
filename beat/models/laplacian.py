@@ -2,10 +2,10 @@ import os
 from logging import getLogger
 
 import numpy as num
-from pymc3 import Deterministic
-from theano import config as tconfig
-from theano import shared
-from theano import tensor as tt
+from pymc import Deterministic
+from pytensor import config as tconfig
+from pytensor import shared
+from pytensor import tensor as tt
 
 from beat import config as bconfig
 from beat.heart import log_determinant
@@ -99,22 +99,22 @@ class LaplacianDistributerComposite(Composite):
         """
         Get smoothing likelihood formula for the model built. Has to be called
         within a with model context.
-        Part of the pymc3 model.
+        Part of the pymc model.
 
         Parameters
         ----------
         input_rvs : dict
-            of :class:`pymc3.distribution.Distribution`
+            of :class:`pymc.distribution.Distribution`
         fixed_rvs : dict
             of :class:`numpy.array` here only dummy
         hyperparams : dict
-            of :class:`pymc3.distribution.Distribution`
+            of :class:`pymc.distribution.Distribution`
         problem_config : :class:`config.ProblemConfig`
             here it is not used
 
         Returns
         -------
-        posterior_llk : :class:`theano.tensor.Tensor`
+        posterior_llk : :class:`pytensor.tensor.Tensor`
         """
 
         logger.info("Initialising Laplacian smoothing operator ...")

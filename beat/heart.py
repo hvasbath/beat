@@ -29,9 +29,9 @@ from pyrocko.guts_array import Array
 from pyrocko.model import Event, gnss
 from pyrocko.moment_tensor import to6
 from pyrocko.spit import OutOfBounds
+from pytensor import config as tconfig
+from pytensor import shared
 from scipy import linalg
-from theano import config as tconfig
-from theano import shared
 
 from beat import utility
 from beat.defaults import defaults
@@ -246,7 +246,7 @@ class Covariance(Object):
     def update_slog_pdet(self):
         """
         Update shared variable with current log_norm_factor (lnf)
-        (for theano models).
+        (for pytensor models).
         """
         self.slog_pdet.set_value(self.log_pdet)
         self.slog_pdet.astype(tconfig.floatX)
@@ -2859,7 +2859,7 @@ class WaveformMapping(BaseMapping):
     stations : list
         of :class:`pyrocko.model.Station`
     weights : list
-        of theano.shared variables
+        of pytensor.shared variables
     channels : list
         of channel names valid for all the stations of this wavemap
     datasets : list
@@ -4463,11 +4463,11 @@ def get_ramp_displacement(locx, locy, azimuth_ramp, range_ramp, offset):
         local coordinates [km] in east direction
     locy : shared array-like :class:`numpy.ndarray`
         local coordinates [km] in north direction
-    azimuth_ramp : :class:`theano.tensor.Tensor` or :class:`numpy.ndarray`
+    azimuth_ramp : :class:`pytensor.tensor.Tensor` or :class:`numpy.ndarray`
         vector with ramp parameter in azimuth
-    range_ramp : :class:`theano.tensor.Tensor` or :class:`numpy.ndarray`
+    range_ramp : :class:`pytensor.tensor.Tensor` or :class:`numpy.ndarray`
         vector with ramp parameter in range
-    offset : :class:`theano.tensor.Tensor` or :class:`numpy.ndarray`
+    offset : :class:`pytensor.tensor.Tensor` or :class:`numpy.ndarray`
         scalar of offset in [m]
     """
     return locy * azimuth_ramp + locx * range_ramp + offset

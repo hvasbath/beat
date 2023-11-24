@@ -1,9 +1,9 @@
 from logging import getLogger
 
 import numpy as num
-import theano.tensor as tt
-from theano import config as tconfig
-from theano import shared
+import pytensor.tensor as tt
+from pytensor import config as tconfig
+from pytensor import shared
 
 from beat.utility import Counter
 
@@ -37,10 +37,10 @@ def multivariate_normal(datasets, weights, hyperparams, residuals):
     datasets : list
         of :class:`heart.SeismicDataset` or :class:`heart.GeodeticDataset`
     weights : list
-        of :class:`theano.shared`
+        of :class:`pytensor.shared`
         Square matrix of the inverse of the covariance matrix as weights
     hyperparams : dict
-        of :class:`theano.`
+        of :class:`pytensor.`
     residual : list or array of model residuals
 
     Returns
@@ -83,11 +83,11 @@ def multivariate_normal_chol(
     datasets : list
         of :class:`heart.SeismicDataset` or :class:`heart.GeodeticDataset`
     weights : list
-        of :class:`theano.shared`
+        of :class:`pytensor.shared`
         Square matrix of the inverse of the lower triangular matrix of a
         cholesky decomposed covariance matrix
     hyperparams : dict
-        of :class:`theano.`
+        of :class:`pytensor.`
     residual : list or array of model residuals
     hp_specific : boolean
         if true, the hyperparameters have to be arrays size equal to
@@ -106,7 +106,7 @@ def multivariate_normal_chol(
     adapted from https://www.quora.com/What-is-the-role-of-the-Cholesky-decomposition-in-finding-multivariate-normal-PDF
     """
     if sparse:
-        import theano.sparse as ts
+        import pytensor.sparse as ts
 
         dot = ts.dot
     else:
@@ -182,7 +182,7 @@ def hyper_normal(datasets, hyperparams, llks, hp_specific=False):
     datasets : list
         of :class:`heart.SeismicDatset` or :class:`heart.GeodeticDataset`
     hyperparams : dict
-        of :class:`theano.`
+        of :class:`pytensor.`
     llks : posterior likelihoods
     hp_specific : boolean
         if true, the hyperparameters have to be arrays size equal to

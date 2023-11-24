@@ -2,11 +2,11 @@ import logging
 from time import time
 
 import numpy as num
-from pymc3 import Point
+from pymc import Point
 from pyrocko import gf, trace
+from pytensor import config as tconfig
 from scipy.linalg import toeplitz
 from scipy.spatial import KDTree
-from theano import config as tconfig
 
 from beat import heart
 from beat.utility import distances, ensure_cov_psd, list2string, running_window_rms
@@ -42,7 +42,7 @@ def exponential_data_covariance(n, dt, tzero):
     Notes
     -----
     Cd(i,j) = (Variance of trace)*exp(-abs(ti-tj)/
-                                     (shortest period T0 of waves))
+                (shortest period T0 of waves))
 
     i,j are samples of the seismic trace
     """

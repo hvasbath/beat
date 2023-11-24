@@ -15,7 +15,7 @@ if True:  # noqa: E402
     from pickle import HIGHEST_PROTOCOL
 
     import numpy as num
-    from theano import config as tconfig
+    from pytensor import config as tconfig
 
     from beat.backend import MemoryChain, SampleStage, backend_catalog
     from beat.config import sample_p_outname
@@ -949,4 +949,5 @@ if __name__ == "__main__":
     setup_logging(
         project_dir=project_dir, levelname=levelname, logfilename="BEAT_log.txt"
     )
+
     _sample()

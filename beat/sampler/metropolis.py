@@ -11,14 +11,14 @@ import shutil
 from time import time
 
 import numpy as num
-from pymc3.backends import text
-from pymc3.model import Point, modelcontext
-from pymc3.step_methods.metropolis import metrop_select
-from pymc3.step_methods.metropolis import tune as step_tune
-from pymc3.theanof import inputvars, make_shared_replacements
-from pymc3.vartypes import discrete_types
+from pymc.backends import text
+from pymc.model import Point, modelcontext
+from pymc.pytensorf import inputvars, make_shared_replacements
+from pymc.step_methods.metropolis import metrop_select
+from pymc.step_methods.metropolis import tune as step_tune
+from pymc.vartypes import discrete_types
 from pyrocko import util
-from theano import config as tconfig
+from pytensor import config as tconfig
 
 from beat import backend, utility
 from beat.covariance import init_proposal_covariance

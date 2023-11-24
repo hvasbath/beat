@@ -6,7 +6,7 @@
 Documentation of the current version moved to the pyrocko server can be found here:
 https://pyrocko.org/beat/
 
-Based on pyrocko, theano and pymc3
+Based on pyrocko, pytensor and pymc
 
 ## Tutorials
 Step by step points on how to use the tool for several scenarios can be found here:

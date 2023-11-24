@@ -5,15 +5,15 @@ from logging import getLogger
 from time import time
 
 import numpy as num
-import theano.tensor as tt
-from pymc3 import Deterministic, Uniform
+import pytensor.tensor as tt
+from pymc import Deterministic, Uniform
 from pyrocko.gf import LocalEngine, RectangularSource
-from theano import config as tconfig
-from theano import shared
+from pytensor import config as tconfig
+from pytensor import shared
 
 from beat import config as bconfig
 from beat import covariance as cov
-from beat import heart, theanof, utility
+from beat import heart, pytensorf, utility
 from beat.ffi import get_gf_prefix, load_gf_library
 from beat.interseismic import geo_backslip_synthetics, seperate_point
 from beat.models.base import (
@@ -214,7 +214,7 @@ class GeodeticComposite(Composite):
 
         Parameters
         ----------
-        point : :func:`pymc3.Point`
+        point : :func:`pymc.Point`
             Dictionary with model parameters
 
         Returns
@@ -633,21 +633,21 @@ class GeodeticSourceComposite(GeodeticComposite):
         """
         Get geodetic likelihood formula for the model built. Has to be called
         within a with model context.
-        Part of the pymc3 model.
+        Part of the pymc model.
 
         Parameters
         ----------
         input_rvs : dict
-            of :class:`pymc3.distribution.Distribution`
+            of :class:`pymc.distribution.Distribution`
         fixed_rvs : dict
             of :class:`numpy.array`
         hyperparams : dict
-            of :class:`pymc3.distribution.Distribution`
+            of :class:`pymc.distribution.Distribution`
         problem_config : :class:`config.ProblemConfig`
 
         Returns
         -------
-        posterior_llk : :class:`theano.tensor.Tensor`
+        posterior_llk : :class:`pytensor.tensor.Tensor`
         """
         hp_specific = self.config.dataset_specific_residual_noise_estimation
         tpoint = problem_config.get_test_point()
@@ -696,7 +696,7 @@ class GeodeticGeometryComposite(GeodeticSourceComposite):
         if not hypers:
             # synthetics generation
             logger.debug("Initialising synthetics functions ... \n")
-            self.get_synths = theanof.GeoSynthesizer(
+            self.get_synths = pytensorf.GeoSynthesizer(
                 engine=self.engine,
                 sources=self.sources,
                 targets=self.targets,
@@ -732,7 +732,7 @@ class GeodeticGeometryComposite(GeodeticSourceComposite):
 
         Parameters
         ----------
-        point : :func:`pymc3.Point`
+        point : :func:`pymc.Point`
             Dictionary with model parameters
 
         Returns
@@ -837,7 +837,7 @@ class GeodeticBEMComposite(GeodeticSourceComposite):
         if not hypers:
             # synthetics generation
             logger.debug("Initialising synthetics functions ... \n")
-            self.get_synths = theanof.GeoSynthesizer(
+            self.get_synths = pytensorf.GeoSynthesizer(
                 engine=self.engine,
                 sources=self.sources,
                 targets=self.targets,
@@ -850,7 +850,7 @@ class GeodeticBEMComposite(GeodeticSourceComposite):
 
         Parameters
         ----------
-        point : :func:`pymc3.Point`
+        point : :func:`pymc.Point`
             Dictionary with model parameters
         kwargs especially to change output of the forward model
 
@@ -964,7 +964,7 @@ class GeodeticInterseismicComposite(GeodeticSourceComposite):
             self._lats = self.Bij.l2a([data.lats for data in self.datasets])
             self._lons = self.Bij.l2a([data.lons for data in self.datasets])
 
-            self.get_synths = theanof.GeoInterseismicSynthesizer(
+            self.get_synths = pytensorf.GeoInterseismicSynthesizer(
                 lats=self._lats,
                 lons=self._lons,
                 engine=self.engine,
@@ -979,7 +979,7 @@ class GeodeticInterseismicComposite(GeodeticSourceComposite):
 
         Parameters
         ----------
-        point : :func:`pymc3.Point`
+        point : :func:`pymc.Point`
             Dictionary with model parameters
         kwargs especially to change output of the forward model
 
@@ -1048,7 +1048,7 @@ class GeodeticDistributerComposite(GeodeticComposite):
         crust_inds : list
             of int to indexes of Green's Functions
         make_shared : bool
-            if True transforms gfs to :class:`theano.shared` variables
+            if True transforms gfs to :class:`pytensor.shared` variables
         """
 
         if crust_inds is None:
@@ -1125,13 +1125,13 @@ class GeodeticDistributerComposite(GeodeticComposite):
         Parameters
         ----------
         input_rvs : list
-            of :class:`pymc3.distribution.Distribution`
+            of :class:`pymc.distribution.Distribution`
         hyperparams : dict
-            of :class:`pymc3.distribution.Distribution`
+            of :class:`pymc.distribution.Distribution`
 
         Returns
         -------
-        llk : :class:`theano.tensor.Tensor`
+        llk : :class:`pytensor.tensor.Tensor`
             log-likelihood for the distributed slip
         """
         logger.info(f"Loading {self.name} Green's Functions")
@@ -1180,7 +1180,7 @@ class GeodeticDistributerComposite(GeodeticComposite):
 
         Parameters
         ----------
-        point : :func:`pymc3.Point`
+        point : :func:`pymc.Point`
             Dictionary with model parameters
         kwargs especially to change output of the forward model
 

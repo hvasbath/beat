@@ -9,8 +9,8 @@ from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 from pymc3 import quantiles
 from pyrocko.guts import Bool, Dict, Int, List, Object, String, StringChoice
 from pyrocko.plot import mpl_graph_color, mpl_papersize
+from pytensor import config as tconfig
 from scipy.stats import kde
-from theano import config as tconfig
 
 from beat import utility
 

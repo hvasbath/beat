@@ -9,9 +9,9 @@ The variations in the likelihood space are too large. When normalising the space
 Please reduce the potential search interval for hyper parameters "h_*", i.e. reduce and/or increase the upper and/or lower bounds in the
 project config_*.yaml, respectively.
 
-| **2. Theano MKL support**
+| **2. Pytensor MKL support**
 
-RuntimeError: To use MKL 2018 with Theano you MUST set "MKL_THREADING_LAYER=GNU" in your environment.
+RuntimeError: To use MKL 2018 with Pytensor you MUST set "MKL_THREADING_LAYER=GNU" in your environment.
 
 | add
 | export MKL_THREADING_LAYER=GNU
@@ -20,9 +20,9 @@ RuntimeError: To use MKL 2018 with Theano you MUST set "MKL_THREADING_LAYER=GNU"
 | **3. Slow compilation**
 
 No error will be thrown, but during "beat sample" the compilation of the forward model function ḿay take a long time.
-In such a case the default compilation flags of theano may be overwritten. This may result in longer runtime.::
+In such a case the default compilation flags of Pytensor may be overwritten. This may result in longer runtime.::
 
-  THEANO_FLAGS=optimizer=fast_compile beat sample Projectpath
+  PYTENSOR_FLAGS=optimizer=fast_compile beat sample Projectpath
 
 | **4. MPI rank always 0**
 

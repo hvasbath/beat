@@ -91,7 +91,7 @@ class ArrayStepSharedLLK(BlockedStep):
     out_vars : list
         variables to be stored in the traces
     shared : dict
-        theano variable -> shared variables
+        pytensor variable -> shared variables
     blocked : boolean
         (default True)
     """

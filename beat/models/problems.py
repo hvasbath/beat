@@ -4,18 +4,18 @@ import time
 from logging import getLogger
 
 import numpy as num
-import theano.tensor as tt
-from pymc3 import Deterministic, Model, Potential, Uniform
+import pytensor.tensor as tt
+from pymc import Deterministic, Model, Potential, Uniform
 from pyrocko import util
 from pyrocko.model import get_effective_latlon
-from theano import config as tconfig
+from pytensor import config as tconfig
 
 from beat import config as bconfig
 from beat.backend import ListArrayOrdering, ListToArrayBijection
 from beat.models import geodetic, laplacian, polarity, seismic
 from beat.utility import list2string, transform_sources, weed_input_rvs
 
-# disable theano rounding warning
+# disable pytensor rounding warning
 tconfig.warn.round = False
 
 km = 1000.0
@@ -212,7 +212,7 @@ class Problem(object):
 
     def built_model(self):
         """
-        Initialise :class:`pymc3.Model` depending on problem composites,
+        Initialise :class:`pymc.Model` depending on problem composites,
         geodetic and/or seismic data are included. Composites also determine
         the problem to be solved.
         """
@@ -264,7 +264,7 @@ class Problem(object):
 
     def built_hyper_model(self):
         """
-        Initialise :class:`pymc3.Model` depending on configuration file,
+        Initialise :class:`pymc.Model` depending on configuration file,
         geodetic and/or seismic data are included. Estimates initial parameter
         bounds for hyperparameters.
         """
@@ -469,7 +469,7 @@ class Problem(object):
 
         Parameters
         ----------
-        point : :func:`pymc3.Point`
+        point : :func:`pymc.Point`
             Dictionary with model parameters, for which the VRs are calculated
         """
         vrs = {}
@@ -496,7 +496,7 @@ class Problem(object):
 
         Parameters
         ----------
-        point : :func:`pymc3.Point`
+        point : :func:`pymc.Point`
             Dictionary with model parameters, for which the sources are
             updated
         """
@@ -509,7 +509,7 @@ class Problem(object):
 
         Parameters
         ----------
-        point : :func:`pymc3.Point`
+        point : :func:`pymc.Point`
             Dictionary with model parameters, for which the events are
             returned
 
@@ -540,7 +540,7 @@ class Problem(object):
 
         Parameters
         ----------
-        point : :func:`pymc3.Point`
+        point : :func:`pymc.Point`
             Dictionary with model parameters, for which the covariance matrixes
             with respect to velocity model uncertainties are calculated
         n_jobs : int
@@ -569,7 +569,7 @@ class Problem(object):
 
         Parameters
         ----------
-        point : :func:`pymc3.Point`
+        point : :func:`pymc.Point`
             Dictionary with model parameters
         kwargs especially to change output of seismic forward model
             outmode = 'traces'/ 'array' / 'data'

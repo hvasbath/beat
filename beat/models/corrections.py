@@ -3,15 +3,15 @@ from collections import OrderedDict
 
 from numpy import array
 from pyrocko import orthodrome
-from theano import config as tconfig
-from theano import shared
+from pytensor import config as tconfig
+from pytensor import shared
 
 from beat.heart import (
     get_ramp_displacement,
     velocities_from_pole,
     velocities_from_strain_rate_tensor,
 )
-from beat.theanof import EulerPole, StrainRateTensor
+from beat.pytensorf import EulerPole, StrainRateTensor
 
 logger = logging.getLogger("models.corrections")
 
@@ -115,7 +115,7 @@ class EulerPoleCorrection(Correction):
         if not self.correction_names:
             raise ValueError("Requested correction, but is not setup or configured!")
 
-        if not point:  # theano instance for get_formula
+        if not point:  # pytensor instance for get_formula
             inputs = OrderedDict()
             for corr_name in self.correction_names:
                 inputs[corr_name] = hierarchicals[corr_name]
@@ -174,7 +174,7 @@ class StrainRateCorrection(Correction):
         if not self.correction_names:
             raise ValueError("Requested correction, but is not setup or configured!")
 
-        if not point:  # theano instance for get_formula
+        if not point:  # pytensor instance for get_formula
             inputs = OrderedDict()
             for corr_name in self.correction_names:
                 inputs[corr_name] = hierarchicals[corr_name]

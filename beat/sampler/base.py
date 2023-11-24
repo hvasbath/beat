@@ -12,11 +12,11 @@ from numpy.random import (
     standard_cauchy,
     standard_exponential,
 )
-from pymc3 import CompoundStep
-from pymc3.model import Point, modelcontext
-from pymc3.sampling import stop_tuning
-from pymc3.theanof import join_nonshared_inputs
-from theano import function
+from pymc import CompoundStep
+from pymc.model import Point, modelcontext
+from pymc.pytensorf import join_nonshared_inputs
+from pymc.sampling import stop_tuning
+from pytensor import function
 from tqdm import tqdm
 
 from beat import parallel
@@ -233,7 +233,6 @@ def setup_chain_counter(n_chains, n_jobs):
 
 class ChainCounter(object):
     def __init__(self, n, n_jobs, perc_disp=0.2, subject="chains"):
-
         n_chains_worker = n // n_jobs
         frac_disp = int(np.ceil(n_chains_worker * perc_disp))
 
@@ -271,7 +270,6 @@ def _sample(
     model=None,
     random_seed=-1,
 ):
-
     shared_params = [
         sparam
         for sparam in step.logp_forw.get_shared()
@@ -598,7 +596,7 @@ def iter_parallel_chains(
 
 def logp_forw(out_vars, vars, shared):
     """
-    Compile Theano function of the model and the input and output variables.
+    Compile Pytensor function of the model and the input and output variables.
 
     Parameters
     ----------
@@ -607,7 +605,7 @@ def logp_forw(out_vars, vars, shared):
     vars : List
         containing :class:`pymc3.Distribution` for the input variables
     shared : List
-        containing :class:`theano.tensor.Tensor` for dependent shared data
+        containing :class:`pytensor.tensor.Tensor` for dependent shared data
     """
     out_list, inarray0 = join_nonshared_inputs(out_vars, vars, shared)
     f = function([inarray0], out_list)

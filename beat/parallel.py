@@ -289,7 +289,7 @@ def memshare(parameternames):
     Parameters
     ----------
     parameternames : list of str
-        off names to :class:`theano.tensor.sharedvar.TensorSharedVariable`
+        off names to :class:`pytensor.tensor.sharedvar.TensorSharedVariable`
     """
     for paramname in parameternames:
         if not isinstance(paramname, str):
@@ -303,36 +303,36 @@ def memshare(parameternames):
 
 def memshare_sparams(shared_params):
     """
-    For each parameter in a list of Theano TensorSharedVariable
+    For each parameter in a list of pytensor TensorSharedVariable
     we substitute the memory with a sharedctype using the
     multiprocessing library.
 
     The wrapped memory can then be used by other child processes
     thereby synchronising different instances of a model across
     processes (e.g. for multi cpu gradient descent using single cpu
-    Theano code).
+    pytensor code).
 
     Parameters
     ----------
     shared_params : list
-        of :class:`theano.tensor.sharedvar.TensorSharedVariable`
+        of :class:`pytensor.tensor.sharedvar.TensorSharedVariable`
 
     Returns
     -------
     memshared_instances : list
         of :class:`multiprocessing.sharedctypes.RawArray`
         list of sharedctypes (shared memory arrays) that point
-        to the memory used by the current process's Theano variable.
+        to the memory used by the current process's pytensor variable.
 
     Notes
     -----
     Modified from:
-    https://github.com/JonathanRaiman/theano_lstm/blob/master/theano_lstm/shared_memory.py
+    https://github.com/JonathanRaiman/pytensor_lstm/blob/master/pytensor_lstm/shared_memory.py
 
-    # define some theano function:
+    # define some pytensor function:
     myfunction = myfunction(20, 50, etc...)
 
-    # wrap the memory of the Theano variables:
+    # wrap the memory of the pytensor variables:
     memshared_instances = make_params_shared(myfunction.get_shared())
 
     Then you can use this memory in child processes
@@ -360,12 +360,12 @@ def memshare_sparams(shared_params):
 def borrow_memory(shared_param, memshared_instance, shape):
     """
     Spawn different processes with the shared memory
-    of your theano model's variables.
+    of your pytensor model's variables.
 
     Parameters
     ----------
-    shared_param : :class:`theano.tensor.sharedvar.TensorSharedVariable`
-        the Theano shared variable where
+    shared_param : :class:`pytensor.tensor.sharedvar.TensorSharedVariable`
+        the pytensor shared variable where
         shared memory should be used instead.
     memshared_instance : :class:`multiprocessing.RawArray`
         the memory shared across processes (e.g.from `memshare_sparams`)
@@ -375,20 +375,20 @@ def borrow_memory(shared_param, memshared_instance, shape):
     Notes
     -----
     Modiefied from:
-    https://github.com/JonathanRaiman/theano_lstm/blob/master/theano_lstm/shared_memory.py
+    https://github.com/JonathanRaiman/pytensor_lstm/blob/master/pytensor_lstm/shared_memory.py
 
-    For each process in the target function run the theano_borrow_memory
+    For each process in the target function run the pytensor_borrow_memory
     method on the parameters you want to have share memory across processes.
     In this example we have a model called "mymodel" with parameters stored in
-    a list called "params". We loop through each theano shared variable and
+    a list called "params". We loop through each pytensor shared variable and
     call `borrow_memory` on it to share memory across processes.
 
     Examples
     --------
     >>> def spawn_model(path, wrapped_params):
         # prevent recompilation and arbitrary locks
-    >>>     theano.config.reoptimize_unpickled_function = False
-    >>>     theano.gof.compilelock.set_lock_status(False)
+    >>>     pytensor.config.reoptimize_unpickled_function = False
+    >>>     pytensor.gof.compilelock.set_lock_status(False)
         # load your function from its pickled instance (from path)
     >>>     myfunction = MyFunction.load(path)
         # for each parameter in your function
@@ -416,14 +416,14 @@ def borrow_memory(shared_param, memshared_instance, shape):
 
 def borrow_all_memories(shared_params, memshared_instances):
     """
-    Run theano_borrow_memory on a list of params and shared memory
+    Run pytensor_borrow_memory on a list of params and shared memory
     sharedctypes.
 
     Parameters
     ----------
     shared_params : list
-        of :class:`theano.tensor.sharedvar.TensorSharedVariable`
-        the Theano shared variable where
+        of :class:`pytensor.tensor.sharedvar.TensorSharedVariable`
+        the pytensor shared variable where
         shared memory should be used instead.
     memshared_instances : dict of tuples
         of :class:`multiprocessing.RawArray` and their shapes
@@ -432,7 +432,7 @@ def borrow_all_memories(shared_params, memshared_instances):
     Notes
     -----
     Same as `borrow_memory` but for lists of shared memories and
-    theano variables. See `borrow_memory`
+    pytensor variables. See `borrow_memory`
     """
     for sparam in shared_params:
         borrow_memory(sparam, *memshared_instances[sparam.name])

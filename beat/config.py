@@ -10,6 +10,8 @@ kinematic distributed slip.
 import logging
 import os
 from collections import OrderedDict
+from typing import Dict as TDict
+from typing import List as TList
 
 import numpy as num
 from pyrocko import gf, model, trace, util
@@ -30,13 +32,11 @@ from pyrocko.guts import (
     dump,
     load,
 )
-from typing import Dict as TDict
-from typing import List as TList
-
-from theano import config as tconfig
+from pytensor import config as tconfig
 
 from beat import utility
 from beat.covariance import available_noise_structures, available_noise_structures_2d
+from beat.defaults import default_decimation_factors, defaults
 from beat.heart import (
     ArrivalTaper,
     Filter,
@@ -45,12 +45,9 @@ from beat.heart import (
     ReferenceLocation,
     _domain_choices,
 )
-from beat.defaults import default_decimation_factors, defaults
-from beat.sources import (
-    RectangularSource,
-    stf_catalog,
-    source_catalog as geometry_source_catalog,
-)
+from beat.sources import RectangularSource
+from beat.sources import source_catalog as geometry_source_catalog
+from beat.sources import stf_catalog
 from beat.utility import check_point_keys, list2string
 
 try:

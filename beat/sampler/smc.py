@@ -95,9 +95,8 @@ class SMC(Metropolis):
         proposal_name="MultivariateNormal",
         backend="csv",
         coef_variation=1.0,
-        **kwargs
+        **kwargs,
     ):
-
         super(SMC, self).__init__(
             vars=vars,
             out_vars=out_vars,
@@ -111,7 +110,7 @@ class SMC(Metropolis):
             likelihood_name=likelihood_name,
             backend=backend,
             proposal_name=proposal_name,
-            **kwargs
+            **kwargs,
         )
 
         self.beta = 0
@@ -258,7 +257,6 @@ class SMC(Metropolis):
         n_steps = len(mtrace)
 
         for _, slc, shp, _, var in self.lordering.vmap:
-
             slc_population = mtrace.get_values(
                 varname=var, burn=n_steps - 1, combine=True
             )
@@ -376,7 +374,7 @@ def smc_sample(
         continue after completed stages (stage should be the number of the
         completed stage + 1). If None the start will be at stage = 0.
     n_jobs : int
-        The number of cores to be used in parallel. Be aware that theano has
+        The number of cores to be used in parallel. Be aware that pytensor has
         internal parallelisation. Sometimes this is more efficient especially
         for simple models.
         step.n_chains / n_jobs has to be an integer number!
@@ -577,4 +575,5 @@ def tune(acc_rate):
     # a and b after Muto & Beck 2008 .
     a = 1.0 / 9
     b = 8.0 / 9
+    return np.power((a + (b * acc_rate)), 2)
     return np.power((a + (b * acc_rate)), 2)

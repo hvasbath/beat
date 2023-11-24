@@ -369,7 +369,7 @@ intersphinx_mapping = {
     "numpy": ("http://docs.scipy.org/doc/numpy/", None),
     "pymc3": ("https://docs.pymc.io/", None),
     "pyrocko": ("https://pyrocko.org/", None),
-    "theano": ("https://theano-pymc.readthedocs.io/", None),
+    "pytensor": ("https://pytensor.readthedocs.io/", None),
 }
 
 

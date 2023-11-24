@@ -1044,8 +1044,8 @@ def result_check(mtrace, min_length):
 
 
 def command_summarize(args):
+    from arviz import summary
     from numpy import ravel, split, vstack
-    from pymc3 import summary
     from pyrocko.gf import RectangularSource
 
     command_str = "summarize"

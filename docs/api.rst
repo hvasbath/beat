@@ -106,10 +106,10 @@ The :mod:`covariance` Module
    :members:
 
 
-The :mod:`theanof` Module
+The :mod:`Pytensor` Module
 -------------------------
 
-.. automodule:: theanof
+.. automodule:: pytensor
    :members:
 
 
