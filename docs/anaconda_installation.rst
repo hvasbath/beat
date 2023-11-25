@@ -46,9 +46,9 @@ For testing if numpy and pytensor installations worked fine::
   python3 test/numpy_test.py
   PYTENSOR_FLAGS=mode=FAST_RUN,device=cpu,floatX=float32 python3 test/gpu_test.py
 
-Install pymc3 and pyrocko packages::
+Install pymc pyrocko packages::
 
-  conda install -n beat -c conda-forge pymc3=3.4.1
+  conda install -n beat -c conda-forge pymc=5.9.2
   conda install -n beat -c pyrocko pyrocko
 
 Once all the requirements are installed we install BEAT with::

@@ -45,9 +45,8 @@ from beat.heart import (
     ReferenceLocation,
     _domain_choices,
 )
-from beat.sources import RectangularSource
+from beat.sources import RectangularSource, stf_catalog
 from beat.sources import source_catalog as geometry_source_catalog
-from beat.sources import stf_catalog
 from beat.utility import check_point_keys, list2string
 
 try:
@@ -1500,7 +1499,7 @@ class ProblemConfig(Object):
         fixed_params : dict
             fixed random parameters
         """
-        from pymc3 import Uniform
+        from pymc import Uniform
 
         logger.debug("Optimization for %s sources", list2string(self.n_sources))
 

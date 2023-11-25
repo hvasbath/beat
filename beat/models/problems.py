@@ -245,10 +245,10 @@ class Problem(object):
                 )
 
             # deterministic RV to write out llks to file
-            like = Deterministic("tmp", total_llk)
+            llk = Deterministic(self._like_name, total_llk)  # noqa: F841
 
-            # will overwrite deterministic name ...
-            llk = Potential(self._like_name, like)  # noqa: F841
+            # will overwrite deterministic name ... TODO remove?
+            # llk = Potential(, like)  # noqa: F841
             logger.info("Model building was successful! \n")
 
     def plant_lijection(self):

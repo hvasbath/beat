@@ -1646,7 +1646,6 @@ def fuzzy_mt_decomposition(axes, list_m6s, labels=None, colors=None, fontsize=12
     """
     Plot fuzzy moment tensor decompositions for list of mt ensembles.
     """
-    from pymc3 import quantiles
     from pyrocko.moment_tensor import MomentTensor
 
     logger.info("Drawing Fuzzy MT Decomposition ...")
@@ -1744,7 +1743,7 @@ def fuzzy_mt_decomposition(axes, list_m6s, labels=None, colors=None, fontsize=12
             ratio = ratios.mean()
             ratios_diff = ratios.max() - ratios.min()
 
-            ratios_qu = quantiles(ratios * 100.0)
+            ratios_qu = num.percentile(ratios * 100.0, [2.5, 97.5])
             mt_parts = [comp[2] for comp in decomp]
 
             if ratio > 1e-4:
@@ -1758,11 +1757,9 @@ def fuzzy_mt_decomposition(axes, list_m6s, labels=None, colors=None, fontsize=12
                     )
 
                     if ratios_diff > 0.0:
-                        label = "{:03.1f}-{:03.1f}%".format(
-                            ratios_qu[2.5], ratios_qu[97.5]
-                        )
+                        label = "{:03.1f}-{:03.1f}%".format(*ratios_qu)
                     else:
-                        label = "{:03.1f}%".format(ratios_qu[2.5])
+                        label = "{:03.1f}%".format(ratios_qu[0])
 
                     axes.annotate(
                         label,

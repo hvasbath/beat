@@ -113,7 +113,7 @@ class Counter(object):
 class ListArrayOrdering(object):
     """
     An ordering for a list to an array space. Takes also non pytensor.tensors.
-    Modified from pymc3 blocking.
+    Modified from pymc blocking.
 
     Parameters
     ----------
@@ -219,7 +219,7 @@ class ListToArrayBijection(object):
 
         Returns
         -------
-        :class:`pymc3.model.Point`
+        :class:`pymc.model.Point`
         """
         point = {}
 
@@ -357,7 +357,7 @@ def weed_input_rvs(input_rvs, mode, datatype):
     Parameters
     ----------
     input_rvs : dict
-        of :class:`pymc3.Distribution` or set of variable names
+        of :class:`pymc.Distribution` or set of variable names
     mode : str
         'geometry', 'static, 'kinematic', 'interseismic' determining the
         discarded RVs
@@ -367,7 +367,7 @@ def weed_input_rvs(input_rvs, mode, datatype):
     Returns
     -------
     weeded_input_rvs : dict
-        of :class:`pymc3.Distribution`
+        of :class:`pymc.Distribution`
     """
 
     weeded_input_rvs = copy.copy(input_rvs)
@@ -652,12 +652,12 @@ def adjust_point_units(point):
     Parameters
     ----------
     point : dict
-        :func:`pymc3.model.Point` of model parameter units as keys
+        :func:`pymc.model.Point` of model parameter units as keys
 
     Returns
     -------
     mpoint : dict
-        :func:`pymc3.model.Point`
+        :func:`pymc.model.Point`
     """
 
     mpoint = {}
@@ -680,7 +680,7 @@ def split_point(point, point_to_sources=None, n_sources_total=1):
     Parameters
     ----------
     point : dict
-        :func:`pymc3.model.Point`
+        :func:`pymc.model.Point`
     point_to_sources : :class: `beat.config.DatatypeParameterMapping`
     n_sources_total : list
         of int with number of sources for each type in setup
@@ -688,7 +688,7 @@ def split_point(point, point_to_sources=None, n_sources_total=1):
     Returns
     -------
     source_points : list
-        of :func:`pymc3.model.Point`
+        of :func:`pymc.model.Point`
     """
 
     source_points = [{} for i in range(n_sources_total)]
@@ -750,7 +750,7 @@ def update_source(source, **point):
     ----------
     source : :class:`pyrocko.gf.seismosizer.Source`
     point : dict
-        :func:`pymc3.model.Point`
+        :func:`pymc.model.Point`
     """
 
     for k, v in point.items():

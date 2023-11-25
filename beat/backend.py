@@ -1,8 +1,8 @@
 """
-Text file trace backend modified from pymc3 to work efficiently with
+File trace backends modified from pymc to work efficiently with
 SMC
 
-Store sampling values as CSV files.
+Store sampling values as CSV or binary files.
 
 File format
 -----------
@@ -37,11 +37,11 @@ try:
 except ImportError:
     from pandas.errors import ParserError as CParserError
 
-from pymc3.backends import base, ndarray
-from pymc3.backends import tracetab as ttab
-from pymc3.blocking import ArrayOrdering, DictToArrayBijection
-from pymc3.model import modelcontext
-from pymc3.step_methods.arraystep import BlockedStep
+from pymc.backends import base, ndarray
+from pymc.backends import tracetab as ttab
+from pymc.blocking import ArrayOrdering, DictToArrayBijection
+from pymc.model import modelcontext
+from pymc.step_methods.arraystep import BlockedStep
 from pyrocko import util
 
 from beat.config import sample_p_outname, transd_vars_dist
@@ -86,27 +86,25 @@ class ArrayStepSharedLLK(BlockedStep):
     Parameters
     ----------
 
-    vars : list
+    value_vars : list
         variables to be sampled
     out_vars : list
         variables to be stored in the traces
     shared : dict
         pytensor variable -> shared variables
-    blocked : boolean
-        (default True)
     """
 
-    def __init__(self, vars, out_vars, shared, blocked=True):
-        self.vars = vars
+    def __init__(self, value_vars, out_vars, shared):
+        self.value_vars = value_vars
         self.ordering = ArrayOrdering(vars)
         self.lordering = ListArrayOrdering(out_vars, intype="tensor")
         lpoint = [var.tag.test_value for var in out_vars]
         self.shared = {var.name: shared for var, shared in shared.items()}
-        self.blocked = blocked
+        self.blocked = True
         self.bij = DictToArrayBijection(self.ordering, self.population[0])
 
         blacklist = list(
-            set(self.lordering.variables) - set([var.name for var in vars])
+            set(self.lordering.variables) - set([var.name for var in value_vars])
         )
 
         self.lij = ListToArrayBijection(self.lordering, lpoint, blacklist=blacklist)
@@ -135,14 +133,16 @@ class BaseChain(object):
 
     model : Model
         If None, the model is taken from the `with` context.
-    vars : list of variables
+    value_vars : list of variables
         Sampling values will be stored for these variables. If None,
         `model.unobserved_RVs` is used.
     """
 
-    def __init__(self, model=None, vars=None, buffer_size=5000, buffer_thinning=1):
+    def __init__(
+        self, model=None, value_vars=None, buffer_size=5000, buffer_thinning=1
+    ):
         self.model = None
-        self.vars = None
+        self.value_vars = None
         self.var_shapes = None
         self.chain = None
 
@@ -155,19 +155,19 @@ class BaseChain(object):
         if model is not None:
             self.model = modelcontext(model)
 
-        if vars is None and self.model is not None:
-            vars = self.model.unobserved_RVs
+        if value_vars is None and self.model is not None:
+            value_vars = self.model.unobserved_RVs
 
-        if vars is not None:
-            self.vars = vars
+        if value_vars is not None:
+            self.value_vars = value_vars
 
-        if self.vars is not None:
+        if self.value_vars is not None:
             # Get variable shapes. Most backends will need this
             # information.
             self.var_shapes = OrderedDict()
             self.var_dtypes = OrderedDict()
             self.varnames = []
-            for var in self.vars:
+            for var in self.value_vars:
                 self.var_shapes[var.name] = var.tag.test_value.shape
                 self.var_dtypes[var.name] = var.tag.test_value.dtype
                 self.varnames.append(var.name)
@@ -236,7 +236,7 @@ class FileChain(BaseChain):
         self,
         dir_path="",
         model=None,
-        vars=None,
+        value_vars=None,
         buffer_size=5000,
         buffer_thinning=1,
         progressbar=False,
@@ -244,7 +244,7 @@ class FileChain(BaseChain):
     ):
         super(FileChain, self).__init__(
             model=model,
-            vars=vars,
+            value_vars=value_vars,
             buffer_size=buffer_size,
             buffer_thinning=buffer_thinning,
         )
@@ -412,7 +412,7 @@ class TextChain(FileChain):
         self,
         dir_path,
         model=None,
-        vars=None,
+        value_vars=None,
         buffer_size=5000,
         buffer_thinning=1,
         progressbar=False,
@@ -421,7 +421,7 @@ class TextChain(FileChain):
         super(TextChain, self).__init__(
             dir_path,
             model,
-            vars,
+            value_vars,
             buffer_size=buffer_size,
             progressbar=progressbar,
             k=k,
@@ -610,7 +610,7 @@ class NumpyChain(FileChain):
         self,
         dir_path,
         model=None,
-        vars=None,
+        value_vars=None,
         buffer_size=5000,
         progressbar=False,
         k=None,
@@ -619,7 +619,7 @@ class NumpyChain(FileChain):
         super(NumpyChain, self).__init__(
             dir_path,
             model,
-            vars,
+            value_vars,
             progressbar=progressbar,
             buffer_size=buffer_size,
             buffer_thinning=buffer_thinning,
@@ -632,7 +632,7 @@ class NumpyChain(FileChain):
         return "NumpyChain({},{},{},{},{},{})".format(
             self.dir_path,
             self.model,
-            self.vars,
+            self.value_vars,
             self.buffer_size,
             self.progressbar,
             self.k,
@@ -830,14 +830,14 @@ class TransDTextChain(object):
     """
 
     def __init__(
-        self, name, model=None, vars=None, buffer_size=5000, progressbar=False
+        self, name, model=None, value_vars=None, buffer_size=5000, progressbar=False
     ):
         self._straces = {}
         self.buffer_size = buffer_size
         self.progressbar = progressbar
 
-        if vars is None:
-            vars = model.unobserved_RVs
+        if value_vars is None:
+            value_vars = model.unobserved_RVs
 
         transd, dims_idx = istransd(model)
         if transd:
@@ -859,7 +859,7 @@ class TransDTextChain(object):
         # init indexing chain
         self._index = TextChain(
             dir_path=name,
-            vars=[],
+            value_vars=[],
             buffer_size=self.buffer_size,
             progressbar=self.progressbar,
         )
@@ -959,16 +959,16 @@ class SampleStage(object):
         else:
             stage_number = self.highest_sampled_stage()
 
-        if os.path.exists(self.atmip_path(-1)):
+        if os.path.exists(self.smc_path(-1)):
             list_indexes = [i for i in range(-1, stage_number + 1)]
         else:
             list_indexes = [i for i in range(stage_number)]
 
         return list_indexes
 
-    def atmip_path(self, stage_number):
+    def smc_path(self, stage_number):
         """
-        Consistent naming for atmip params.
+        Consistent naming for smc params.
         """
         return os.path.join(self.stage_path(stage_number), sample_p_outname)
 
@@ -982,7 +982,7 @@ class SampleStage(object):
             of stage number or -1 for last stage
         """
         if stage_number == -1:
-            if not os.path.exists(self.atmip_path(stage_number)):
+            if not os.path.exists(self.smc_path(stage_number)):
                 prev = self.highest_sampled_stage()
             else:
                 prev = stage_number
@@ -992,15 +992,15 @@ class SampleStage(object):
             prev = stage_number - 1
 
         logger.info("Loading parameters from completed stage {}".format(prev))
-        sampler_state, updates = load_objects(self.atmip_path(prev))
+        sampler_state, updates = load_objects(self.smc_path(prev))
         sampler_state["stage"] = stage_number
         return sampler_state, updates
 
-    def dump_atmip_params(self, stage_number, outlist):
+    def dump_smc_params(self, stage_number, outlist):
         """
-        Save atmip params to file.
+        Save smc params to file.
         """
-        dump_objects(self.atmip_path(stage_number), outlist)
+        dump_objects(self.smc_path(stage_number), outlist)
 
     def clean_directory(self, stage, chains, rm_flag):
         """
@@ -1032,7 +1032,7 @@ class SampleStage(object):
 
         Returns
         -------
-        A :class:`pymc3.backend.base.MultiTrace` instance
+        A :class:`pymc.backend.base.MultiTrace` instance
         """
         dirname = self.stage_path(stage)
         return load_multitrace(
@@ -1106,7 +1106,7 @@ def load_multitrace(dirname, varnames=[], chains=None, backend="csv"):
 
     Returns
     -------
-    A :class:`pymc3.backend.base.MultiTrace` instance
+    A :class:`pymc.backend.base.MultiTrace` instance
     """
 
     if not istransd(varnames)[0]:
@@ -1154,7 +1154,7 @@ def check_multitrace(mtrace, draws, n_chains, buffer_thinning=1):
 
     Parameters
     ----------
-    mtrace : :class:`pymc3.backend.base.MultiTrace`
+    mtrace : :class:`pymc.backend.base.MultiTrace`
         Multitrace object containing the sampling traces
     draws : int
         Number of steps (i.e. chain length for each Markov Chain)
@@ -1215,7 +1215,7 @@ def get_highest_sampled_stage(homedir, return_final=False):
 
 def load_sampler_params(project_dir, stage_number, mode):
     """
-    Load saved parameters from given ATMIP stage.
+    Load saved parameters from given smc stage.
 
     Parameters
     ----------
@@ -1258,7 +1258,7 @@ def concatenate_traces(mtraces):
 
 def extract_variables_from_df(dataframe):
     """
-    Extract random variables and their shapes from the pymc3-pandas data-frame
+    Extract random variables and their shapes from the pymc-pandas data-frame
 
     Parameters
     ----------

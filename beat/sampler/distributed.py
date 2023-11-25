@@ -73,7 +73,6 @@ class MPIRunner(object):
         logger.info("Done initialising mpi runner")
 
     def run(self, script_path, n_jobs=None, loglevel="info", project_dir=""):
-
         if n_jobs is None:
             raise ValueError("n_jobs has to be defined!")
 
@@ -189,7 +188,7 @@ def run_mpi_sampler(
     ----------
     sampler_name : string
         valid names see distributed.samplers for available options
-    model : :class:`pymc3.model.Model`
+    model : :class:`pymc.model.Model`
         that holds the forward model graph
     sampler_args : list
         of sampler arguments, order is important

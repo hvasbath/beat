@@ -6,7 +6,6 @@ from matplotlib import pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.ticker import FixedLocator, MaxNLocator
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
-from pymc3 import quantiles
 from pyrocko.guts import Bool, Dict, Int, List, Object, String, StringChoice
 from pyrocko.plot import mpl_graph_color, mpl_papersize
 from pytensor import config as tconfig
@@ -286,7 +285,7 @@ def histplot_op(
 
     for i in range(data.shape[1]):
         d = data[:, i]
-        quants = quantiles(d, qlist=qlist)
+        quants = num.percentile(d, qlist=qlist)
 
         mind = quants[qlist[0]]
         maxd = quants[qlist[-1]]
@@ -343,7 +342,7 @@ def histplot_op(
         ax.set_xlim(leftb, rightb)
         if cumulative:
             # need left plot bound, leftb
-            sigma_quants = quantiles(d, [5, 68, 95])
+            sigma_quants = num.percentile(d, [5, 68, 95])
 
             for quantile, value in sigma_quants.items():
                 quantile /= 100.0

@@ -741,7 +741,7 @@ def sample_pt_chain(
         Number of iterations to tune, if applicable (defaults to None)
     progressbar : bool
         Flag for displaying a progress bar
-    model : :class:`pymc3.Model`
+    model : :class:`pymc.Model`
         (optional if in `with` context) has to contain deterministic
         variable name defined under step.likelihood_name' that contains the
         model likelihood
@@ -848,7 +848,7 @@ def pt_sample(
     buffer_thinning : int
         every nth sample of the buffer is written to disk,
         default: 1 (no thinning)
-    model : :class:`pymc3.Model`
+    model : :class:`pymc.Model`
         (optional if in `with` context) has to contain deterministic
         variable name defined under step.likelihood_name' that contains the
         model likelihood

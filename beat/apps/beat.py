@@ -1044,8 +1044,8 @@ def result_check(mtrace, min_length):
 
 
 def command_summarize(args):
-    from arviz import summary
     from numpy import ravel, split, vstack
+    from pymc import summary
     from pyrocko.gf import RectangularSource
 
     command_str = "summarize"
@@ -1311,7 +1311,7 @@ def command_summarize(args):
 
         if not os.path.exists(summary_file) or options.force:
             logger.info("Writing summary to %s" % summary_file)
-            df = summary(rtrace, alpha=0.01)
+            df = summary(rtrace, round_to=4)
             with open(summary_file, "w") as outfile:
                 df.to_string(outfile)
         else:

@@ -140,8 +140,8 @@ Depending on your hardware something around these numbers should be fine!::
     Eigendecomp of (1500,1500) matrix in 36.625 s
 
 
-Pytensor
-""""""
+pytensor
+""""""""
 Pytensor is a package that was originally designed for deep learning and enables
 to compile the python code into GPU cuda code or CPU C++. Therefore, you can
 decide to use the GPU of your computer rather than the CPU, without needing to
@@ -160,7 +160,7 @@ For the bleeding edge installation do::
     pip3 install .
 
 For any troubleshooting and detailed installation instructions I refer to the
-`Pytensor <http://deeplearning.net/software/Pytensor/install.html>`__ webpage.
+`pytensor <http://deeplearning.net/software/Pytensor/install.html>`__ webpage.
 
 CPU setup
 #########
@@ -306,27 +306,23 @@ Main Packages
 BEAT relies on 2 main libraries. Detailed installation instructions for each
 can be found on the respective websites:
 
- - `pymc3 <https://github.com/pymc-devs/pymc3>`__
+ - `pymc <https://github.com/pymc-devs/pymc>`__
  - `pyrocko <http://pyrocko.org/>`__
 
 
-pymc3
-"""""
-Pymc3 is a framework that provides various optimization algorithms allows and
-allows to build Bayesian models. BEAT relies on an older version of pymc3- work into upgrading it::
+pymc
+""""
+Pymc is a framework that provides various optimization algorithms allows and
+allows to build Bayesian models. BEAT relies on an older version of pymc- work into upgrading it::
 
-    pip3 install pymc3==3.4.1
+    pip install pymc==5.9.2
 
 
 Pyrocko
 """""""
 Pyrocko is an extensive library for seismological applications and provides a
-framework to efficiently store and access Greens Functions.::
-
-    cd ~/src
-    git clone git://github.com/pyrocko/pyrocko.git pyrocko
-    cd pyrocko
-    pip3 install .
+framework to efficiently store and access Greens Functions.
+Please follow these `install-instructions <https://pyrocko.org/docs/current/install/>`__ depending on your Operating System.
 
 OpenMPI
 """""""

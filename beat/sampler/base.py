@@ -75,7 +75,7 @@ def multivariate_t_rvs(mean, cov, df=np.inf, size=1):
 
 class Proposal(object):
     """
-    Proposal distributions modified from pymc3 to initially create all the
+    Proposal distributions modified from pymc to initially create all the
     Proposal steps without repeated execution of the RNG- significant speedup!
 
     Parameters
@@ -220,7 +220,7 @@ def choose_proposal(proposal_name, **kwargs):
 
     Returns
     -------
-    class:`pymc3.Proposal` Object
+    class:`pymc.Proposal` Object
     """
     proposal = proposal_distributions[proposal_name](**kwargs)
     return proposal
@@ -453,7 +453,7 @@ def iter_parallel_chains(
         with absolute path to the directory where to store the sampling results
     progressbar : boolean
         flag for displaying a progressbar
-    model : :class:`pymc3.model.Model` instance
+    model : :class:`pymc.model.Model` instance
         holds definition of the forward problem
     n_jobs : int
         number of jobs to run in parallel, must not be higher than the
@@ -601,9 +601,9 @@ def logp_forw(out_vars, vars, shared):
     Parameters
     ----------
     out_vars : List
-        containing :class:`pymc3.Distribution` for the output variables
+        containing :class:`pymc.Distribution` for the output variables
     vars : List
-        containing :class:`pymc3.Distribution` for the input variables
+        containing :class:`pymc.Distribution` for the input variables
     shared : List
         containing :class:`pytensor.tensor.Tensor` for dependent shared data
     """

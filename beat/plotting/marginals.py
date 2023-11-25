@@ -6,7 +6,6 @@ import numpy as num
 from matplotlib import pyplot as plt
 from matplotlib.ticker import MaxNLocator
 from pymc3 import plots as pmp
-from pymc3 import quantiles
 from pyrocko.cake_plot import str_to_mpl_color as scolor
 from pyrocko.plot import AutoScaler, mpl_graph_color, mpl_papersize, nice_value
 
@@ -192,7 +191,7 @@ def traceplot(
     kwargs : dict
         for histplot op
     qlist : list
-        of quantiles to plot. Default: (all, 0., 100.)
+        of quantiles to plot. Default: (almost all, 0.01, 99.99)
 
     Returns
     -------
@@ -208,9 +207,8 @@ def traceplot(
     def make_bins(data, nbins=40, qlist=None):
         d = data.flatten()
         if qlist is not None:
-            qu = quantiles(d, qlist=qlist)
-            mind = qu[qlist[0]]
-            maxd = qu[qlist[-1]]
+            qu = num.percentile(d, qlist=qlist)
+            mind, maxd = qu[0], qu[-1]
         else:
             mind = d.min()
             maxd = d.max()
@@ -513,7 +511,7 @@ def correlation_plot(
 
     Parameters
     ----------
-    mtrace : :class:`pymc3.base.MutliTrace`
+    mtrace : :class:`.base.MutliTrace`
         Mutlitrace instance containing the sampling results
     varnames : list of variable names
         Variables to be plotted, if None all variable are plotted
@@ -623,7 +621,7 @@ def correlation_plot_hist(
 
     Parameters
     ----------
-    mtrace : :class:`pymc3.base.MutliTrace`
+    mtrace : :class:`pymc.backends.base.MultiTrace`
         Mutlitrace instance containing the sampling results
     varnames : list of variable names
         Variables to be plotted, if None all variable are plotted
@@ -927,7 +925,7 @@ def draw_posteriors(problem, plot_options):
 
 def draw_correlation_hist(problem, plot_options):
     """
-    Draw parameter correlation plot and histograms from the final atmip stage.
+    Draw parameter correlation plot and histograms for a model result ensemble.
     Only feasible for 'geometry' problem.
     """
 

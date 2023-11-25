@@ -1,6 +1,6 @@
 """
-Package for wrapping various functions into Theano-Ops to be able to include
-them into theano graphs as is needed by the pymc3 models.
+Package for wrapping various functions into pytensor-Ops to be able to include
+them into pytensor graphs as is needed by the pymc models.
 
 Far future:
     include a 'def grad:' -method to each Op in order to enable the use of
@@ -10,22 +10,21 @@ import logging
 from collections import OrderedDict
 
 import numpy as num
-import theano
-import theano.tensor as tt
-from pymc3.model import FreeRV
+import pytensor.tensor as tt
 from pyrocko.gf import LocalEngine
 from pyrocko.trace import nextpow2
+from pytensor.graph import Apply
 
 from beat import heart, interseismic, utility
 from beat.fast_sweeping import fast_sweep
 
 km = 1000.0
-logger = logging.getLogger("theanof")
+logger = logging.getLogger("pytensorf")
 
 
-class GeoSynthesizer(theano.Op):
+class GeoSynthesizer(tt.Op):
     """
-    Theano wrapper for a geodetic forward model with synthetic displacements.
+    pytensor wrapper for a geodetic forward model with synthetic displacements.
     Uses pyrocko engine and fomosto GF stores.
     Input order does not matter anymore! Did in previous version.
 
@@ -67,7 +66,7 @@ class GeoSynthesizer(theano.Op):
 
     def make_node(self, inputs):
         """
-        Transforms theano tensors to node and allocates variables accordingly.
+        Transforms pytensor tensors to node and allocates variables accordingly.
 
         Parameters
         ----------
@@ -75,7 +74,7 @@ class GeoSynthesizer(theano.Op):
             keys being strings of source attributes of the
             :class:`pscmp.RectangularSource` that was used to initialise
             the Operator
-            values are :class:`theano.tensor.Tensor`
+            values are :class:`pytensor.tensor.Tensor`
         """
         inlist = []
 
@@ -86,7 +85,7 @@ class GeoSynthesizer(theano.Op):
 
         outm = tt.as_tensor_variable(num.zeros((2, 2)))
         outlist = [outm.type()]
-        return theano.Apply(self, inlist, outlist)
+        return Apply(self, inlist, outlist)
 
     def perform(self, node, inputs, output):
         """
@@ -128,11 +127,11 @@ class GeoSynthesizer(theano.Op):
         return [(self.nobs, 3)]
 
 
-class GeoLayerSynthesizerPsCmp(theano.Op):
+class GeoLayerSynthesizerPsCmp(tt.Op):
     """
     DEPRECATED!
 
-    Theano wrapper for a geodetic forward model for static observation
+    pytensor wrapper for a geodetic forward model for static observation
     points. Direct call to PsCmp, needs PsGrn Greens Function store!
     Deprecated, currently not used in composites.
 
@@ -167,7 +166,7 @@ class GeoLayerSynthesizerPsCmp(theano.Op):
 
     def make_node(self, inputs):
         """
-        Transforms theano tensors to node and allocates variables accordingly.
+        Transforms pytensor tensors to node and allocates variables accordingly.
 
         Parameters
         ----------
@@ -175,7 +174,7 @@ class GeoLayerSynthesizerPsCmp(theano.Op):
             keys being strings of source attributes of the
             :class:`pscmp.RectangularSource` that was used to initialise
             the Operator
-            values are :class:`theano.tensor.Tensor`
+            values are :class:`pytensor.tensor.Tensor`
         """
         inlist = []
         self.varnames = list(inputs.keys())
@@ -185,7 +184,7 @@ class GeoLayerSynthesizerPsCmp(theano.Op):
 
         out = tt.as_tensor_variable(num.zeros((2, 2)))
         outlist = [out.type()]
-        return theano.Apply(self, inlist, outlist)
+        return Apply(self, inlist, outlist)
 
     def perform(self, node, inputs, output):
         """
@@ -221,11 +220,11 @@ class GeoLayerSynthesizerPsCmp(theano.Op):
         return [(len(self.lats), 3)]
 
 
-class GeoInterseismicSynthesizer(theano.Op):
+class GeoInterseismicSynthesizer(tt.Op):
     """
     DEPRECATED!
 
-    Theano wrapper to transform the parameters of block model to
+    pytensor wrapper to transform the parameters of block model to
     parameters of a fault.
     """
 
@@ -247,7 +246,7 @@ class GeoInterseismicSynthesizer(theano.Op):
 
     def make_node(self, inputs):
         """
-        Transforms theano tensors to node and allocates variables accordingly.
+        Transforms pytensor tensors to node and allocates variables accordingly.
 
         Parameters
         ----------
@@ -255,7 +254,7 @@ class GeoInterseismicSynthesizer(theano.Op):
             keys being strings of source attributes of the
             :class:`pyrocko.gf.seismosizer.RectangularSource` that was used
             to initialise the Operator.
-            values are :class:`theano.tensor.Tensor`
+            values are :class:`pytensor.tensor.Tensor`
         """
         inlist = []
 
@@ -263,7 +262,7 @@ class GeoInterseismicSynthesizer(theano.Op):
         self.varnames = []
 
         for k, v in inputs.items():
-            if isinstance(v, FreeRV):
+            if isinstance(v, tt.TensorVariable):
                 self.varnames.append(k)
                 inlist.append(tt.as_tensor_variable(v))
             else:
@@ -271,7 +270,7 @@ class GeoInterseismicSynthesizer(theano.Op):
 
         out = tt.as_tensor_variable(num.zeros((2, 2)))
         outlist = [out.type()]
-        return theano.Apply(self, inlist, outlist)
+        return Apply(self, inlist, outlist)
 
     def perform(self, node, inputs, output):
         """
@@ -311,9 +310,9 @@ class GeoInterseismicSynthesizer(theano.Op):
             return [(len(self.lats), 3)]
 
 
-class SeisSynthesizer(theano.Op):
+class SeisSynthesizer(tt.Op):
     """
-    Theano wrapper for a seismic forward model with synthetic waveforms.
+    pytensor wrapper for a seismic forward model with synthetic waveforms.
     Input order does not matter anymore! Did in previous version.
 
     Parameters
@@ -395,7 +394,7 @@ class SeisSynthesizer(theano.Op):
 
     def make_node(self, inputs):
         """
-        Transforms theano tensors to node and allocates variables accordingly.
+        Transforms pytensor tensors to node and allocates variables accordingly.
 
         Parameters
         ----------
@@ -403,7 +402,7 @@ class SeisSynthesizer(theano.Op):
             keys being strings of source attributes of the
             :class:`pscmp.RectangularSource` that was used to initialise
             the Operator
-            values are :class:`theano.tensor.Tensor`
+            values are :class:`pytensor.tensor.Tensor`
         """
         inlist = []
 
@@ -415,7 +414,7 @@ class SeisSynthesizer(theano.Op):
         outm = tt.as_tensor_variable(num.zeros((2, 2)))
         outv = tt.as_tensor_variable(num.zeros((2)))
         outlist = [outm.type(), outv.type()]
-        return theano.Apply(self, inlist, outlist)
+        return Apply(self, inlist, outlist)
 
     def perform(self, node, inputs, output):
         """
@@ -486,7 +485,7 @@ class SeisSynthesizer(theano.Op):
         return [(nrow, ncol), (nrow,)]
 
 
-class PolaritySynthesizer(theano.Op):
+class PolaritySynthesizer(tt.Op):
     __props__ = ("engine", "source", "pmap", "is_location_fixed", "always_raytrace")
 
     def __init__(self, engine, source, pmap, is_location_fixed, always_raytrace):
@@ -512,7 +511,7 @@ class PolaritySynthesizer(theano.Op):
 
         out = tt.as_tensor_variable(num.zeros((2)))
         outlist = [out.type()]
-        return theano.Apply(self, inlist, outlist)
+        return Apply(self, inlist, outlist)
 
     def perform(self, node, inputs, output):
         synths = output[0]
@@ -542,7 +541,7 @@ class PolaritySynthesizer(theano.Op):
         return [(self.pmap.n_t,)]
 
 
-class SeisDataChopper(theano.Op):
+class SeisDataChopper(tt.Op):
     """
     Deprecated!
     """
@@ -563,7 +562,7 @@ class SeisDataChopper(theano.Op):
         outm = tt.as_tensor_variable(num.zeros((2, 2)))
 
         outlist = [outm.type()]
-        return theano.Apply(self, inlist, outlist)
+        return Apply(self, inlist, outlist)
 
     def perform(self, node, inputs, output):
         tmins = inputs[0]
@@ -579,9 +578,9 @@ class SeisDataChopper(theano.Op):
         return [(nrow, ncol)]
 
 
-class Sweeper(theano.Op):
+class Sweeper(tt.Op):
     """
-    Theano Op for C implementation of the fast sweep algorithm.
+    pytensor Op for C implementation of the fast sweep algorithm.
 
     Parameters
     ----------
@@ -608,7 +607,7 @@ class Sweeper(theano.Op):
 
         outv = tt.as_tensor_variable(num.zeros((2)))
         outlist = [outv.type()]
-        return theano.Apply(self, inlist, outlist)
+        return Apply(self, inlist, outlist)
 
     def perform(self, node, inputs, output):
         """
@@ -673,9 +672,9 @@ class Sweeper(theano.Op):
         return [(self.n_patch_dip * self.n_patch_strike,)]
 
 
-class EulerPole(theano.Op):
+class EulerPole(tt.Op):
     """
-    Theano Op for rotation of geodetic observations around Euler Pole.
+    pytensor Op for rotation of geodetic observations around Euler Pole.
 
     Parameters
     ----------
@@ -702,7 +701,7 @@ class EulerPole(theano.Op):
 
         for k, v in inputs.items():
             varname = k.split("_")[-1]  # split of dataset naming
-            if isinstance(v, FreeRV):
+            if isinstance(v, tt.TensorVariable):
                 self.varnames.append(varname)
                 inlist.append(tt.as_tensor_variable(v))
             else:
@@ -710,7 +709,7 @@ class EulerPole(theano.Op):
 
         outv = tt.as_tensor_variable(num.zeros((2, 2)))
         outlist = [outv.type()]
-        return theano.Apply(self, inlist, outlist)
+        return Apply(self, inlist, outlist)
 
     def perform(self, node, inputs, output):
         z = output[0]
@@ -734,9 +733,9 @@ class EulerPole(theano.Op):
         return [(len(self.lats), 3)]
 
 
-class StrainRateTensor(theano.Op):
+class StrainRateTensor(tt.Op):
     """
-    TheanoOp for internal block deformation through 2d area strain rate tensor.
+    pytensorOp for internal block deformation through 2d area strain rate tensor.
 
     Parameters
     ----------
@@ -764,7 +763,7 @@ class StrainRateTensor(theano.Op):
 
         for k, v in inputs.items():
             varname = k.split("_")[-1]  # split of dataset naming
-            if isinstance(v, FreeRV):
+            if isinstance(v, tt.TensorVariable):
                 self.varnames.append(varname)
                 inlist.append(tt.as_tensor_variable(v))
             else:
@@ -772,7 +771,7 @@ class StrainRateTensor(theano.Op):
 
         outv = tt.as_tensor_variable(num.zeros((2, 2)))
         outlist = [outv.type()]
-        return theano.Apply(self, inlist, outlist)
+        return Apply(self, inlist, outlist)
 
     def perform(self, node, inputs, output):
         z = output[0]

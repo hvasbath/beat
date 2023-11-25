@@ -1,13 +1,13 @@
 """
 Sequential Monte Carlo Sampler module;
 
-Runs on any pymc3 model.
+Runs on any pymc model.
 """
 
 import logging
 
 import numpy as np
-from pymc3.model import modelcontext
+from pymc.model import modelcontext
 
 from beat import backend, utility
 
@@ -44,12 +44,12 @@ class SMC(Metropolis):
         Initial Covariance matrix for proposal distribution,
         if None - identity matrix taken
     likelihood_name : string
-        name of the :class:`pymc3.determinsitic` variable that contains the
+        name of the :class:`pymc.determinsitic` variable that contains the
         model likelihood - defaults to 'like'
     proposal_dist :
-        :class:`pymc3.metropolis.Proposal`
+        :class:`pymc.metropolis.Proposal`
         Type of proposal distribution, see
-        :mod:`pymc3.step_methods.metropolis` for options
+        :mod:`pymc.step_methods.metropolis` for options
     tune : boolean
         Flag for adaptive scaling based on the acceptance rate
     coef_variation : scalar, float
@@ -61,7 +61,7 @@ class SMC(Metropolis):
         Check if current sample lies outside of variable definition
         speeds up computation as the forward model won't be executed
         default: True
-    model : :class:`pymc3.Model`
+    model : :class:`pymc.Model`
         Optional model for sampling step.
         Defaults to None (taken from context).
     backend :  str
@@ -198,12 +198,12 @@ class SMC(Metropolis):
 
         Parameters
         ----------
-        mtrace : :class:`pymc3.backend.base.MultiTrace`
+        mtrace : :class:`pymc.backend.base.MultiTrace`
 
         Returns
         -------
         population : list
-            of :func:`pymc3.Point` dictionaries
+            of :func:`pymc.Point` dictionaries
         array_population : :class:`numpy.ndarray`
             Array of trace end-points
         likelihoods : :class:`numpy.ndarray`
@@ -244,7 +244,7 @@ class SMC(Metropolis):
 
         Parameters
         ----------
-        mtrace : :class:`pymc3.backend.base.MultiTrace`
+        mtrace : :class:`pymc.backend.base.MultiTrace`
 
         Returns
         -------
@@ -388,7 +388,7 @@ def smc_sample(
     buffer_thinning : int
         every nth sample of the buffer is written to disk
         default: 1 (no thinning)
-    model : :class:`pymc3.Model`
+    model : :class:`pymc.Model`
         (optional if in `with` context) has to contain deterministic
         variable name defined under step.likelihood_name' that contains the
         model likelihood
@@ -555,7 +555,7 @@ def save_sampler_state(step, update, stage_handler):
         weights = None
 
     outparam_list = [step.get_sampler_state(), weights]
-    stage_handler.dump_atmip_params(step.stage, outparam_list)
+    stage_handler.dump_smc_params(step.stage, outparam_list)
 
 
 def tune(acc_rate):

@@ -367,7 +367,7 @@ texinfo_documents = [
 intersphinx_mapping = {
     "python": ("https://docs.python.org/", None),
     "numpy": ("http://docs.scipy.org/doc/numpy/", None),
-    "pymc3": ("https://docs.pymc.io/", None),
+    "pymc": ("https://www.pymc.io/", None),
     "pyrocko": ("https://pyrocko.org/", None),
     "pytensor": ("https://pytensor.readthedocs.io/", None),
 }
