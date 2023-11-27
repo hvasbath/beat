@@ -220,7 +220,7 @@ class Metropolis(backend.ArrayStepSharedLLK):
             for i in range(n_points):
                 q = self.bij.map(self.population[i])
                 t0 = time()
-                self.logp_forw(q)
+                self.logp_forw(q.data)
                 t1 = time()
                 tps[i] = t1 - t0
             self._tps = tps.mean()

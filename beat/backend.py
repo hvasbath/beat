@@ -38,8 +38,7 @@ except ImportError:
     from pandas.errors import ParserError as CParserError
 
 from pymc.backends import base, ndarray
-from pymc.backends import tracetab as ttab
-from pymc.blocking import ArrayOrdering, DictToArrayBijection
+from pymc.blocking import DictToArrayBijection, RaveledVars
 from pymc.model import modelcontext
 from pymc.step_methods.arraystep import BlockedStep
 from pyrocko import util
@@ -54,6 +53,33 @@ from beat.utility import (
 )
 
 logger = logging.getLogger("backend")
+
+
+def _create_flat_names(varname, shape):
+    """Return flat variable names for `varname` of `shape`.
+
+    Examples
+    --------
+    >>> _create_flat_names('x', (5,))
+    ['x__0', 'x__1', 'x__2', 'x__3', 'x__4']
+
+    >>> _create_flat_names('x', (2, 2))
+    ['x__0_0', 'x__0_1', 'x__1_0', 'x__1_1']
+    """
+    if not shape:
+        return [varname]
+    labels = (num.ravel(xs).tolist() for xs in num.indices(shape))
+    labels = (map(str, xs) for xs in labels)
+    return ["{}__{}".format(varname, "_".join(idxs)) for idxs in zip(*labels)]
+
+
+def _create_shape(flat_names):
+    """Determine shape from `_create_flat_names` output."""
+    try:
+        _, shape_str = flat_names[-1].rsplit("__", 1)
+    except ValueError:
+        return ()
+    return tuple(int(i) + 1 for i in shape_str.split("_"))
 
 
 def thin_buffer(buffer, buffer_thinning, ensure_last=True):
@@ -96,17 +122,15 @@ class ArrayStepSharedLLK(BlockedStep):
 
     def __init__(self, value_vars, out_vars, shared):
         self.value_vars = value_vars
-        self.ordering = ArrayOrdering(vars)
         self.lordering = ListArrayOrdering(out_vars, intype="tensor")
         lpoint = [var.tag.test_value for var in out_vars]
         self.shared = {var.name: shared for var, shared in shared.items()}
         self.blocked = True
-        self.bij = DictToArrayBijection(self.ordering, self.population[0])
 
         blacklist = list(
             set(self.lordering.variables) - set([var.name for var in value_vars])
         )
-
+        self.bij = DictToArrayBijection()
         self.lij = ListToArrayBijection(self.lordering, lpoint, blacklist=blacklist)
 
     def __getstate__(self):
@@ -116,12 +140,17 @@ class ArrayStepSharedLLK(BlockedStep):
         self.__dict__.update(state)
 
     def step(self, point):
-        for var, share in self.shared.items():
-            share.container.storage[0] = point[var]
+        for name, shared_var in self.shared.items():
+            shared_var.set_value(point[name])
 
-        apoint, alist = self.astep(self.bij.map(point))
+        q = self.bij.map(point)
+        apoint, alist = self.astep(q.data)
 
-        return self.bij.rmap(apoint), alist
+        if not isinstance(apoint, RaveledVars):
+            # We assume that the mapping has stayed the same
+            apoint = RaveledVars(apoint, q.point_map_info)
+
+        return self.bij.rmap(apoint, start_point=point), alist
 
 
 class BaseChain(object):
@@ -261,10 +290,10 @@ class FileChain(BaseChain):
                     if var in transd_vars_dist:
                         shape = (k,)
 
-                    self.flat_names[var] = ttab.create_flat_names(var, shape)
+                    self.flat_names[var] = _create_flat_names(var, shape)
             else:
                 for var, shape in self.var_shapes.items():
-                    self.flat_names[var] = ttab.create_flat_names(var, shape)
+                    self.flat_names[var] = _create_flat_names(var, shape)
 
         self.k = k
 
@@ -296,7 +325,7 @@ class FileChain(BaseChain):
             )
 
         for varname, shape in zip(varnames, shapes):
-            self.flat_names[varname] = ttab.create_flat_names(varname, shape)
+            self.flat_names[varname] = _create_flat_names(varname, shape)
             self.var_shapes[varname] = shape
             self.var_dtypes[varname] = "float64"
             self.varnames.append(varname)
@@ -1283,7 +1312,7 @@ def extract_variables_from_df(dataframe):
                 indexes.append(index)
 
         flat_names[varname] = indexes
-        var_shapes[varname] = ttab._create_shape(indexes)
+        var_shapes[varname] = _create_shape(indexes)
 
     return flat_names, var_shapes
 
@@ -1300,7 +1329,7 @@ def extract_bounds_from_summary(summary, varname, shape, roundto=None, alpha=0.0
     def do_nothing(value):
         return value
 
-    indexes = ttab.create_flat_names(varname, shape)
+    indexes = _create_flat_names(varname, shape)
     lower_quant = "hpd_{0:g}".format(100 * alpha / 2)
     upper_quant = "hpd_{0:g}".format(100 * (1 - alpha / 2))
 

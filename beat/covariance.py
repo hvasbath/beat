@@ -854,10 +854,12 @@ def init_proposal_covariance(bij, vars, model, pop_size=1000):
     Create initial proposal covariance matrix based on random samples
     from the solution space.
     """
-    population_array = num.zeros((pop_size, bij.ordering.size))
+    point = Point({v.name: v.random() for v in vars}, model=model)
+    q = bij.map(point)
+    population_array = num.zeros((pop_size, q.data.size))
     for i in range(pop_size):
         point = Point({v.name: v.random() for v in vars}, model=model)
-        population_array[i, :] = bij.map(point)
+        population_array[i, :] = bij.map(point).data
 
     return num.diag(population_array.var(0))
 
@@ -885,7 +887,7 @@ def calc_sample_covariance(buffer, lij, bij, beta):
     population_array = num.zeros((n_points, bij.ordering.size))
     for i, (lpoint, _) in enumerate(buffer):
         point = lij.l2d(lpoint)
-        population_array[i, :] = bij.map(point)
+        population_array[i, :] = bij.map(point).data
 
     like_idx = lij.ordering["like"].list_ind
     weights = num.array([lpoint[like_idx] for lpoint, _ in buffer])
