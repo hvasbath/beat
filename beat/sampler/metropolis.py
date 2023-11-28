@@ -6,12 +6,9 @@ the course of sampling the chain.
 """
 
 import logging
-import os
-import shutil
 from time import time
 
 import numpy as num
-from pymc.backends import text
 from pymc.model import Point, modelcontext
 from pymc.pytensorf import inputvars, make_shared_replacements
 from pymc.smc.kernels import _logp_forw
@@ -32,7 +29,7 @@ from .base import (
     update_last_samples,
 )
 
-__all__ = ["metropolis_sample", "get_trace_stats", "get_final_stage", "Metropolis"]
+__all__ = ["metropolis_sample", "get_trace_stats", "Metropolis"]
 
 
 logger = logging.getLogger("metropolis")
@@ -371,34 +368,6 @@ class Metropolis(backend.ArrayStepSharedLLK):
             )
 
         return q_new, l_new
-
-
-def get_final_stage(homepath, n_stages, model):
-    """
-    Combine Metropolis results into final stage to get one single chain for
-    plotting results.
-    """
-
-    util.ensuredir(homepath)
-
-    mtraces = []
-    for stage in range(n_stages):
-        logger.info("Loading Metropolis stage %i" % stage)
-        stage_outpath = os.path.join(homepath, "stage_%i" % stage)
-
-        mtraces.append(backend.load(name=stage_outpath, model=model))
-
-    ctrace = backend.concatenate_traces(mtraces)
-    outname = os.path.join(homepath, "stage_final")
-
-    if os.path.exists(outname):
-        logger.info("Removing existing previous final stage!")
-        shutil.rmtree(outname)
-
-    util.ensuredir(outname)
-    logger.info("Creating final Metropolis stage")
-
-    text.dump(name=outname, trace=ctrace)
 
 
 def metropolis_sample(

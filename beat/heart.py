@@ -703,7 +703,7 @@ class Parameter(Object):
         return self.lower.size
 
     def bound_to_array(self):
-        return num.array([self.lower, self.testval, self.upper], dtype=num.float)
+        return num.array([self.lower, self.testval, self.upper], dtype=num.float64)
 
 
 phase_id_mapping = {"any_SH": "any_S", "any_SV": "any_S", "any_P": "any_P"}
@@ -1153,8 +1153,8 @@ class GNSSCompoundComponent(GeodeticDataset):
     Make synthetics generation more efficient.
     """
 
-    los_vector = Array.T(shape=(None, 3), dtype=num.float, optional=True)
-    displacement = Array.T(shape=(None,), dtype=num.float, optional=True)
+    los_vector = Array.T(shape=(None, 3), dtype=float, optional=True)
+    displacement = Array.T(shape=(None,), dtype=float, optional=True)
     component = String.T(default="east", help="direction of measurement, north/east/up")
     stations = List.T(gnss.GNSSStation.T(optional=True))
     covariance = Covariance.T(
@@ -1164,7 +1164,7 @@ class GNSSCompoundComponent(GeodeticDataset):
     )
     odw = Array.T(
         shape=(None,),
-        dtype=num.float,
+        dtype=num.float64,
         help="Overlapping data weights, additional weight factor to the"
         "dataset for overlaps with other datasets",
         optional=True,
@@ -1263,7 +1263,7 @@ class GNSSCompoundComponent(GeodeticDataset):
             "Stations with idxs %s got blacklisted!"
             % utility.list2string(station_blacklist_idxs)
         )
-        mask = num.ones_like(self.lats, dtype=num.bool)
+        mask = num.ones_like(self.lats, dtype=num.bool_)
         mask[num.array(station_blacklist_idxs)] = False
         return mask
 
@@ -1341,11 +1341,11 @@ class IFG(GeodeticDataset):
 
     master = String.T(optional=True, help="Acquisition time of master image YYYY-MM-DD")
     slave = String.T(optional=True, help="Acquisition time of slave image YYYY-MM-DD")
-    amplitude = Array.T(shape=(None,), dtype=num.float, optional=True)
-    wrapped_phase = Array.T(shape=(None,), dtype=num.float, optional=True)
-    incidence = Array.T(shape=(None,), dtype=num.float, optional=True)
-    heading = Array.T(shape=(None,), dtype=num.float, optional=True)
-    los_vector = Array.T(shape=(None, 3), dtype=num.float, optional=True)
+    amplitude = Array.T(shape=(None,), dtype=num.float64, optional=True)
+    wrapped_phase = Array.T(shape=(None,), dtype=num.float64, optional=True)
+    incidence = Array.T(shape=(None,), dtype=num.float64, optional=True)
+    heading = Array.T(shape=(None,), dtype=num.float64, optional=True)
+    los_vector = Array.T(shape=(None, 3), dtype=num.float64, optional=True)
     satellite = String.T(default="Envisat")
 
     def __str__(self):
@@ -1378,7 +1378,7 @@ class IFG(GeodeticDataset):
             Se = -num.sin(num.deg2rad(self.incidence)) * num.sin(
                 num.deg2rad(self.heading - 270)
             )
-            self.los_vector = num.array([Sn, Se, Su], dtype=num.float).T
+            self.los_vector = num.array([Sn, Se, Su], dtype=num.float64).T
             if num.isnan(self.los_vector).any():
                 raise ValueError(
                     "There are Nan values in LOS vector for dataset: %s! "
@@ -1395,11 +1395,11 @@ class DiffIFG(IFG):
     of synthetics and container for SAR data.
     """
 
-    unwrapped_phase = Array.T(shape=(None,), dtype=num.float, optional=True)
-    coherence = Array.T(shape=(None,), dtype=num.float, optional=True)
+    unwrapped_phase = Array.T(shape=(None,), dtype=num.float64, optional=True)
+    coherence = Array.T(shape=(None,), dtype=num.float64, optional=True)
     reference_point = Tuple.T(2, Float.T(), optional=True)
     reference_value = Float.T(optional=True, default=0.0)
-    displacement = Array.T(shape=(None,), dtype=num.float, optional=True)
+    displacement = Array.T(shape=(None,), dtype=num.float64, optional=True)
     covariance = Covariance.T(
         optional=True,
         help=":py:class:`Covariance` that holds data"
@@ -1407,14 +1407,14 @@ class DiffIFG(IFG):
     )
     odw = Array.T(
         shape=(None,),
-        dtype=num.float,
+        dtype=num.float64,
         help="Overlapping data weights, additional weight factor to the"
         "dataset for overlaps with other datasets",
         optional=True,
     )
     mask = Array.T(
         shape=(None,),
-        dtype=num.bool,
+        dtype=num.bool_,
         help="Mask values for Euler pole region determination. "
         "Click polygon mask in kite!",
         optional=True,
@@ -1512,9 +1512,9 @@ class GeodeticResult(Object):
     """
 
     point = ResultPoint.T(default=ResultPoint.D())
-    processed_obs = Array.T(shape=(None,), dtype=num.float, optional=True)
-    processed_syn = Array.T(shape=(None,), dtype=num.float, optional=True)
-    processed_res = Array.T(shape=(None,), dtype=num.float, optional=True)
+    processed_obs = Array.T(shape=(None,), dtype=num.float64, optional=True)
+    processed_syn = Array.T(shape=(None,), dtype=num.float64, optional=True)
+    processed_res = Array.T(shape=(None,), dtype=num.float64, optional=True)
     llk = Float.T(default=0.0, optional=True)
 
 

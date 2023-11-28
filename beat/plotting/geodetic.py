@@ -6,7 +6,6 @@ import numpy as num
 from matplotlib import pyplot as plt
 from matplotlib.patches import FancyArrow
 from matplotlib.ticker import MaxNLocator
-from pymc3.plots.utils import make_2d
 from pyrocko import gmtpy
 from pyrocko import orthodrome as otd
 from pyrocko.cake_plot import light
@@ -380,7 +379,7 @@ def gnss_fits(problem, stage, plot_options):
 
             out_filename = "/tmp/histbounds.txt"
             m.gmt.pshistogram(
-                in_rows=make_2d(all_var_reductions[dataset.component]),
+                in_rows=num.atleast_2d(all_var_reductions[dataset.component]),
                 W=(imax - imin) / nbins,
                 out_filename=out_filename,
                 Z=Z,
@@ -404,7 +403,7 @@ def gnss_fits(problem, stage, plot_options):
             ] + jxyr
 
             m.gmt.pshistogram(
-                in_rows=make_2d(all_var_reductions[dataset.component]),
+                in_rows=num.atleast_2d(all_var_reductions[dataset.component]),
                 W=(imax - imin) / nbins,
                 G="lightorange",
                 Z=Z,
@@ -928,7 +927,7 @@ def scene_fits(problem, stage, plot_options):
         if stdz_residuals:
             in_ax_res = plot_inset_hist(
                 axs[2],
-                data=make_2d(stdz_residuals[dataset.name]),
+                data=num.atleast_2d(stdz_residuals[dataset.name]),
                 best_data=None,
                 linewidth=1.0,
                 bbox_to_anchor=(0.0, 0.775, 0.25, 0.225),
@@ -948,7 +947,7 @@ def scene_fits(problem, stage, plot_options):
         if po.nensemble > 1:
             in_ax = plot_inset_hist(
                 axs[2],
-                data=make_2d(all_var_reductions[dataset.name]),
+                data=num.atleast_2d(all_var_reductions[dataset.name]),
                 best_data=bvar_reductions[dataset.name] * 100.0,
                 linewidth=1.0,
                 bbox_to_anchor=(0.75, 0.775, 0.25, 0.225),

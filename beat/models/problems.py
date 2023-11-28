@@ -16,7 +16,7 @@ from beat.models import geodetic, laplacian, polarity, seismic
 from beat.utility import list2string, transform_sources, weed_input_rvs
 
 # disable pytensor rounding warning
-tconfig.warn.round = False
+tconfig.warn__round = False
 
 km = 1000.0
 

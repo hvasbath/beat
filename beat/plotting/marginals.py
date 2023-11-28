@@ -3,9 +3,9 @@ import logging
 import os
 
 import numpy as num
+from arviz import plot_density
 from matplotlib import pyplot as plt
 from matplotlib.ticker import MaxNLocator
-from pymc3 import plots as pmp
 from pyrocko.cake_plot import str_to_mpl_color as scolor
 from pyrocko.plot import AutoScaler, mpl_graph_color, mpl_papersize, nice_value
 
@@ -230,7 +230,7 @@ def traceplot(
     if posterior != "None":
         llk = trace.get_values("like", combine=combined, chains=chains, squeeze=False)
         llk = num.squeeze(llk[0])
-        llk = pmp.utils.make_2d(llk)
+        llk = num.atleast_2d(llk)
 
         posterior_idxs = utility.get_fit_indexes(llk)
 
@@ -346,7 +346,7 @@ def traceplot(
                     nsources = selected.shape[0]
                     logger.debug("Number of sources: %i" % nsources)
                     for isource, e in enumerate(selected):
-                        e = pmp.utils.make_2d(e)
+                        e = num.atleast_2d(e)
                         if make_bins_flag:
                             varbin = make_bins(e, nbins=nbins, qlist=qlist)
                             varbins.append(varbin)
@@ -370,13 +370,15 @@ def traceplot(
                             pcolor = color
 
                         if plot_style == "kde":
-                            pmp.kdeplot(
+                            plot_density(
                                 e,
                                 shade=alpha,
                                 ax=ax,
-                                color=pcolor,
-                                linewidth=1.0,
-                                kwargs_shade={"color": pcolor},
+                                colors=[pcolor],
+                                backend="matplotlib",
+                                backend_kwargs={
+                                    "linewidth": 1.0,
+                                },
                             )
                             ax.relim()
                             ax.autoscale(tight=False)
@@ -719,7 +721,7 @@ def correlation_plot_hist(
 
                     histplot_op(
                         ax,
-                        pmp.utils.make_2d(a),
+                        num.atleast_2d(a),
                         alpha=alpha,
                         color=pcolor,
                         tstd=0.0,

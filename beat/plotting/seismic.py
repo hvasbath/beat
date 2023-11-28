@@ -4,7 +4,6 @@ import os
 import numpy as num
 from matplotlib import pyplot as plt
 from matplotlib.ticker import MaxNLocator
-from pymc3.plots.utils import make_2d
 from pyrocko import gmtpy, trace
 from pyrocko.cake_plot import str_to_mpl_color as scolor
 from pyrocko.guts import load
@@ -508,7 +507,7 @@ def subplot_waveforms(
 
         in_ax = plot_inset_hist(
             axes,
-            data=make_2d(var_reductions),
+            data=num.atleast_2d(var_reductions),
             best_data=best_data,
             bbox_to_anchor=(0.9, 0.75, inset_axs_width, inset_axs_height),
             background_alpha=0.7,
@@ -518,7 +517,7 @@ def subplot_waveforms(
     # histogram of stdz residual
     in_ax_res = plot_inset_hist(
         axes,
-        data=make_2d(stdz_residual),
+        data=num.atleast_2d(stdz_residual),
         best_data=None,
         bbox_to_anchor=(0.65, 0.75, inset_axs_width, inset_axs_height),
         color="grey",
@@ -559,7 +558,7 @@ def subplot_waveforms(
         if po.nensemble > 1:
             in_ax = plot_inset_hist(
                 axes,
-                data=make_2d(time_shifts),
+                data=num.atleast_2d(time_shifts),
                 best_data=best_data,
                 bbox_to_anchor=(-0.0985, 0.16, inset_axs_width, inset_axs_height),
                 # cmap=plt.cm.get_cmap('seismic'),
@@ -681,7 +680,7 @@ def subplot_spectrum(
 
         in_ax = plot_inset_hist(
             axes2,
-            data=make_2d(var_reductions),
+            data=num.atleast_2d(var_reductions),
             best_data=best_data,
             bbox_to_anchor=(0.9, bbox_y, inset_axs_width, inset_axs_height),
         )
@@ -690,7 +689,7 @@ def subplot_spectrum(
     # histogram of stdz residual
     in_ax_res = plot_inset_hist(
         axes2,
-        data=make_2d(stdz_residual),
+        data=num.atleast_2d(stdz_residual),
         best_data=None,
         bbox_to_anchor=(0.65, bbox_y, inset_axs_width, inset_axs_height),
         color="grey",
@@ -919,7 +918,7 @@ def seismic_fits(problem, stage, plot_options):
             dist = source.distance_to(target)
             data.append(dist)
 
-        dists = num.array(data, dtype=num.float)
+        dists = num.array(data, dtype=num.float64)
         iorder = num.argsort(dists)
 
         ns_id_codes_sorted = [list(ns_id_to_target_codes.keys())[ii] for ii in iorder]
@@ -1973,7 +1972,7 @@ def station_variance_reductions(problem, stage, plot_options):
             dist = source.distance_to(target)
             data.append(dist)
 
-        dists = num.array(data, dtype=num.float)
+        dists = num.array(data, dtype=num.float64)
         iorder = num.argsort(dists)
         sorted_dists = dists[iorder] / km
 

@@ -55,6 +55,7 @@ try:
     bem_catalog = {"geodetic": bem_source_catalog}
 except ImportError:
     bem_catalog = {}
+    bem_source_catalog = {}
 
 
 source_catalog = {}

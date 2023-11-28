@@ -15,7 +15,6 @@ from numpy.random import (
 from pymc import CompoundStep
 from pymc.model import Point, modelcontext
 from pymc.pytensorf import join_nonshared_inputs
-from pymc.sampling import stop_tuning
 from pytensor import function
 from tqdm import tqdm
 
@@ -358,8 +357,8 @@ def _iter_sample(
 
     trace.setup(draws, chain, overwrite=overwrite)
     for i in range(draws):
-        if i == tune:
-            step = stop_tuning(step)
+        if i == tune:  # stop tuning
+            step.tune = False
 
         logger.debug("Step: Chain_%i step_%i" % (chain, i))
         point, out_list = step.step(point)
