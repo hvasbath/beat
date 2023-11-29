@@ -131,7 +131,7 @@ class ListArrayOrdering(object):
         for array in list_arrays:
             if intype == "tensor":
                 name = array.name
-                array = array.tag.test_value
+                array = array.get_test_value()
             elif intype == "numpy":
                 name = "numpy"
 

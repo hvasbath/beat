@@ -170,8 +170,6 @@ class BaseChain(object):
     def __init__(
         self, model=None, value_vars=None, buffer_size=5000, buffer_thinning=1
     ):
-        self.model = None
-        self.value_vars = None
         self.var_shapes = None
         self.chain = None
 
@@ -182,21 +180,18 @@ class BaseChain(object):
         self.cov_counter = 0
 
         if model is not None:
-            self.model = modelcontext(model)
+            model = modelcontext(model)
 
-        if value_vars is None and self.model is not None:
-            value_vars = self.model.unobserved_RVs
+        if value_vars is None and model is not None:
+            value_vars = model.unobserved_RVs
 
         if value_vars is not None:
-            self.value_vars = value_vars
-
-        if self.value_vars is not None:
             # Get variable shapes. Most backends will need this
             # information.
             self.var_shapes = OrderedDict()
             self.var_dtypes = OrderedDict()
             self.varnames = []
-            for var in self.value_vars:
+            for var in value_vars:
                 self.var_shapes[var.name] = var.tag.test_value.shape
                 self.var_dtypes[var.name] = var.tag.test_value.dtype
                 self.varnames.append(var.name)

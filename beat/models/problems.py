@@ -5,7 +5,7 @@ from logging import getLogger
 
 import numpy as num
 import pytensor.tensor as tt
-from pymc import Deterministic, Model, Potential, Uniform
+from pymc import Deterministic, Model, Uniform
 from pyrocko import util
 from pyrocko.model import get_effective_latlon
 from pytensor import config as tconfig
@@ -16,6 +16,7 @@ from beat.models import geodetic, laplacian, polarity, seismic
 from beat.utility import list2string, transform_sources, weed_input_rvs
 
 # disable pytensor rounding warning
+tconfig.compute_test_value = "pdb"
 tconfig.warn__round = False
 
 km = 1000.0
@@ -256,7 +257,7 @@ class Problem(object):
         Add list to array bijection to model object by monkey-patching.
         """
         if self.model is not None:
-            lordering = ListArrayOrdering(self.model.unobserved_RVs, intype="tensor")
+            lordering = ListArrayOrdering(self.model.unobserved_RVs)
             lpoint = [var.tag.test_value for var in self.model.unobserved_RVs]
             self.model.lijection = ListToArrayBijection(lordering, lpoint)
         else:
@@ -296,8 +297,8 @@ class Problem(object):
 
                 total_llk += composite.get_hyper_formula(self.hyperparams)
 
-            like = Deterministic("tmp", total_llk)
-            llk = Potential(self._like_name, like)  # noqa: F841
+            # like = Deterministic("tmp", total_llk)
+            llk = Deterministic(self._like_name, total_llk)  # noqa: F841
             logger.info("Hyper model building was successful!")
 
     def get_random_point(self, include=["priors", "hierarchicals", "hypers"]):
@@ -404,7 +405,7 @@ class Problem(object):
                         shape=dimension,
                         lower=num.repeat(hyperpar.lower, ndata),
                         upper=num.repeat(hyperpar.upper, ndata),
-                        testval=num.repeat(hyperpar.testvalue, ndata),
+                        initval=num.repeat(hyperpar.testvalue, ndata),
                         dtype=tconfig.floatX,
                         transform=None,
                     )

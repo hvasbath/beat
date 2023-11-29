@@ -125,7 +125,7 @@ class SMC(Metropolis):
         bl = [
             "likelihoods",
             "check_bnd",
-            "logp_forw",
+            "logp_forw_func",
             "bij",
             "lij",
             "ordering",

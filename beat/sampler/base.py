@@ -3,6 +3,7 @@ import os
 import shutil
 from copy import deepcopy
 
+import cloudpickle
 import numpy as np
 from numpy.random import (
     normal,
@@ -13,9 +14,8 @@ from numpy.random import (
     standard_exponential,
 )
 from pymc import CompoundStep
-from pymc.model import Point, modelcontext
-from pymc.pytensorf import join_nonshared_inputs
-from pytensor import function
+from pymc.model import Point
+from pymc.pytensorf import compile_pymc, join_nonshared_inputs
 from tqdm import tqdm
 
 from beat import parallel
@@ -260,18 +260,20 @@ class ChainCounter(object):
 
 def _sample(
     draws,
-    step=None,
     start=None,
     trace=None,
     chain=0,
     tune=None,
     progressbar=True,
-    model=None,
     random_seed=-1,
 ):
+    n = parallel.get_process_id()
+    logger.info("Worker %i deserialises step")
+    step = cloudpickle.loads(step_method_pickled)
+
     shared_params = [
         sparam
-        for sparam in step.logp_forw.get_shared()
+        for sparam in step.logp_forw_func.get_shared()
         if sparam.name in parallel._tobememshared
     ]
 
@@ -279,9 +281,7 @@ def _sample(
         logger.debug("Accessing shared memory")
         parallel.borrow_all_memories(shared_params, parallel._shared_memory)
 
-    sampling = _iter_sample(draws, step, start, trace, chain, tune, model, random_seed)
-
-    n = parallel.get_process_id()
+    sampling = _iter_sample(draws, step, start, trace, chain, tune, random_seed)
 
     if progressbar:
         sampling = tqdm(
@@ -320,7 +320,6 @@ def _iter_sample(
     trace=None,
     chain=0,
     tune=None,
-    model=None,
     random_seed=-1,
     overwrite=True,
     update_proposal=False,
@@ -332,8 +331,6 @@ def _iter_sample(
     tune: int
         adaptiv step-size scaling is stopped after this chain sample
     """
-
-    model = modelcontext(model)
 
     draws = int(draws)
 
@@ -351,7 +348,7 @@ def _iter_sample(
     except TypeError:
         pass
 
-    point = Point(start, model=model)
+    point = Point(start)
 
     step.chain_index = chain
 
@@ -419,6 +416,12 @@ def init_chain_hypers(problem):
 
     logger.debug("Updating source point ...")
     problem.update_llks(point)
+
+
+def serialise_step_method(step):
+    global step_method_pickled
+    logger.info("Pickling step method")
+    step_method_pickled = cloudpickle.dumps(step, protocol=-1)
 
 
 def iter_parallel_chains(
@@ -514,13 +517,11 @@ def iter_parallel_chains(
         work = [
             (
                 draws,
-                step,
                 step.population[step.resampling_indexes[chain]],
                 trace,
                 chain,
                 None,
                 progressbar,
-                model,
                 rseed,
             )
             for chain, rseed, trace in zip(chains, random_seeds, trace_list)
@@ -539,7 +540,7 @@ def iter_parallel_chains(
         if n_jobs > 1 and True:
             shared_params = [
                 sparam
-                for sparam in step.logp_forw.get_shared()
+                for sparam in step.logp_forw_func.get_shared()
                 if sparam.name in parallel._tobememshared
             ]
 
@@ -564,8 +565,8 @@ def iter_parallel_chains(
             chunksize=chunksize,
             timeout=timeout,
             nprocs=n_jobs,
-            initializer=initializer,
-            initargs=initargs,
+            initializer=serialise_step_method,
+            initargs=[step],
         )
 
         logger.info("Sampling ...")
@@ -593,7 +594,7 @@ def iter_parallel_chains(
     return mtrace
 
 
-def logp_forw(out_vars, vars, shared):
+def logp_forw(point, out_vars, in_vars, shared):
     """
     Compile Pytensor function of the model and the input and output variables.
 
@@ -601,13 +602,13 @@ def logp_forw(out_vars, vars, shared):
     ----------
     out_vars : List
         containing :class:`pymc.Distribution` for the output variables
-    vars : List
+    in_vars : List
         containing :class:`pymc.Distribution` for the input variables
     shared : List
         containing :class:`pytensor.tensor.Tensor` for dependent shared data
     """
-    out_list, inarray0 = join_nonshared_inputs(out_vars, vars, shared)
-    f = function([inarray0], out_list)
+    out_list, inarray0 = join_nonshared_inputs(point, out_vars, in_vars, shared)
+    f = compile_pymc([inarray0], out_list, on_unused_input="ignore")
     f.trust_input = True
     return f
 

@@ -1,6 +1,5 @@
 import multiprocessing
 import signal
-import sys
 import traceback
 from collections import OrderedDict
 from functools import wraps
@@ -8,28 +7,30 @@ from io import BytesIO
 from itertools import count
 from logging import getLogger
 
+import cloudpickle
 import numpy as num
 
-# mp_context = multiprocessing.get_context("spawn")
 mp_context = multiprocessing
+# mp_context = multiprocessing.get_context("spawn")
+# monkey patch pickling in multiprocessing
+
+if False:
+
+    @classmethod
+    def dumps(cls, obj, protocol=None):
+        buf = BytesIO()
+        cls(buf, protocol).dump(obj)
+        return buf.getbuffer()
+
+    mp_context.reduction.ForkingPickler = cloudpickle.CloudPickler
+    mp_context.reduction.ForkingPickler.dumps = cloudpickle.dumps
+    mp_context.reduction.ForkingPickler.loads = cloudpickle.loads
 
 logger = getLogger("parallel")
 
 # for sharing memory across processes
 _shared_memory = OrderedDict()
 _tobememshared = set([])
-
-
-@classmethod
-def dumps(cls, obj, protocol=None):
-    buf = BytesIO()
-    cls(buf, 4).dump(obj)
-    return buf.getbuffer()
-
-
-# monkey patch pickling in multiprocessing
-if sys.hexversion < 0x30600F0:
-    mp_context.reduction.ForkingPickler.dumps = dumps
 
 
 def get_process_id():

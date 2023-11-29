@@ -1515,7 +1515,7 @@ class ProblemConfig(Object):
                     shape=num.sum(shape),
                     lower=param.get_lower(shape),
                     upper=param.get_upper(shape),
-                    testval=param.get_testvalue(shape),
+                    initval=param.get_testvalue(shape),
                     transform=None,
                     dtype=tconfig.floatX,
                 )

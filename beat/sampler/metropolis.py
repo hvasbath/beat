@@ -11,7 +11,7 @@ from time import time
 import numpy as num
 from pymc.model import Point, modelcontext
 from pymc.pytensorf import inputvars, make_shared_replacements
-from pymc.smc.kernels import _logp_forw
+from pymc.sampling import sample_prior_predictive
 from pymc.step_methods.metropolis import metrop_select
 from pymc.step_methods.metropolis import tune as step_tune
 from pymc.vartypes import discrete_types
@@ -25,6 +25,7 @@ from .base import (
     choose_proposal,
     init_stage,
     iter_parallel_chains,
+    logp_forw,
     multivariate_proposals,
     update_last_samples,
 )
@@ -113,37 +114,62 @@ class Metropolis(backend.ArrayStepSharedLLK):
 
         self.backend = backend
         self.discrete = num.concatenate(
-            [[v.dtype in discrete_types] * (v.dsize or 1) for v in value_vars]
+            [
+                num.atleast_1d([v.dtype in discrete_types] * (v.size or 1))
+                for v in value_vars
+            ]
         )
         self.any_discrete = self.discrete.any()
         self.all_discrete = self.discrete.all()
 
-        # create initial population
+        # create initial population from prior
         self.population = []
         self.array_population = num.zeros(n_chains)
         logger.info(
             "Creating initial population for {}" " chains ...".format(self.n_chains)
         )
+        print(value_vars)
+        var_names = [value_var.name for value_var in value_vars]
+        prior_draws = sample_prior_predictive(
+            samples=self.n_chains,
+            var_names=var_names,
+            model=model,
+            return_inferencedata=False,
+        )
+        print(prior_draws)
         for i in range(self.n_chains):
             self.population.append(
-                Point({v.name: v.random() for v in value_vars}, model=model)
+                Point({v_name: prior_draws[v_name][i] for v_name in var_names})
             )
 
-        self.population[0] = model.test_point
+        test_point = model.initial_point()
+        self.population[0] = test_point
 
-        shared = make_shared_replacements(model.test_point, value_vars, model)
+        shared = make_shared_replacements(test_point, value_vars, model)
 
         # collect all RVs and deterministics to write to file
+        # out_vars = model.deterministics
         out_vars = model.unobserved_RVs
         out_varnames = [out_var.name for out_var in out_vars]
+
+        # plot modelgraph
+        # model_to_graphviz(model).view()
 
         # determine log_likelihood in there
         self.likelihood_name = likelihood_name
         self._llk_index = out_varnames.index(likelihood_name)
 
-        self.logp_forw_func = _logp_forw(model.test_point, out_vars, value_vars, shared)
-        self.prior_logp_func = _logp_forw(
-            model.test_point, [model.varlogpt], value_vars, shared
+        self.logp_forw_func = logp_forw(
+            point=test_point,
+            out_vars=out_vars,
+            in_vars=value_vars,
+            shared=shared,
+        )
+        self.prior_logp_func = logp_forw(
+            point=test_point,
+            out_vars=[model.varlogp],
+            in_vars=value_vars,
+            shared=shared,
         )
 
         super(Metropolis, self).__init__(value_vars, out_vars, shared)
@@ -152,13 +178,13 @@ class Metropolis(backend.ArrayStepSharedLLK):
         if covariance is None and proposal_name in multivariate_proposals:
             t0 = time()
             self.covariance = init_proposal_covariance(
-                bij=self.bij, vars=vars, model=model, pop_size=1000
+                bij=self.bij, value_vars=value_vars, model=model, pop_size=1000
             )
             t1 = time()
             logger.info("Time for proposal covariance init: %f" % (t1 - t0))
             scale = self.covariance
         elif covariance is None:
-            scale = num.ones(sum(v.dsize for v in vars))
+            scale = num.ones(sum(v.size for v in test_point.values()))
         else:
             scale = covariance
 
@@ -175,11 +201,10 @@ class Metropolis(backend.ArrayStepSharedLLK):
         """
         bl = [
             "check_bnd",
-            "logp_forw",
+            "logp_forw_func",
             "proposal_samples_array",
-            "vars",
+            "value_vars",
             "bij",
-            "lij",
             "ordering",
             "lordering",
             "_BlockedStep__newargs",
@@ -217,7 +242,7 @@ class Metropolis(backend.ArrayStepSharedLLK):
             for i in range(n_points):
                 q = self.bij.map(self.population[i])
                 t0 = time()
-                self.logp_forw(q.data)
+                self.logp_forw_func(q.data)
                 t1 = time()
                 tps[i] = t1 - t0
             self._tps = tps.mean()
@@ -225,7 +250,7 @@ class Metropolis(backend.ArrayStepSharedLLK):
 
     def astep(self, q0):
         if self.stage == 0:
-            l_new = self.logp_forw(q0)
+            l_new = self.logp_forw_func(q0)
             if not num.isfinite(l_new[self._llk_index]):
                 raise ValueError(
                     "Got NaN in likelihood evaluation! "
@@ -278,7 +303,7 @@ class Metropolis(backend.ArrayStepSharedLLK):
                 l0 = self.chain_previous_lpoint[self.chain_index]
                 llk0 = l0[self._llk_index]
             except IndexError:
-                l0 = self.logp_forw(q0)
+                l0 = self.logp_forw_func(q0)
                 self.chain_previous_lpoint[self.chain_index] = l0
                 llk0 = l0[self._llk_index]
 

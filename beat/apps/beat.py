@@ -1892,9 +1892,9 @@ selected giving a comma separated list.""" % list2string(plots_avail)
                 )
         else:
             try:
-                po.reference = problem.model.test_point
+                po.reference = problem.model.initial_point()
                 step = problem.init_sampler()
-                po.reference["like"] = step.step(problem.model.test_point)[1][-1]
+                po.reference["like"] = step.step(po.reference)[1][-1]
             except AttributeError:
                 po.reference = problem.config.problem_config.get_test_point()
     else:

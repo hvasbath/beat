@@ -263,7 +263,7 @@ class SeismicComposite(Composite):
                                 shape=param.dimension,
                                 lower=param.lower,
                                 upper=param.upper,
-                                testval=param.testvalue,
+                                initval=param.testvalue,
                                 transform=None,
                                 dtype=tconfig.floatX,
                             )
