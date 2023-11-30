@@ -220,7 +220,7 @@ parameter_info = {
     "peak_ratio": Bounds(
         physical_bounds=(0.0, 1.0), default_bounds=(0.0, 1.0), unit=""
     ),
-    "hypers": Bounds(physical_bounds=(-2.0, 6.0), default_bounds=(-2.0, 6.0), unit=""),
+    "hypers": Bounds(physical_bounds=(-4.0, 10.0), default_bounds=(-2.0, 6.0), unit=""),
     "ramp": Bounds(
         physical_bounds=(-0.005, 0.005), default_bounds=(-0.005, 0.005), unit="$[rad]$"
     ),

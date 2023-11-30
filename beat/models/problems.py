@@ -5,7 +5,7 @@ from logging import getLogger
 
 import numpy as num
 import pytensor.tensor as tt
-from pymc import Deterministic, Model, Uniform
+from pymc import Deterministic, Model, Potential, Uniform
 from pyrocko import util
 from pyrocko.model import get_effective_latlon
 from pytensor import config as tconfig
@@ -246,10 +246,10 @@ class Problem(object):
                 )
 
             # deterministic RV to write out llks to file
-            llk = Deterministic(self._like_name, total_llk)  # noqa: F841
+            like = Potential(self._like_name, total_llk.sum())  # noqa: F841
 
             # will overwrite deterministic name ... TODO remove?
-            # llk = Potential(, like)  # noqa: F841
+            # llk = Deterministic(self._like_name, like)  # noqa: F841
             logger.info("Model building was successful! \n")
 
     def plant_lijection(self):
@@ -297,8 +297,8 @@ class Problem(object):
 
                 total_llk += composite.get_hyper_formula(self.hyperparams)
 
-            # like = Deterministic("tmp", total_llk)
-            llk = Deterministic(self._like_name, total_llk)  # noqa: F841
+            like = Potential("dummy", total_llk.sum())
+            llk = Deterministic(self._like_name, like)  # noqa: F841
             logger.info("Hyper model building was successful!")
 
     def get_random_point(self, include=["priors", "hierarchicals", "hypers"]):

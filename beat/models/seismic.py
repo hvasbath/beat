@@ -6,7 +6,7 @@ from time import time
 
 import numpy as num
 import pytensor.tensor as tt
-from pymc import Deterministic, Uniform
+from pymc import Potential, Uniform
 from pyrocko.gf import LocalEngine
 from pyrocko.trace import Trace
 from pytensor import config as tconfig
@@ -839,7 +839,7 @@ class SeismicGeometryComposite(SeismicComposite):
         t3 = time()
         logger.debug("Teleseismic forward model on test model takes: %f" % (t3 - t2))
 
-        llk = Deterministic(self._like_name, tt.concatenate((wlogpts)))
+        llk = Potential(self._like_name, tt.concatenate((wlogpts)))
         return llk.sum()
 
     def get_synthetics(self, point, **kwargs):
@@ -1346,7 +1346,7 @@ class SeismicDistributerComposite(SeismicComposite):
         t3 = time()
         logger.debug("Seismic formula on test model takes: %f" % (t3 - t2))
 
-        llk = Deterministic(self._like_name, tt.concatenate((wlogpts)))
+        llk = Potential(self._like_name, tt.concatenate((wlogpts)))
         return llk.sum()
 
     def get_synthetics(self, point, **kwargs):

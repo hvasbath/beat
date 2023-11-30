@@ -144,8 +144,9 @@ class ArrayStepSharedLLK(BlockedStep):
             shared_var.set_value(point[name])
 
         q = self.bij.map(point)
+        # print("before", q.data)
         apoint, alist = self.astep(q.data)
-
+        # print("after", apoint, alist)
         if not isinstance(apoint, RaveledVars):
             # We assume that the mapping has stayed the same
             apoint = RaveledVars(apoint, q.point_map_info)

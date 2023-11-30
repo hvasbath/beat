@@ -268,7 +268,7 @@ def _sample(
     random_seed=-1,
 ):
     n = parallel.get_process_id()
-    logger.info("Worker %i deserialises step")
+    logger.debug("Worker %i deserialises step", n)
     step = cloudpickle.loads(step_method_pickled)
 
     shared_params = [
@@ -420,7 +420,7 @@ def init_chain_hypers(problem):
 
 def serialise_step_method(step):
     global step_method_pickled
-    logger.info("Pickling step method")
+    logger.debug("Pickling step method")
     step_method_pickled = cloudpickle.dumps(step, protocol=-1)
 
 
@@ -608,7 +608,7 @@ def logp_forw(point, out_vars, in_vars, shared):
         containing :class:`pytensor.tensor.Tensor` for dependent shared data
     """
     out_list, inarray0 = join_nonshared_inputs(point, out_vars, in_vars, shared)
-    f = compile_pymc([inarray0], out_list, on_unused_input="ignore")
+    f = compile_pymc([inarray0], out_list)  # , on_unused_input="ignore")
     f.trust_input = True
     return f
 

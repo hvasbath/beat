@@ -12,6 +12,8 @@ import numpy as num
 from pymc.model import Point, modelcontext
 from pymc.pytensorf import inputvars, make_shared_replacements
 from pymc.sampling import sample_prior_predictive
+
+# from pymc.smc.kernels import _logp_forw
 from pymc.step_methods.metropolis import metrop_select
 from pymc.step_methods.metropolis import tune as step_tune
 from pymc.vartypes import discrete_types
@@ -111,24 +113,12 @@ class Metropolis(backend.ArrayStepSharedLLK):
         # needed to use the same parallel implementation function as for SMC
         self.resampling_indexes = num.arange(n_chains)
         self.n_chains = n_chains
-
         self.backend = backend
-        self.discrete = num.concatenate(
-            [
-                num.atleast_1d([v.dtype in discrete_types] * (v.size or 1))
-                for v in value_vars
-            ]
-        )
-        self.any_discrete = self.discrete.any()
-        self.all_discrete = self.discrete.all()
 
         # create initial population from prior
-        self.population = []
-        self.array_population = num.zeros(n_chains)
         logger.info(
             "Creating initial population for {}" " chains ...".format(self.n_chains)
         )
-        print(value_vars)
         var_names = [value_var.name for value_var in value_vars]
         prior_draws = sample_prior_predictive(
             samples=self.n_chains,
@@ -136,7 +126,10 @@ class Metropolis(backend.ArrayStepSharedLLK):
             model=model,
             return_inferencedata=False,
         )
-        print(prior_draws)
+
+        # print(prior_draws)
+        self.array_population = num.zeros(n_chains)
+        self.population = []
         for i in range(self.n_chains):
             self.population.append(
                 Point({v_name: prior_draws[v_name][i] for v_name in var_names})
@@ -159,18 +152,31 @@ class Metropolis(backend.ArrayStepSharedLLK):
         self.likelihood_name = likelihood_name
         self._llk_index = out_varnames.index(likelihood_name)
 
+        in_rvs = [model.values_to_rvs[val_var] for val_var in value_vars]
+
         self.logp_forw_func = logp_forw(
             point=test_point,
             out_vars=out_vars,
-            in_vars=value_vars,
+            in_vars=in_rvs,
             shared=shared,
         )
-        self.prior_logp_func = logp_forw(
-            point=test_point,
-            out_vars=[model.varlogp],
-            in_vars=value_vars,
-            shared=shared,
+        self.prior_logp_func = model.compile_fn(model.varlogp, point_fn=False)
+        # logp_forw(
+        #    point=test_point,
+        #    out_vars=[model.varlogp],
+        #    in_vars=in_rvs,
+        #    shared=shared,
+        # )
+
+        # determine if there are discrete variables
+        self.discrete = num.concatenate(
+            [
+                num.atleast_1d([v.dtype in discrete_types] * (v.size or 1))
+                for v in test_point.values()
+            ]
         )
+        self.any_discrete = self.discrete.any()
+        self.all_discrete = self.discrete.all()
 
         super(Metropolis, self).__init__(value_vars, out_vars, shared)
 
@@ -313,6 +319,7 @@ class Metropolis(backend.ArrayStepSharedLLK):
                     % (self.chain_index, self.stage_sample)
                 )
                 priorlogp = self.prior_logp_func(q)
+                # print(priorlogp)
                 if num.isfinite(priorlogp):
                     logger.debug(
                         "Calc llk: Chain_%i step_%i"
@@ -320,7 +327,6 @@ class Metropolis(backend.ArrayStepSharedLLK):
                     )
 
                     lp = self.logp_forw_func(q)
-
                     logger.debug(
                         "Select llk: Chain_%i step_%i"
                         % (self.chain_index, self.stage_sample)

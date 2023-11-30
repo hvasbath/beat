@@ -6,7 +6,7 @@ from time import time
 
 import numpy as num
 import pytensor.tensor as tt
-from pymc import Deterministic, Uniform
+from pymc import Potential, Uniform
 from pyrocko.gf import LocalEngine, RectangularSource
 from pytensor import config as tconfig
 from pytensor import shared
@@ -682,7 +682,7 @@ class GeodeticSourceComposite(GeodeticComposite):
             self.datasets, self.weights, hyperparams, residuals, hp_specific=hp_specific
         )
 
-        llk = Deterministic(self._like_name, logpts)
+        llk = Potential(self._like_name, logpts)
         return llk.sum()
 
 
@@ -1170,7 +1170,7 @@ class GeodeticDistributerComposite(GeodeticComposite):
             self.datasets, self.weights, hyperparams, residuals, hp_specific=hp_specific
         )
 
-        llk = Deterministic(self._like_name, logpts)
+        llk = Potential(self._like_name, logpts)
 
         return llk.sum()
 
