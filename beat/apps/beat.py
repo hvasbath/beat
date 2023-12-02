@@ -1044,8 +1044,8 @@ def result_check(mtrace, min_length):
 
 
 def command_summarize(args):
+    from arviz import convert_to_inference_data, summary
     from numpy import ravel, split, vstack
-    from pymc import summary
     from pyrocko.gf import RectangularSource
 
     command_str = "summarize"
@@ -1239,6 +1239,7 @@ def command_summarize(args):
             for chain in tqdm(chains):
                 for idx in idxs:
                     point = stage.mtrace.point(idx=idx, chain=chain)
+                    print("from trace", point)
                     reference.update(point)
                     # normalize MT source, TODO put into get_derived_params
                     if isinstance(source, MTSourceWithMagnitude):
@@ -1281,6 +1282,7 @@ def command_summarize(args):
                         )
 
                     # TODO: in PT with large buffer sizes somehow memory leak
+                    print("after lijection", lpoint)
                     rtrace.write(lpoint, draw=chain)
                     del lpoint, point
 
@@ -1311,7 +1313,12 @@ def command_summarize(args):
 
         if not os.path.exists(summary_file) or options.force:
             logger.info("Writing summary to %s" % summary_file)
-            df = summary(rtrace, round_to=4)
+            for trace in rtrace._straces.values():
+                trace.model = problem.model
+            idata = convert_to_inference_data(
+                rtrace, model=problem.model, save_warmup=False, log_likelihood=False
+            )
+            df = summary(idata, round_to=4)
             with open(summary_file, "w") as outfile:
                 df.to_string(outfile)
         else:

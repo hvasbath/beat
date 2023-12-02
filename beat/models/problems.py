@@ -158,7 +158,7 @@ class Problem(object):
                     backend=sc.backend,
                 )
                 t2 = time.time()
-                logger.info("Compilation time: %f" % (t2 - t1))
+                logger.info("Compilation time: %f \n" % (t2 - t1))
 
             elif sc.name == "SMC":
                 logger.info(
@@ -183,7 +183,7 @@ class Problem(object):
                     backend=sc.backend,
                 )
                 t2 = time.time()
-                logger.info("Compilation time: %f" % (t2 - t1))
+                logger.info("Compilation time: %f \n" % (t2 - t1))
 
             elif sc.name == "PT":
                 logger.info(
@@ -246,10 +246,8 @@ class Problem(object):
                 )
 
             # deterministic RV to write out llks to file
-            like = Potential(self._like_name, total_llk.sum())  # noqa: F841
-
-            # will overwrite deterministic name ... TODO remove?
-            # llk = Deterministic(self._like_name, like)  # noqa: F841
+            like = Potential("dummy", total_llk.sum())
+            llk = Deterministic(self._like_name, like)  # noqa: F841
             logger.info("Model building was successful! \n")
 
     def plant_lijection(self):
@@ -257,8 +255,8 @@ class Problem(object):
         Add list to array bijection to model object by monkey-patching.
         """
         if self.model is not None:
-            lordering = ListArrayOrdering(self.model.unobserved_RVs)
-            lpoint = [var.tag.test_value for var in self.model.unobserved_RVs]
+            lordering = ListArrayOrdering(self.model.unobserved_RVs, intype="tensor")
+            lpoint = [var.get_test_value() for var in self.model.unobserved_RVs]
             self.model.lijection = ListToArrayBijection(lordering, lpoint)
         else:
             raise AttributeError("Model needs to be built!")
@@ -315,8 +313,8 @@ class Problem(object):
 
         if "priors" in include:
             for param in pc.priors.values():
-                shape = pc.get_parameter_shape(param)
-                point[param.name] = param.random(shape)
+                size = pc.get_parameter_size(param)
+                point[param.name] = param.random(size)
 
         if "hypers" in include:
             if len(self.hyperparams) == 0:
@@ -415,6 +413,8 @@ class Problem(object):
 
                     except TypeError:
                         kwargs.pop("name")
+                        kwargs.pop("initval")
+                        kwargs.pop("transform")
                         hyperparams[hp_name] = Uniform.dist(**kwargs)
                         modelinit = False
 

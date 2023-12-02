@@ -83,7 +83,9 @@ class GeoSynthesizer(tt.Op):
         for i in inputs.values():
             inlist.append(tt.as_tensor_variable(i))
 
-        outm = tt.as_tensor_variable(num.zeros((2, 2)))
+        outm_shape = self.infer_shape()
+
+        outm = tt.as_tensor_variable(num.zeros(outm_shape))
         outlist = [outm.type()]
         return Apply(self, inlist, outlist)
 
@@ -123,7 +125,7 @@ class GeoSynthesizer(tt.Op):
             outmode=self.outmode,
         )
 
-    def infer_shape(self, node, input_shapes):
+    def infer_shape(self, fgraph=None, node=None, input_shapes=None):
         return [(self.nobs, 3)]
 
 
@@ -411,8 +413,10 @@ class SeisSynthesizer(tt.Op):
         for i in inputs.values():
             inlist.append(tt.as_tensor_variable(i))
 
-        outm = tt.as_tensor_variable(num.zeros((2, 2)))
-        outv = tt.as_tensor_variable(num.zeros((2)))
+        outm_shape, outv_shape = self.infer_shape()
+
+        outm = tt.as_tensor_variable(num.zeros(outm_shape))
+        outv = tt.as_tensor_variable(num.zeros(outv_shape))
         outlist = [outm.type(), outv.type()]
         return Apply(self, inlist, outlist)
 
@@ -475,7 +479,7 @@ class SeisSynthesizer(tt.Op):
         else:
             ValueError('Domain "%s" not supported!' % self.domain)
 
-    def infer_shape(self, node, input_shapes):
+    def infer_shape(self, fgraph=None, node=None, input_shapes=None):
         nrow = len(self.targets)
 
         if self.domain == "time":
@@ -509,8 +513,10 @@ class PolaritySynthesizer(tt.Op):
         for i in inputs.values():
             inlist.append(tt.as_tensor_variable(i))
 
-        out = tt.as_tensor_variable(num.zeros((2)))
-        outlist = [out.type()]
+        outv_shape = self.infer_shape()
+        outv = tt.as_tensor_variable(num.zeros(outv_shape))
+
+        outlist = [outv.type()]
         return Apply(self, inlist, outlist)
 
     def perform(self, node, inputs, output):
@@ -537,7 +543,7 @@ class PolaritySynthesizer(tt.Op):
             self.source, radiation_weights=self.pmap.get_radiation_weights()
         )
 
-    def infer_shape(self, node, input_shapes):
+    def infer_shape(self, fgraph=None, node=None, input_shapes=None):
         return [(self.pmap.n_t,)]
 
 
@@ -559,7 +565,8 @@ class SeisDataChopper(tt.Op):
         for i in inputs:
             inlist.append(tt.as_tensor_variable(i))
 
-        outm = tt.as_tensor_variable(num.zeros((2, 2)))
+        outm_shape = self.infer_shape()
+        outm = tt.as_tensor_variable(num.zeros(outm_shape))
 
         outlist = [outm.type()]
         return Apply(self, inlist, outlist)
@@ -572,7 +579,7 @@ class SeisDataChopper(tt.Op):
             self.traces, self.arrival_taper, self.filterer, tmins, outmode="array"
         )
 
-    def infer_shape(self, node, input_shapes):
+    def infer_shape(self, fgraph=None, node=None, input_shapes=None):
         nrow = len(self.traces)
         ncol = self.arrival_taper.nsamples(self.sample_rate)
         return [(nrow, ncol)]
@@ -605,7 +612,9 @@ class Sweeper(tt.Op):
         for i in inputs:
             inlist.append(tt.as_tensor_variable(i))
 
-        outv = tt.as_tensor_variable(num.zeros((2)))
+        outv_shape = self.infer_shape()
+        outv = tt.as_tensor_variable(num.zeros(outv_shape))
+
         outlist = [outv.type()]
         return Apply(self, inlist, outlist)
 
@@ -668,7 +677,7 @@ class Sweeper(tt.Op):
 
         logger.debug("Done sweeping!")
 
-    def infer_shape(self, node, input_shapes):
+    def infer_shape(self, fgraph=None, node=None, input_shapes=None):
         return [(self.n_patch_dip * self.n_patch_strike,)]
 
 
@@ -707,8 +716,9 @@ class EulerPole(tt.Op):
             else:
                 self.fixed_values[varname] = v
 
-        outv = tt.as_tensor_variable(num.zeros((2, 2)))
-        outlist = [outv.type()]
+        outm_shape = self.infer_shape()
+        outm = tt.as_tensor_variable(num.zeros(outm_shape))
+        outlist = [outm.type()]
         return Apply(self, inlist, outlist)
 
     def perform(self, node, inputs, output):
@@ -729,7 +739,7 @@ class EulerPole(tt.Op):
 
         z[0] = velocities
 
-    def infer_shape(self, node, input_shapes):
+    def infer_shape(self, fgraph=None, node=None, input_shapes=None):
         return [(len(self.lats), 3)]
 
 
@@ -769,8 +779,10 @@ class StrainRateTensor(tt.Op):
             else:
                 self.fixed_values[varname] = v
 
-        outv = tt.as_tensor_variable(num.zeros((2, 2)))
-        outlist = [outv.type()]
+        outm_shape = self.infer_shape()
+
+        outm = tt.as_tensor_variable(num.zeros(outm_shape))
+        outlist = [outm.type()]
         return Apply(self, inlist, outlist)
 
     def perform(self, node, inputs, output):
@@ -798,5 +810,5 @@ class StrainRateTensor(tt.Op):
 
         z[0] = v_xyz
 
-    def infer_shape(self, node, input_shapes):
+    def infer_shape(self, fgraph=None, node=None, input_shapes=None):
         return [(self.ndata, 3)]

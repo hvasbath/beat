@@ -6,6 +6,8 @@ the course of sampling the chain.
 """
 
 import logging
+import warnings
+from collections import OrderedDict
 from time import time
 
 import numpy as num
@@ -52,10 +54,6 @@ class Metropolis(backend.ArrayStepSharedLLK):
     scaling : float
         Factor applied to the proposal distribution i.e. the step size of the
         Markov Chain
-    covariance : :class:`numpy.ndarray`
-        (n_chains x n_chains) for MutlivariateNormal, otherwise (n_chains)
-        Initial Covariance matrix for proposal distribution,
-        if None - identity matrix taken
     likelihood_name : string
         name of the :class:`pymc.determinsitic` variable that contains the
         model likelihood - defaults to 'like'
@@ -76,7 +74,6 @@ class Metropolis(backend.ArrayStepSharedLLK):
     def __init__(
         self,
         value_vars=None,
-        covariance=None,
         scale=1.0,
         n_chains=100,
         tune=True,
@@ -89,11 +86,14 @@ class Metropolis(backend.ArrayStepSharedLLK):
         **kwargs,
     ):
         model = modelcontext(model)
+        self.likelihood_name = likelihood_name
+        self.proposal_name = proposal_name
+        self.population = None
 
         if value_vars is None:
             value_vars = model.value_vars
 
-        value_vars = inputvars(value_vars)
+        self.value_vars = inputvars(value_vars)
 
         self.scaling = utility.scalar2floatX(num.atleast_1d(scale))
 
@@ -115,88 +115,100 @@ class Metropolis(backend.ArrayStepSharedLLK):
         self.n_chains = n_chains
         self.backend = backend
 
+        # initial point comes in reversed order for whatever reason
+        self.test_point = OrderedDict(reversed(list(model.initial_point().items())))
+
+        self.initialize_population(model)
+        self.compile_model_graph(model)
+        self.initialize_proposal(model)
+
+    def initialize_population(self, model):
         # create initial population from prior
         logger.info(
-            "Creating initial population for {}" " chains ...".format(self.n_chains)
+            "Creating initial population for {} chains ...".format(self.n_chains)
         )
-        var_names = [value_var.name for value_var in value_vars]
-        prior_draws = sample_prior_predictive(
-            samples=self.n_chains,
-            var_names=var_names,
-            model=model,
-            return_inferencedata=False,
-        )
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore", category=UserWarning, message="The effect of Potentials"
+            )
+            var_names = [value_var.name for value_var in self.value_vars]
+            prior_draws = sample_prior_predictive(
+                samples=self.n_chains,
+                var_names=var_names,
+                model=model,
+                return_inferencedata=False,
+            )
 
         # print(prior_draws)
-        self.array_population = num.zeros(n_chains)
+        self.array_population = num.zeros(self.n_chains)
         self.population = []
         for i in range(self.n_chains):
             self.population.append(
                 Point({v_name: prior_draws[v_name][i] for v_name in var_names})
             )
 
-        test_point = model.initial_point()
-        self.population[0] = test_point
+        self.population[0] = self.test_point
 
-        shared = make_shared_replacements(test_point, value_vars, model)
+    def compile_model_graph(self, model):
+        logger.info("Compiling model graph ...")
+        shared = make_shared_replacements(self.test_point, self.value_vars, model)
 
         # collect all RVs and deterministics to write to file
         # out_vars = model.deterministics
         out_vars = model.unobserved_RVs
         out_varnames = [out_var.name for out_var in out_vars]
+        self._llk_index = out_varnames.index(self.likelihood_name)
 
         # plot modelgraph
         # model_to_graphviz(model).view()
 
-        # determine log_likelihood in there
-        self.likelihood_name = likelihood_name
-        self._llk_index = out_varnames.index(likelihood_name)
-
-        in_rvs = [model.values_to_rvs[val_var] for val_var in value_vars]
+        in_rvs = [model.values_to_rvs[val_var] for val_var in self.value_vars]
 
         self.logp_forw_func = logp_forw(
-            point=test_point,
+            point=self.test_point,
             out_vars=out_vars,
-            in_vars=in_rvs,
+            in_vars=in_rvs,  # values of dists
             shared=shared,
         )
-        self.prior_logp_func = model.compile_fn(model.varlogp, point_fn=False)
-        # logp_forw(
-        #    point=test_point,
-        #    out_vars=[model.varlogp],
-        #    in_vars=in_rvs,
-        #    shared=shared,
-        # )
+
+        self.prior_logp_func = logp_forw(
+            point=self.test_point,
+            out_vars=[model.varlogp],
+            in_vars=self.value_vars,  # logp of dists
+            shared=shared,
+        )
 
         # determine if there are discrete variables
         self.discrete = num.concatenate(
             [
                 num.atleast_1d([v.dtype in discrete_types] * (v.size or 1))
-                for v in test_point.values()
+                for v in self.test_point.values()
             ]
         )
         self.any_discrete = self.discrete.any()
         self.all_discrete = self.discrete.all()
 
-        super(Metropolis, self).__init__(value_vars, out_vars, shared)
+        super(Metropolis, self).__init__(self.value_vars, out_vars, shared)
 
+    def initialize_proposal(self, model):
         # init proposal
-        if covariance is None and proposal_name in multivariate_proposals:
+        logger.info("Initializing proposal distribution ...%s", self.proposal_name)
+        if self.proposal_name in multivariate_proposals:
+            if self.population is None:
+                raise ValueError("Sampler population needs to be initialised first!")
+
             t0 = time()
             self.covariance = init_proposal_covariance(
-                bij=self.bij, value_vars=value_vars, model=model, pop_size=1000
+                bij=self.bij, population=self.population
             )
             t1 = time()
             logger.info("Time for proposal covariance init: %f" % (t1 - t0))
             scale = self.covariance
-        elif covariance is None:
-            scale = num.ones(sum(v.size for v in test_point.values()))
         else:
-            scale = covariance
+            scale = num.ones(sum(v.size for v in self.test_point.values()))
 
-        self.proposal_name = proposal_name
         self.proposal_dist = choose_proposal(self.proposal_name, scale=scale)
-        self.proposal_samples_array = self.proposal_dist(n_chains)
+        self.proposal_samples_array = self.proposal_dist(self.n_chains)
 
         self.chain_previous_lpoint = [[]] * self.n_chains
         self._tps = None
@@ -318,25 +330,27 @@ class Metropolis(backend.ArrayStepSharedLLK):
                     "Checking bound: Chain_%i step_%i"
                     % (self.chain_index, self.stage_sample)
                 )
+                # print("before prior test", q)
                 priorlogp = self.prior_logp_func(q)
-                # print(priorlogp)
+                # print("prior", priorlogp)
                 if num.isfinite(priorlogp):
                     logger.debug(
                         "Calc llk: Chain_%i step_%i"
                         % (self.chain_index, self.stage_sample)
                     )
-
+                    # print("previous sample", q0)
                     lp = self.logp_forw_func(q)
                     logger.debug(
                         "Select llk: Chain_%i step_%i"
                         % (self.chain_index, self.stage_sample)
                     )
-
+                    # print("current sample", q)
                     tempered_llk_ratio = self.beta * (
                         lp[self._llk_index] - l0[self._llk_index]
                     )
                     q_new, accepted = metrop_select(tempered_llk_ratio, q, q0)
-
+                    # print("accepted:", q_new)
+                    # print("-----------------------------------")
                     if accepted:
                         logger.debug(
                             "Accepted: Chain_%i step_%i"

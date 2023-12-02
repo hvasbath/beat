@@ -7,6 +7,7 @@ Runs on any pymc model.
 import logging
 
 import numpy as np
+from pymc.blocking import RaveledVars
 from pymc.model import modelcontext
 
 from beat import backend, utility
@@ -39,10 +40,6 @@ class SMC(Metropolis):
     scaling : float
         Factor applied to the proposal distribution i.e. the step size of the
         Markov Chain
-    covariance : :class:`numpy.ndarray`
-        (n_chains x n_chains) for MutlivariateNormal, otherwise (n_chains)
-        Initial Covariance matrix for proposal distribution,
-        if None - identity matrix taken
     likelihood_name : string
         name of the :class:`pymc.determinsitic` variable that contains the
         model likelihood - defaults to 'like'
@@ -84,7 +81,6 @@ class SMC(Metropolis):
         self,
         vars=None,
         out_vars=None,
-        covariance=None,
         scale=1.0,
         n_chains=100,
         tune=True,
@@ -100,7 +96,6 @@ class SMC(Metropolis):
         super(SMC, self).__init__(
             vars=vars,
             out_vars=out_vars,
-            covariance=covariance,
             scale=scale,
             n_chains=n_chains,
             tune=tune,
@@ -128,7 +123,6 @@ class SMC(Metropolis):
             "logp_forw_func",
             "bij",
             "lij",
-            "ordering",
             "lordering",
             "proposal_samples_array",
             "vars",
@@ -209,31 +203,39 @@ class SMC(Metropolis):
         likelihoods : :class:`numpy.ndarray`
             Array of likelihoods of the trace end-points
         """
+        q = self.bij.map(self.test_point)
 
-        array_population = np.zeros((self.n_chains, self.ordering.size))
-
+        array_population = np.zeros((self.n_chains, q.data.size))
         n_steps = len(mtrace)
 
         # collect end points of each chain and put into array
-        for var, slc, shp, _ in self.ordering.vmap:
+        last_idx = 0
+        for var_name, shp, dtype in q.point_map_info:
             slc_population = mtrace.get_values(
-                varname=var, burn=n_steps - 1, combine=True
+                varname=var_name, burn=n_steps - 1, combine=True
             )
-
+            arr_len = np.prod(shp, dtype=int)
+            slc = slice(last_idx, last_idx + arr_len)
             if len(shp) == 0:
                 array_population[:, slc] = np.atleast_2d(slc_population).T
             else:
                 array_population[:, slc] = slc_population
 
+            last_idx += arr_len
+
         # get likelihoods
         likelihoods = mtrace.get_values(
             varname=self.likelihood_name, burn=n_steps - 1, combine=True
         )
-        population = []
 
         # map end array_endpoints to dict points
+        population = []
         for i in range(self.n_chains):
-            population.append(self.bij.rmap(array_population[i, :]))
+            population.append(
+                self.bij.rmap(
+                    RaveledVars(array_population[i, :], point_map_info=q.point_map_info)
+                )
+            )
 
         return population, array_population, likelihoods
 

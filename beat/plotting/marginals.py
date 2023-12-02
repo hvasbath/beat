@@ -207,7 +207,7 @@ def traceplot(
     def make_bins(data, nbins=40, qlist=None):
         d = data.flatten()
         if qlist is not None:
-            qu = num.percentile(d, qlist=qlist)
+            qu = num.percentile(d, q=qlist)
             mind, maxd = qu[0], qu[-1]
         else:
             mind = d.min()
@@ -310,7 +310,7 @@ def traceplot(
                     plot_name, transform = get_transform(v)
                     d = transform(d)
                     # iterate over columns in case varsize > 1
-
+                    print(v, d.shape)
                     if v in dist_vars:
                         if source_idxs is None:
                             source_idx_step = int(num.floor(d.shape[1] / 6))
@@ -343,6 +343,7 @@ def traceplot(
                     else:
                         selected = d.T
 
+                    print("selected")
                     nsources = selected.shape[0]
                     logger.debug("Number of sources: %i" % nsources)
                     for isource, e in enumerate(selected):
@@ -475,6 +476,7 @@ def traceplot(
                                     ax.axvline(x=e[idx], color=colors[k], lw=1.0)
                             else:
                                 idx = posterior_idxs[posterior]
+                                print(e.shape)
                                 ax.axvline(x=e[idx], color=pcolor, lw=1.0)
 
         if unify:

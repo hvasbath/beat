@@ -3,7 +3,6 @@ import os
 import shutil
 from copy import deepcopy
 
-import cloudpickle
 import numpy as np
 from numpy.random import (
     normal,
@@ -269,7 +268,8 @@ def _sample(
 ):
     n = parallel.get_process_id()
     logger.debug("Worker %i deserialises step", n)
-    step = cloudpickle.loads(step_method_pickled)
+    # step = cloudpickle.loads(step_method_pickled)
+    step = step_method_global
 
     shared_params = [
         sparam
@@ -418,10 +418,11 @@ def init_chain_hypers(problem):
     problem.update_llks(point)
 
 
-def serialise_step_method(step):
-    global step_method_pickled
-    logger.debug("Pickling step method")
-    step_method_pickled = cloudpickle.dumps(step, protocol=-1)
+def set_global_step_method(step):
+    global step_method_global
+    logger.debug("Setting global step method")
+    # step_method_pickled = cloudpickle.dumps(step, protocol=-1)
+    step_method_global = step
 
 
 def iter_parallel_chains(
@@ -565,7 +566,7 @@ def iter_parallel_chains(
             chunksize=chunksize,
             timeout=timeout,
             nprocs=n_jobs,
-            initializer=serialise_step_method,
+            initializer=set_global_step_method,
             initargs=[step],
         )
 

@@ -2,7 +2,6 @@ import logging
 from time import time
 
 import numpy as num
-from pymc import Point
 from pyrocko import gf, trace
 from pytensor import config as tconfig
 from scipy.linalg import toeplitz
@@ -849,16 +848,15 @@ def non_toeplitz_covariance_2d(coords, data, max_dist_perc):
     return toeplitz * stds[:, num.newaxis] * stds[num.newaxis, :]
 
 
-def init_proposal_covariance(bij, vars, model, pop_size=1000):
+def init_proposal_covariance(bij, population):
     """
     Create initial proposal covariance matrix based on random samples
     from the solution space.
     """
-    point = Point({v.name: v.random() for v in vars}, model=model)
-    q = bij.map(point)
-    population_array = num.zeros((pop_size, q.data.size))
-    for i in range(pop_size):
-        point = Point({v.name: v.random() for v in vars}, model=model)
+    test_point = population[0]
+    q = bij.map(test_point)
+    population_array = num.zeros((len(population), q.data.size))
+    for i, point in enumerate(population):
         population_array[i, :] = bij.map(point).data
 
     return num.diag(population_array.var(0))

@@ -285,10 +285,10 @@ def histplot_op(
 
     for i in range(data.shape[1]):
         d = data[:, i]
-        quants = num.percentile(d, qlist=qlist)
+        quants = num.percentile(d, q=qlist)
 
-        mind = quants[qlist[0]]
-        maxd = quants[qlist[-1]]
+        mind = quants[0]
+        maxd = quants[-1]
 
         if reference is not None:
             mind = num.minimum(mind, reference).min()
@@ -342,9 +342,10 @@ def histplot_op(
         ax.set_xlim(leftb, rightb)
         if cumulative:
             # need left plot bound, leftb
-            sigma_quants = num.percentile(d, [5, 68, 95])
+            quants = [5, 68, 95]
+            sigma_quants = num.percentile(d, q=quants)
 
-            for quantile, value in sigma_quants.items():
+            for quantile, value in zip(quants, sigma_quants):
                 quantile /= 100.0
                 if nsources == 1:
                     x = [leftb, value, value]

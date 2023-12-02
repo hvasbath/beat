@@ -1508,14 +1508,14 @@ class ProblemConfig(Object):
         fixed_params = {}
         for param in self.priors.values():
             if not num.array_equal(param.lower, param.upper):
-                shape = self.get_parameter_shape(param)
+                size = self.get_parameter_size(param)
 
                 kwargs = dict(
                     name=param.name,
-                    shape=num.sum(shape),
-                    lower=param.get_lower(shape),
-                    upper=param.get_upper(shape),
-                    initval=param.get_testvalue(shape),
+                    shape=(num.sum(size),),
+                    lower=param.get_lower(size),
+                    upper=param.get_upper(size),
+                    initval=param.get_testvalue(size),
                     transform=None,
                     dtype=tconfig.floatX,
                 )
@@ -1524,6 +1524,8 @@ class ProblemConfig(Object):
 
                 except TypeError:
                     kwargs.pop("name")
+                    kwargs.pop("initval")
+                    kwargs.pop("transform")
                     rvs[param.name] = Uniform.dist(**kwargs)
 
             else:
@@ -1616,8 +1618,8 @@ class ProblemConfig(Object):
         """
         test_point = {}
         for varname, var in self.priors.items():
-            shape = self.get_parameter_shape(var)
-            test_point[varname] = var.get_testvalue(shape)
+            size = self.get_parameter_size(var)
+            test_point[varname] = var.get_testvalue(size)
 
         for varname, var in self.hyperparameters.items():
             test_point[varname] = var.get_testvalue()
@@ -1627,20 +1629,20 @@ class ProblemConfig(Object):
 
         return test_point
 
-    def get_parameter_shape(self, param):
+    def get_parameter_size(self, param):
         if self.mode == ffi_mode_str and param.name in hypo_vars:
-            shape = self.n_sources[0]
+            size = self.n_sources[0]
         elif self.mode == ffi_mode_str and self.mode_config.npatches:
-            shape = self.mode_config.subfault_npatches
-            if len(shape) == 0:
-                shape = self.mode_config.npatches
+            size = self.mode_config.subfault_npatches
+            if len(size) == 0:
+                size = self.mode_config.npatches
         elif self.mode in [ffi_mode_str, geometry_mode_str, bem_mode_str]:
-            shape = param.dimension
+            size = param.dimension
 
         else:
             raise TypeError(f"Mode not implemented: {self.mode}")
 
-        return shape
+        return size
 
     def get_derived_variables_shapes(self):
         """

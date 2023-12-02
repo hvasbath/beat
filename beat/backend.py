@@ -37,6 +37,13 @@ try:
 except ImportError:
     from pandas.errors import ParserError as CParserError
 
+from typing import (
+    Set,
+)
+
+from arviz import convert_to_inference_data
+
+# from arviz.data.base import dict_to_dataset
 from pymc.backends import base, ndarray
 from pymc.blocking import DictToArrayBijection, RaveledVars
 from pymc.model import modelcontext
@@ -375,6 +382,20 @@ class FileChain(BaseChain):
         """
         self._df = None
 
+    def _get_sampler_stats(
+        self, stat_name: str, sampler_idx: int, burn: int, thin: int
+    ) -> num.ndarray:
+        """Get sampler statistics."""
+        raise NotImplementedError()
+
+    @property
+    def stat_names(self) -> Set[str]:
+        names: Set[str] = set()
+        for vars in self.sampler_vars or []:
+            names.update(vars.keys())
+
+        return names
+
 
 class MemoryChain(BaseChain):
     """
@@ -496,6 +517,7 @@ class TextChain(FileChain):
             columns = itertools.chain.from_iterable(
                 map(str, value.ravel()) for value in lpoint
             )
+            # print("backend write", columns)
             filehandle.write(",".join(columns) + "\n")
 
         # Write binary
@@ -1347,3 +1369,12 @@ def extract_bounds_from_summary(summary, varname, shape, roundto=None, alpha=0.0
         bounds.append(values)
 
     return bounds
+
+
+def multitrace_to_inference_data(mtrace):
+    idata_posterior_dict = {}
+    for varname in mtrace.varnames:
+        idata_posterior_dict[varname] = mtrace.get_values(varname)
+
+    idata = convert_to_inference_data(idata_posterior_dict)
+    return idata
