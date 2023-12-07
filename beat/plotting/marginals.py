@@ -205,7 +205,7 @@ def traceplot(
     num.set_printoptions(precision=3)
 
     def make_bins(data, nbins=40, qlist=None):
-        d = data.flatten()
+        d = data.ravel()
         if qlist is not None:
             qu = num.percentile(d, q=qlist)
             mind, maxd = qu[0], qu[-1]
@@ -310,7 +310,6 @@ def traceplot(
                     plot_name, transform = get_transform(v)
                     d = transform(d)
                     # iterate over columns in case varsize > 1
-                    print(v, d.shape)
                     if v in dist_vars:
                         if source_idxs is None:
                             source_idx_step = int(num.floor(d.shape[1] / 6))
@@ -341,9 +340,8 @@ def traceplot(
 
                         selected = num.vstack(selected)
                     else:
-                        selected = d.T
+                        selected = num.atleast_2d(d.T)
 
-                    print("selected")
                     nsources = selected.shape[0]
                     logger.debug("Number of sources: %i" % nsources)
                     for isource, e in enumerate(selected):
@@ -473,11 +471,10 @@ def traceplot(
                         if posterior != "None":
                             if posterior == "all":
                                 for k, idx in posterior_idxs.items():
-                                    ax.axvline(x=e[idx], color=colors[k], lw=1.0)
+                                    ax.axvline(x=e[:, idx], color=colors[k], lw=1.0)
                             else:
                                 idx = posterior_idxs[posterior]
-                                print(e.shape)
-                                ax.axvline(x=e[idx], color=pcolor, lw=1.0)
+                                ax.axvline(x=e[:, idx], color=pcolor, lw=1.0)
 
         if unify:
             page_varnames = varnames[varname_page_idx : varname_page_idx + nsubplots]
@@ -680,7 +677,12 @@ def correlation_plot_hist(
             mtrace.get_values(var, chains=chains, combine=True, squeeze=True)
         )
 
-        _, nvar_elements = vals.shape
+        logger.info("Getting data for `%s` from sampled trace." % var)
+        try:
+            _, nvar_elements = vals.shape
+        except ValueError:  # for variables woth dim=1
+            nvar_elements = 1
+            vals = num.atleast_2d(vals).T
 
         d[var] = vals
 
@@ -946,7 +948,7 @@ def draw_correlation_hist(problem, plot_options):
     if hypers:
         varnames = problem.hypernames
     else:
-        varnames = list(problem.varnames) + problem.hypernames + ["like"]
+        varnames = list(problem.varnames)
 
     if len(po.varnames) > 0:
         varnames = po.varnames

@@ -228,7 +228,7 @@ class Problem(object):
             self.init_hyperparams()
             self.init_hierarchicals()
 
-            total_llk = tt.zeros((1), tconfig.floatX)
+            total_llk = tt.zeros((1, 1), tconfig.floatX)
 
             for datatype, composite in self.composites.items():
                 if datatype in bconfig.modes_catalog[pc.mode].keys():
@@ -284,7 +284,7 @@ class Problem(object):
         with Model() as self.model:
             self.init_hyperparams()
 
-            total_llk = tt.zeros((1), tconfig.floatX)
+            total_llk = tt.zeros((1, 1), tconfig.floatX)
 
             for composite in self.composites.values():
                 if hasattr(composite, "analyse_noise"):

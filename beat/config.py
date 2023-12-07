@@ -1232,11 +1232,15 @@ class DatatypeParameterMapping(Object):
             self.point_to_sources_mapping()
 
         if k not in self._mapping.keys():
-            raise KeyError(k)
+            raise KeyError("Parameters mapping does not contain parameters:", k)
 
         return self._mapping[k]
 
     def point_to_sources_mapping(self) -> TDict[str, TList[int]]:
+        """
+        Mapping for mixed source setups. Mapping source parameter name to source indexes.
+        Is used by utilit.split_point to split the full point into subsource_points.
+        """
         if self._mapping is None:
             start_idx = 0
             total_variables = {}

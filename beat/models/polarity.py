@@ -157,16 +157,6 @@ class PolarityComposite(Composite):
         tpoint.update(self.fixed_rvs)
         tpoint = adjust_point_units(tpoint)
 
-        hps = self.config.get_hypernames()
-        for hyper in hps:
-            if hyper in tpoint:
-                tpoint.pop(hyper)
-
-        source_parameter_names = self.mapping.point_variable_names()
-        for param in list(tpoint.keys()):
-            if param not in source_parameter_names:
-                tpoint.pop(param)
-
         if "time" in tpoint:
             if self.nevents == 1:
                 tpoint["time"] += self.event.time  # single event
@@ -176,8 +166,9 @@ class PolarityComposite(Composite):
 
         source_points = split_point(
             tpoint,
-            point_to_sources=self.mapping,
+            mapping=self.mapping,
             n_sources_total=self.n_sources_total,
+            weed_params=True,
         )
 
         for i, source in enumerate(self.sources):

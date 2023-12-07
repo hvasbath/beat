@@ -261,6 +261,10 @@ def histplot_op(
 ):
     """
     Modified from pymc3. Additional color argument.
+
+    data: array_like
+        samples of one group for the histogram are expected row-wise ordering.
+
     """
 
     cumulative = kwargs.pop("cumulative", False)
@@ -283,8 +287,7 @@ def histplot_op(
         else:
             histtype = "step"
 
-    for i in range(data.shape[1]):
-        d = data[:, i]
+    for d in data:
         quants = num.percentile(d, q=qlist)
 
         mind = quants[0]

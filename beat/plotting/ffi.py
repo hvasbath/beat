@@ -135,8 +135,7 @@ def draw_moment_rate(problem, po):
         outpath = os.path.join(
             problem.outfolder,
             po.figure_dir,
-            "moment_rate_%i_%s_%s_%i.%s"
-            % (stage.number, ns_str, llk_str, po.nensemble, po.outformat),
+            "moment_rate_%i_%s_%s_%i" % (stage.number, ns_str, llk_str, po.nensemble),
         )
 
         ref_mrf_rates, ref_mrf_times = fault.get_moment_rate_function(

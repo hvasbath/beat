@@ -607,22 +607,11 @@ class GeodeticSourceComposite(GeodeticComposite):
         tpoint.update(self.fixed_rvs)
         tpoint = utility.adjust_point_units(tpoint)
 
-        # remove hyperparameters from point
-        hps = self.config.get_hypernames()
-
-        for hyper in hps:
-            if hyper in tpoint:
-                tpoint.pop(hyper)
-
-        source_parameter_names = self.mapping.point_variable_names()
-        for param in list(tpoint.keys()):
-            if param not in source_parameter_names:
-                tpoint.pop(param)
-
         source_points = utility.split_point(
             tpoint,
-            point_to_sources=self.mapping,
+            mapping=self.mapping,
             n_sources_total=self.n_sources_total,
+            weed_params=True,
         )
         for i, source in enumerate(self.sources):
             utility.update_source(source, **source_points[i])

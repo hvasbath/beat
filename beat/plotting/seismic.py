@@ -392,7 +392,7 @@ def extract_time_shifts(point, hierarchicals, wmap):
 def form_result_ensemble(
     stage, composite, nensemble, chop_bounds, target_index, bresults, bvar_reductions
 ):
-    if nensemble > 1:
+    if nensemble > 0:
         logger.info("Collecting ensemble of %i synthetic waveforms ..." % nensemble)
         nchains = len(stage.mtrace)
         csteps = float(nchains) / nensemble
@@ -435,7 +435,7 @@ def form_result_ensemble(
         target_synths.append(bresults[i].processed_syn)
         target_var_reductions.append(bvar_reductions[nslcd_id_str])
 
-        if nensemble > 1:
+        if nensemble > 0:
             for results, var_reductions in zip(ens_results, ens_var_reductions):
                 # put all results per target here not only single
 
@@ -1150,17 +1150,21 @@ def extract_mt_components(problem, po, include_magnitude=False):
     source_types = problem.config.problem_config.source_types
     n_sources = problem.config.problem_config.n_sources
 
+    composite = problem.composites[problem.config.problem_config.datatypes[0]]
+
     list_m6s = []
     list_best_mts = []
+    running_source_idx = 0
     for n_source, source_type in zip(n_sources, source_types):
         if source_type in ["MTSource", "MTQTSource"]:
             varnames = ["mnn", "mee", "mdd", "mne", "mnd", "med"]
         elif source_type in ["DCSource", "RectangularSource"]:
             varnames = ["strike", "dip", "rake"]
         else:
-            raise ValueError(
-                'Plot is only supported for point "MTSource" and "DCSource"'
-            )
+            logger.warning("Plot is not supported for source_type %s" % source_type)
+            list_m6s.append(None)
+            list_best_mts.append(None)
+            continue
 
         if include_magnitude:
             varnames += ["magnitude"]
@@ -1172,6 +1176,14 @@ def extract_mt_components(problem, po, include_magnitude=False):
                 problem, stage_number=po.load_stage, load="trace", chains=[-1]
             )
 
+            point = get_result_point(stage.mtrace, po.post_llk)
+            source_points = utility.split_point(
+                point,
+                mapping=composite.mapping,
+                n_sources_total=composite.n_sources_total,
+                weed_params=True,
+            )
+
             for idx_source in range(n_source):
                 n_mts = len(stage.mtrace)
                 m6s = num.empty((n_mts, len(varnames)), dtype="float64")
@@ -1179,15 +1191,15 @@ def extract_mt_components(problem, po, include_magnitude=False):
                     try:
                         m6s[:, i] = (
                             stage.mtrace.get_values(varname, combine=True, squeeze=True)
-                            .T[idx_source]
+                            .T[running_source_idx]
                             .ravel()
                         )
 
                     except ValueError:  # if fixed value add that to the ensemble
-                        rpoint = problem.get_random_point()
+                        rpoint = source_points[running_source_idx]
                         mtfield = num.full_like(
                             num.empty((n_mts), dtype=num.float64),
-                            rpoint[varname][idx_source],
+                            rpoint[varname],
                         )
                         m6s[:, i] = mtfield
 
@@ -1199,7 +1211,6 @@ def extract_mt_components(problem, po, include_magnitude=False):
                 else:
                     logger.info("Drawing full ensemble ...")
 
-                point = get_result_point(stage.mtrace, po.post_llk)
                 best_mt = point2array(
                     point, varnames=varnames, rpoint=rpoint, idx_source=idx_source
                 )
@@ -1211,27 +1222,25 @@ def extract_mt_components(problem, po, include_magnitude=False):
             point = po.reference
             list_best_mts = []
             list_m6s = []
-            if source_type == "MTQTSource":
-                composite = problem.composites[
-                    problem.config.problem_config.datatypes[0]
-                ]
-                composite.point2sources(po.reference)
-                for source in composite.sources:
-                    list_m6s.append([source.get_derived_parameters()[0:6]])
-                    list_best_mts.append(None)
+            for n_source, source_type in zip(n_sources, source_types):
+                if source_type == "MTQTSource":
+                    composite.point2sources(po.reference)
+                    for source in composite.sources:
+                        list_m6s.append([source.get_derived_parameters()[0:6]])
+                        list_best_mts.append(None)
 
-            else:
-                for idx_source in range(n_sources):
-                    list_m6s.append(
-                        [
-                            point2array(
-                                point=po.reference,
-                                varnames=varnames,
-                                idx_source=idx_source,
-                            )
-                        ]
-                    )
-                    list_best_mts.append(None)
+                else:
+                    for idx_source in range(n_sources):
+                        list_m6s.append(
+                            [
+                                point2array(
+                                    point=po.reference,
+                                    varnames=varnames,
+                                    idx_source=idx_source,
+                                )
+                            ]
+                        )
+                        list_best_mts.append(None)
 
     return list_m6s, list_best_mts, llk_str, point
 
@@ -1475,16 +1484,16 @@ def plot_fuzzy_beachball_mpl_pixmap(
             zorder=zorder,
             alpha=alpha,
         )
-
     elif method == "imshow":
+        extent = (
+            position[0] + y[0] * size,
+            position[0] + y[-1] * size,
+            position[1] - x[0] * size,
+            position[1] - x[-1] * size,
+        )
         axes.imshow(
             amps.T,
-            extent=(
-                position[0] + y[0] * size,
-                position[0] + y[-1] * size,
-                position[1] - x[0] * size,
-                position[1] - x[-1] * size,
-            ),
+            extent=extent,
             cmap=cmap,
             transform=transform,
             zorder=zorder - 0.1,
@@ -1519,9 +1528,12 @@ def plot_fuzzy_beachball_mpl_pixmap(
     phi = num.linspace(0.0, 2 * PI, 361)
     x = num.cos(phi)
     y = num.sin(phi)
+    pos_y = position[0] + y * size
+    pos_x = position[1] + x * size
+
     axes.plot(
-        position[0] + y * size,
-        position[1] + x * size,
+        pos_y,
+        pos_x,
         linewidth=linewidth,
         color=edgecolor,
         transform=transform,
@@ -1564,16 +1576,12 @@ def draw_fuzzy_beachball(problem, po):
             outpath = os.path.join(
                 problem.outfolder,
                 po.figure_dir,
-                "fuzzy_beachball_%i_%s_%i_%s_%i.%s"
-                % (
-                    po.load_stage,
-                    llk_str,
-                    po.nensemble,
-                    wavename,
-                    idx_source,
-                    po.outformat,
-                ),
+                "fuzzy_beachball_%i_%s_%i_%s_%i"
+                % (po.load_stage, llk_str, po.nensemble, wavename, idx_source),
             )
+
+            if plot_exists(outpath, po.outformat, po.force):
+                return
 
             fig = plt.figure(figsize=(4.0, 4.0))
             fig.subplots_adjust(left=0.0, right=1.0, bottom=0.0, top=1.0)
@@ -1656,7 +1664,7 @@ def fuzzy_mt_decomposition(axes, list_m6s, labels=None, colors=None, fontsize=12
         "size_units": "data",
         "edgecolor": "black",
         "linewidth": 1,
-        "grid_resolution": 200,
+        "grid_resolution": 400,
     }
 
     def get_decomps(source_vals):
@@ -1692,7 +1700,9 @@ def fuzzy_mt_decomposition(axes, list_m6s, labels=None, colors=None, fontsize=12
 
         lines.append((label, m6s, color))
 
-    magnitude_full_max = max(m6s.mean(axis=0)[-1] for (_, m6s, _) in lines)
+    magnitude_full_max = max(
+        m6s.mean(axis=0)[-1] for (_, m6s, _) in lines if m6s is not None
+    )
 
     for xpos, label in [
         (0.0, "Full"),
@@ -1714,6 +1724,9 @@ def fuzzy_mt_decomposition(axes, list_m6s, labels=None, colors=None, fontsize=12
         )
 
     for i, (label, m6s, color_t) in enumerate(lines):
+        if m6s is None:
+            continue
+
         ypos = nlines_max - (i * yscale) - 1.0
         mean_magnitude = m6s.mean(0)[-1]
         size0 = mean_magnitude / magnitude_full_max
@@ -1747,11 +1760,11 @@ def fuzzy_mt_decomposition(axes, list_m6s, labels=None, colors=None, fontsize=12
 
             if ratio > 1e-4:
                 try:
-                    size = num.sqrt(ratio) * 0.95 * size0
+                    size = num.sqrt(ratio) * 0.98 * size0
                     kwargs["position"] = (1.0 + xpos, ypos)
                     kwargs["size"] = size
                     kwargs["color_t"] = color_t
-                    beachball.plot_fuzzy_beachball_mpl_pixmap(
+                    plot_fuzzy_beachball_mpl_pixmap(
                         mt_parts, axes, best_mt=None, **kwargs
                     )
 
@@ -1826,7 +1839,7 @@ def fuzzy_mt_decomposition(axes, list_m6s, labels=None, colors=None, fontsize=12
 def draw_fuzzy_mt_decomposition(problem, po):
     fontsize = 10
 
-    n_sources = problem.config.problem_config.n_sources
+    n_sources = sum(problem.config.problem_config.n_sources)
 
     if po.load_stage is None:
         po.load_stage = -1
@@ -1836,8 +1849,7 @@ def draw_fuzzy_mt_decomposition(problem, po):
     outpath = os.path.join(
         problem.outfolder,
         po.figure_dir,
-        "fuzzy_mt_decomposition_%i_%s_%i.%s"
-        % (po.load_stage, llk_str, po.nensemble, po.outformat),
+        "fuzzy_mt_decomposition_%i_%s_%i" % (po.load_stage, llk_str, po.nensemble),
     )
 
     if plot_exists(outpath, po.outformat, po.force):
