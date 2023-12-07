@@ -1,12 +1,11 @@
 import logging
-import numpy as num
+from dataclasses import dataclass
 from time import time
 
+import numpy as num
+from pyrocko.gf.seismosizer import Source, outline_rect_source
 from pyrocko.guts import Float, Tuple
 from pyrocko.orthodrome import ne_to_latlon
-from pyrocko.gf.seismosizer import Source, outline_rect_source
-
-from dataclasses import dataclass
 
 try:
     import pygmsh
@@ -51,7 +50,7 @@ __all__ = [
 ]
 
 
-def get_node_name(prefix, suffix):
+def get_node_name(prefix: str, suffix):
     if prefix:
         return f"{prefix}_{suffix}_node"
     else:
@@ -173,7 +172,7 @@ class BEMSource(Source):
     def get_tractions(self):
         raise NotImplementedError("Implement in inherited class")
 
-    def _get_arch_points(self, node_names):
+    def _get_arch_points(self, node_names: list[str]) -> list:
         try:
             return [self.points[node_name] for node_name in node_names]
         except KeyError:
@@ -237,8 +236,8 @@ class TriangleBEMSource(BEMSource):
 
 
 class EllipseBEMSource(BEMSource):
-    major_axis = Float.T(default=0.5 * km)
-    minor_axis = Float.T(default=0.3 * km)
+    a_half_axis = Float.T(default=0.5 * km)
+    b_half_axis = Float.T(default=0.3 * km)
 
     strike = Float.T(default=0.0)
 
@@ -276,83 +275,83 @@ class EllipseBEMSource(BEMSource):
         )
 
     @property
-    def left_major_node(self):
+    def left_a_node(self):
         return (
             self._origin.x,
-            self._origin.y - self.major_axis,
+            self._origin.y - self.a_half_axis,
             self._origin.z,
         )
 
     @property
-    def right_major_node(self):
+    def right_a_node(self):
         return (
             self._origin.x,
-            self._origin.y + self.major_axis,
+            self._origin.y + self.a_half_axis,
             self._origin.z,
         )
 
     @property
-    def upper_minor_node(self):
+    def upper_b_node(self):
         return (
-            self._origin.x + self.minor_axis,
+            self._origin.x + self.b_half_axis,
             self._origin.y,
             self._origin.z,
         )
 
     @property
-    def lower_minor_node(self):
+    def lower_b_node(self):
         return (
-            self._origin.x - self.minor_axis,
+            self._origin.x - self.b_half_axis,
             self._origin.y,
             self._origin.z,
         )
 
     def _get_node_suffixes(self):
         return (
-            "left_major",
-            "right_major",
-            "upper_minor",
-            "lower_minor",
+            "left_a",
+            "right_a",
+            "upper_b",
+            "lower_b",
             "origin",
         )
 
     def get_top_upper_left_arch_points(self):
         return self._get_arch_points(
             [
-                "left_major_node",
+                "left_a_node",
                 "origin_node",
-                "upper_minor_node",
-                "upper_minor_node",
+                "upper_b_node",
+                "upper_b_node",
             ]
         )
 
     def get_top_upper_right_arch_points(self):
         return self._get_arch_points(
             [
-                "upper_minor_node",
+                "upper_b_node",
                 "origin_node",
-                "right_major_node",
-                "right_major_node",
+                "right_a_node",
+                "right_a_node",
             ]
         )
 
     def get_top_lower_right_arch_points(self):
         return self._get_arch_points(
             [
-                "right_major_node",
+                "right_a_node",
                 "origin_node",
-                "lower_minor_node",
-                "lower_minor_node",
+                "lower_b_node",
+                "lower_b_node",
             ]
         )
 
     def get_top_lower_left_arch_points(self):
         return self._get_arch_points(
             [
-                "lower_minor_node",
+                "lower_b_node",
                 "origin_node",
-                "left_major_node",
-                "left_major_node",
+                "left_a_node",
+                "left_a_node",
             ]
         )
 
@@ -371,8 +370,8 @@ class DiskBEMSource(EllipseBEMSource):
                 self.lat,
                 self.east_shift,
                 self.north_shift,
-                self.major_axis,
-                self.minor_axis,
+                self.a_half_axis,
+                self.b_half_axis,
                 self.dip,
                 self.plunge,
                 self.strike,
@@ -418,10 +417,10 @@ class RingfaultBEMSource(EllipseBEMSource):
     delta_north_shift_bottom = Float.T(default=0.0 * km)
     depth_bottom = Float.T(default=1.0 * km)
 
-    major_axis = Float.T(default=0.5 * km)
-    minor_axis = Float.T(default=0.3 * km)
-    major_axis_bottom = Float.T(default=0.55 * km)
-    minor_axis_bottom = Float.T(default=0.35 * km)
+    a_half_axis = Float.T(default=0.5 * km)
+    b_half_axis = Float.T(default=0.3 * km)
+    a_half_axis_bottom = Float.T(default=0.55 * km)
+    b_half_axis_bottom = Float.T(default=0.35 * km)
 
     def __init__(self, **kwargs):
         EllipseBEMSource.__init__(self, **kwargs)
@@ -443,33 +442,33 @@ class RingfaultBEMSource(EllipseBEMSource):
         )
 
     @property
-    def bottom_left_major_node(self):
+    def bottom_left_a_node(self):
         return (
             self._bottom_origin.x,
-            self._bottom_origin.y - self.major_axis_bottom,
+            self._bottom_origin.y - self.a_half_axis_bottom,
             self._bottom_origin.z,
         )
 
     @property
-    def bottom_right_major_node(self):
+    def bottom_right_a_node(self):
         return (
             self._bottom_origin.x,
-            self._bottom_origin.y + self.major_axis_bottom,
+            self._bottom_origin.y + self.a_half_axis_bottom,
             self._bottom_origin.z,
         )
 
     @property
-    def bottom_upper_minor_node(self):
+    def bottom_upper_b_node(self):
         return (
-            self._bottom_origin.x + self.minor_axis_bottom,
+            self._bottom_origin.x + self.b_half_axis_bottom,
             self._bottom_origin.y,
             self._bottom_origin.z,
         )
 
     @property
-    def bottom_lower_minor_node(self):
+    def bottom_lower_b_node(self):
         return (
-            self._bottom_origin.x - self.minor_axis_bottom,
+            self._bottom_origin.x - self.b_half_axis_bottom,
             self._bottom_origin.y,
             self._bottom_origin.z,
         )
@@ -477,54 +476,54 @@ class RingfaultBEMSource(EllipseBEMSource):
     def get_bottom_upper_left_arch_points(self):
         return self._get_arch_points(
             [
-                "bottom_left_major_node",
+                "bottom_left_a_node",
                 "bottom_origin_node",
-                "bottom_upper_minor_node",
-                "bottom_upper_minor_node",
+                "bottom_upper_b_node",
+                "bottom_upper_b_node",
             ]
         )
 
     def get_bottom_upper_right_arch_points(self):
         return self._get_arch_points(
             [
-                "bottom_upper_minor_node",
+                "bottom_upper_b_node",
                 "bottom_origin_node",
-                "bottom_right_major_node",
-                "bottom_right_major_node",
+                "bottom_right_a_node",
+                "bottom_right_a_node",
             ]
         )
 
     def get_bottom_lower_right_arch_points(self):
         return self._get_arch_points(
             [
-                "bottom_right_major_node",
+                "bottom_right_a_node",
                 "bottom_origin_node",
-                "bottom_lower_minor_node",
-                "bottom_lower_minor_node",
+                "bottom_lower_b_node",
+                "bottom_lower_b_node",
             ]
         )
 
     def get_bottom_lower_left_arch_points(self):
         return self._get_arch_points(
             [
-                "bottom_lower_minor_node",
+                "bottom_lower_b_node",
                 "bottom_origin_node",
-                "bottom_left_major_node",
-                "bottom_left_major_node",
+                "bottom_left_a_node",
+                "bottom_left_a_node",
             ]
         )
 
-    def get_left_major_connecting_points(self):
-        return self._get_arch_points(["left_major_node", "bottom_left_major_node"])
+    def get_left_a_connecting_points(self):
+        return self._get_arch_points(["left_a_node", "bottom_left_a_node"])
 
-    def get_right_major_connecting_points(self):
-        return self._get_arch_points(["right_major_node", "bottom_right_major_node"])
+    def get_right_a_connecting_points(self):
+        return self._get_arch_points(["right_a_node", "bottom_right_a_node"])
 
-    def get_upper_minor_connecting_points(self):
-        return self._get_arch_points(["upper_minor_node", "bottom_upper_minor_node"])
+    def get_upper_b_connecting_points(self):
+        return self._get_arch_points(["upper_b_node", "bottom_upper_b_node"])
 
-    def get_lower_minor_connecting_points(self):
-        return self._get_arch_points(["lower_minor_node", "bottom_lower_minor_node"])
+    def get_lower_b_connecting_points(self):
+        return self._get_arch_points(["lower_b_node", "bottom_lower_b_node"])
 
     def get_source_surface(self, geom, mesh_size):
         self._init_points_geometry(
@@ -553,10 +552,10 @@ class RingfaultBEMSource(EllipseBEMSource):
         b_arch_lr = geom.add_ellipse_arc(*self.get_bottom_lower_right_arch_points())
         b_arch_ll = geom.add_ellipse_arc(*self.get_bottom_lower_left_arch_points())
 
-        c_lmaj = geom.add_line(*self.get_left_major_connecting_points())
-        c_rmaj = geom.add_line(*self.get_right_major_connecting_points())
-        c_umin = geom.add_line(*self.get_upper_minor_connecting_points())
-        c_lmin = geom.add_line(*self.get_lower_minor_connecting_points())
+        c_lmaj = geom.add_line(*self.get_left_a_connecting_points())
+        c_rmaj = geom.add_line(*self.get_right_a_connecting_points())
+        c_umin = geom.add_line(*self.get_upper_b_connecting_points())
+        c_lmin = geom.add_line(*self.get_lower_b_connecting_points())
 
         m_top_left = geom.add_curve_loop([t_arch_ul, c_umin, -b_arch_ul, -c_lmaj])
         m_top_right = geom.add_curve_loop([t_arch_ur, c_rmaj, -b_arch_ur, -c_umin])
@@ -575,8 +574,8 @@ class RingfaultBEMSource(EllipseBEMSource):
             self.lat,
             self.east_shift,
             self.north_shift,
-            self.major_axis,
-            self.minor_axis,
+            self.a_half_axis,
+            self.b_half_axis,
             0.0,
             0.0,
             self.strike,
@@ -588,8 +587,8 @@ class RingfaultBEMSource(EllipseBEMSource):
             self.lat,
             self.east_shift + self.delta_east_shift_bottom,
             self.north_shift + self.delta_north_shift_bottom,
-            self.major_axis_bottom,
-            self.minor_axis_bottom,
+            self.a_half_axis_bottom,
+            self.b_half_axis_bottom,
             0.0,
             0.0,
             self.strike,
@@ -858,20 +857,20 @@ def get_ellipse_points(
     lat: float,
     east_shift: float,
     north_shift: float,
-    major_axis: float,
-    minor_axis: float,
+    a_half_axis: float,
+    b_half_axis: float,
     dip: float,
     plunge: float,
     strike: float,
     cs: str = "xy",
     npoints: int = 50,
 ) -> num.ndarray:
-    major_axis_rot = major_axis * num.cos(dip * DEG2RAD)
-    minor_axis_rot = minor_axis * num.cos(plunge * DEG2RAD)
+    a_half_axis_rot = a_half_axis * num.cos(dip * DEG2RAD)
+    b_half_axis_rot = b_half_axis * num.cos(plunge * DEG2RAD)
 
     ring = num.linspace(0, 2 * num.pi, npoints)
     ellipse = num.array(
-        [minor_axis_rot * num.cos(ring), major_axis_rot * num.sin(ring)]
+        [b_half_axis_rot * num.cos(ring), a_half_axis_rot * num.sin(ring)]
     )
 
     strike_rad = -strike * DEG2RAD
@@ -901,7 +900,7 @@ def get_ellipse_points(
         raise NotImplementedError(f"Coordinate system '{cs}' is not implemented.")
 
 
-def check_intersection(sources: list, mesh_size: float = 0.5):
+def check_intersection(sources: list, mesh_size: float = 0.5) -> bool:
     """
     Computationally expensive check for source intersection.
     """

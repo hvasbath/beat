@@ -88,8 +88,8 @@ def get_disk_setup():
             tensile_traction=0,
             north_shift=0.5 * km,
             depth=3.5 * km,
-            major_axis=3 * km,
-            minor_axis=1.8 * km,
+            a_half_axis=3 * km,
+            b_half_axis=1.8 * km,
             dip=45,
             strike=30,
         )
@@ -104,8 +104,8 @@ def get_disk_tensile_only_setup():
             tensile_traction=2.15e6,
             north_shift=0.5 * km,
             depth=3.5 * km,
-            major_axis=1 * km,
-            minor_axis=1.0 * km,
+            a_half_axis=1 * km,
+            b_half_axis=1.0 * km,
             dip=0,
             strike=30,
         )
@@ -121,12 +121,12 @@ def get_disk_ringfault_setup(intersect=False):
     targets = [get_static_target([-10 * km, 10 * km], 100)]
 
     if intersect:
-        major_axis_bottom = 2.5 * km
-        minor_axis_bottom = 2.5 * km
+        a_half_axis_bottom = 2.5 * km
+        b_half_axis_bottom = 2.5 * km
         depth = 3.0 * km
     else:
-        major_axis_bottom = 3.5 * km
-        minor_axis_bottom = 3.5 * km
+        a_half_axis_bottom = 3.5 * km
+        b_half_axis_bottom = 3.5 * km
         depth = 4.2 * km
 
     sources = [
@@ -135,8 +135,8 @@ def get_disk_ringfault_setup(intersect=False):
             north_shift=0.0 * km,
             east_shift=3.5 * km,
             depth=depth,
-            major_axis=major_axis_bottom,
-            minor_axis=minor_axis_bottom,
+            a_half_axis=a_half_axis_bottom,
+            b_half_axis=b_half_axis_bottom,
             dip=0,
             strike=0,
         ),
@@ -146,10 +146,10 @@ def get_disk_ringfault_setup(intersect=False):
             delta_north_shift_bottom=0.0 * km,
             depth=0.5 * km,
             depth_bottom=3.9 * km,
-            major_axis=2 * km,
-            minor_axis=2 * km,
-            major_axis_bottom=major_axis_bottom,
-            minor_axis_bottom=minor_axis_bottom,
+            a_half_axis=2 * km,
+            b_half_axis=2 * km,
+            a_half_axis_bottom=a_half_axis_bottom,
+            b_half_axis_bottom=b_half_axis_bottom,
             strike=5,
         ),
     ]

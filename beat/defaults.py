@@ -245,16 +245,16 @@ parameter_info = {
     "tensile_traction": Bounds(
         physical_bounds=(-15000, 15000), default_bounds=(-15000, 15000), unit="$[MPa]$"
     ),
-    "major_axis": Bounds(
+    "a_half_axis": Bounds(
         physical_bounds=(0.01, 100), default_bounds=(0.01, 10), unit="$[km]$"
     ),
-    "minor_axis": Bounds(
+    "b_half_axis": Bounds(
         physical_bounds=(0.01, 100), default_bounds=(0.01, 10), unit="$[km]$"
     ),
-    "major_axis_bottom": Bounds(
+    "a_half_axis_bottom": Bounds(
         physical_bounds=(0.01, 100), default_bounds=(0.01, 10), unit="$[km]$"
     ),
-    "minor_axis_bottom": Bounds(
+    "b_half_axis_bottom": Bounds(
         physical_bounds=(0.01, 100), default_bounds=(0.01, 10), unit="$[km]$"
     ),
     "plunge": Bounds(
