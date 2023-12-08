@@ -207,7 +207,7 @@ class TriangleBEMSource(BEMSource):
     dip_traction = Float.T(
         default=0.0, help="Traction [Pa] in dip-direction of the Triangles"
     )
-    tensile_traction = Float.T(
+    normal_traction = Float.T(
         default=0.0, help="Traction [Pa] in normal-direction of the Triangles"
     )
 
@@ -231,7 +231,7 @@ class TriangleBEMSource(BEMSource):
         return (
             self.strike_traction,  # coordinate transform ENU - NED
             self.dip_traction,
-            self.tensile_traction,
+            self.normal_traction,
         )
 
 
@@ -241,13 +241,7 @@ class EllipseBEMSource(BEMSource):
 
     strike = Float.T(default=0.0)
 
-    strike_traction = Float.T(
-        default=0.0, help="Traction [Pa] in strike-direction of the Triangles"
-    )
-    dip_traction = Float.T(
-        default=0.0, help="Traction [Pa] in dip-direction of the Triangles"
-    )
-    tensile_traction = Float.T(
+    normal_traction = Float.T(
         default=0.0, help="Traction [Pa] in normal-direction of the Triangles"
     )
 
@@ -256,11 +250,7 @@ class EllipseBEMSource(BEMSource):
         self.points = {}
 
     def get_tractions(self):
-        return (
-            -self.strike_traction,  # coordinate transform ENU - NED
-            self.dip_traction,
-            self.tensile_traction,
-        )
+        raise NotImplementedError("Needs implementation in inheriting class")
 
     @property
     def _origin(self):
@@ -359,6 +349,17 @@ class EllipseBEMSource(BEMSource):
 class DiskBEMSource(EllipseBEMSource):
     plunge = Float.T(default=0.0)
     dip = Float.T(default=0.0)
+    rake = Float.T(default=0.0, help="Rake-angle [deg] towards the North.")
+    traction = Float.T(default=0.0, help="Traction [Pa] in rake direction.")
+
+    def get_tractions(self):
+        strike_traction = -num.cos(self.rake * DEG2RAD) * self.traction
+        dip_traction = -num.sin(self.rake * DEG2RAD) * self.traction
+        return (
+            strike_traction,
+            dip_traction,
+            self.normal_traction,
+        )
 
     def __init__(self, **kwargs):
         EllipseBEMSource.__init__(self, **kwargs)
@@ -422,8 +423,22 @@ class RingfaultBEMSource(EllipseBEMSource):
     a_half_axis_bottom = Float.T(default=0.55 * km)
     b_half_axis_bottom = Float.T(default=0.35 * km)
 
+    strike_traction = Float.T(
+        default=0.0, help="Traction [Pa] in strike-direction of the Triangles"
+    )
+    dip_traction = Float.T(
+        default=0.0, help="Traction [Pa] in dip-direction of the Triangles"
+    )
+
     def __init__(self, **kwargs):
         EllipseBEMSource.__init__(self, **kwargs)
+
+    def get_tractions(self):
+        return (
+            -self.strike_traction,  # coordinate transform ENU - NED
+            self.dip_traction,
+            self.normal_traction,
+        )
 
     @property
     def _bottom_origin(self):
@@ -605,6 +620,9 @@ class RectangularBEMSource(BEMSource):
     strike = Float.T(default=0.0, help="Strike-angle [deg] towards the North.")
     rake = Float.T(default=0.0, help="Rake-angle [deg] towards the North.")
     traction = Float.T(default=0.0, help="Traction [Pa] in rake direction.")
+    normal_traction = Float.T(
+        default=0.0, help="Traction [Pa] in normal-direction of the Triangles"
+    )
 
     def __init__(self, **kwargs):
         BEMSource.__init__(self, **kwargs)
@@ -634,11 +652,10 @@ class RectangularBEMSource(BEMSource):
     def get_tractions(self):
         strike_traction = -num.cos(self.rake * DEG2RAD) * self.traction
         dip_traction = -num.sin(self.rake * DEG2RAD) * self.traction
-        normal_traction = 0.0
         return (
             strike_traction,
             dip_traction,
-            normal_traction,
+            self.normal_traction,
         )
 
     @property

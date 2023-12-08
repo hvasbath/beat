@@ -242,7 +242,7 @@ parameter_info = {
     "dip_traction": Bounds(
         physical_bounds=(-15000, 15000), default_bounds=(-15000, 15000), unit="$[MPa]$"
     ),
-    "tensile_traction": Bounds(
+    "normal_traction": Bounds(
         physical_bounds=(-15000, 15000), default_bounds=(-15000, 15000), unit="$[MPa]$"
     ),
     "a_half_axis": Bounds(

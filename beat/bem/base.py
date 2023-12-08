@@ -3,14 +3,13 @@ from __future__ import annotations
 import logging
 
 import numpy as num
-from pyrocko.moment_tensor import symmat6
-from pyrocko.gf import StaticResult
-from pyrocko.guts_array import Array
-from pyrocko.guts import Object, List
-
 from matplotlib import pyplot as plt
+from pyrocko.gf import StaticResult
+from pyrocko.guts import List, Object
+from pyrocko.guts_array import Array
+from pyrocko.moment_tensor import symmat6
 
-from .sources import DiscretizedBEMSource, slip_comp_to_idx, check_intersection
+from .sources import DiscretizedBEMSource, check_intersection, slip_comp_to_idx
 
 try:
     from cutde import halfspace as HS
@@ -75,7 +74,7 @@ class BEMResponse(Object):
         Returns
         -------
         array_like: [n_triangles, 3]
-            where columns are: strike, dip and tensile slip-components"""
+            where columns are: strike, dip and normal slip-components"""
         slips = []
         for src_idx in range(self.n_sources):
             if self.source_ordering is not None:
@@ -273,7 +272,7 @@ def get_coefficient_matrices_tdcs(
         discretized_bem_source.centroids, triangles_xyz, nu=nu
     )
 
-    # select relevant source slip vector component indexs (0-strike, 1-dip, 2-tensile)
+    # select relevant source slip vector component indexs (0-strike, 1-dip, 2-normal)
     slip_idx = slip_comp_to_idx[slip_component]
     comp_strain_mat = strain_mat[:, :, :, slip_idx]
     comp_strain_mat_T = num.transpose(comp_strain_mat, (0, 2, 1))

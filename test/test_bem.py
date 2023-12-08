@@ -66,7 +66,7 @@ def get_triangle_tensile_only_setup():
     targets = [get_static_target([-10 * km, 10 * km], 100)]
     sources = [
         TriangleBEMSource(
-            tensile_traction=2.15e6,
+            normal_traction=2.15e6,
             p1=(km, km, -2 * km),
             p2=(-km, -0.5 * km, -2 * km),
             p3=(1 * km, -1.5 * km, -2 * km),
@@ -84,14 +84,15 @@ def get_disk_setup():
     targets = [get_static_target([-10 * km, 10 * km], 100)]
     sources = [
         DiskBEMSource(
-            strike_traction=1.15e6,
-            tensile_traction=0,
+            traction=1.15e6,
+            normal_traction=0,
+            rake=-45,
             north_shift=0.5 * km,
             depth=3.5 * km,
             a_half_axis=3 * km,
             b_half_axis=1.8 * km,
             dip=45,
-            strike=30,
+            strike=210,
         )
     ]
     return BEMConfig(mesh_size=mesh_size), sources, targets
@@ -101,7 +102,7 @@ def get_disk_tensile_only_setup():
     targets = [get_static_target([-10 * km, 10 * km], 100)]
     sources = [
         DiskBEMSource(
-            tensile_traction=2.15e6,
+            normal_traction=2.15e6,
             north_shift=0.5 * km,
             depth=3.5 * km,
             a_half_axis=1 * km,
@@ -131,7 +132,7 @@ def get_disk_ringfault_setup(intersect=False):
 
     sources = [
         DiskBEMSource(
-            tensile_traction=2.15e6,
+            normal_traction=2.15e6,
             north_shift=0.0 * km,
             east_shift=3.5 * km,
             depth=depth,
@@ -205,7 +206,29 @@ def get_rectangular_setup_dipslip():
         if bcond.slip_component in ["normal"]:
             bcond.source_idxs = []
 
-    print(config)
+    return config, sources, targets
+
+
+def get_rectangular_setup_opening():
+    # mesh_size = 1. * km
+    targets = [get_static_target([-10 * km, 10 * km], 100)]
+    sources = [
+        RectangularBEMSource(
+            normal_traction=1.15e6,
+            rake=90,
+            north_shift=0.5 * km,
+            depth=3.5 * km,
+            length=10 * km,
+            width=5 * km,
+            dip=30,
+            strike=0,
+        )
+    ]
+    config = BEMConfig(mesh_size=mesh_size)
+    for bcond in config.boundary_conditions.iter_conditions():
+        if bcond.slip_component in ["dip", "strike"]:
+            bcond.source_idxs = []
+
     return config, sources, targets
 
 
@@ -267,6 +290,7 @@ class TestBEM(unittest.TestCase):
     def test_bem_engine_rectangle(self):
         self._run_bem_engine(get_rectangular_setup_strikeslip)
         self._run_bem_engine(get_rectangular_setup_dipslip)
+        self._run_bem_engine(get_rectangular_setup_opening)
 
     def test_bem_engine_curved(self):
         # self._run_bem_engine(get_quadrangular_setup_strikeslip)
