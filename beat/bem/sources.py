@@ -14,7 +14,7 @@ try:
     gmsh = pygmsh.helpers.gmsh
 
     nthreads = os.environ.get("NUM_THREADS", "1")
-    gmsh.option.setNumber("General.NumThreads", nthreads)
+    gmsh.option.setNumber("General.NumThreads", int(nthreads))
 
 except ImportError:
     raise ImportError("'Pygmsh' needs to be installed!")

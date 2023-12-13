@@ -49,11 +49,17 @@ from beat.sources import RectangularSource, stf_catalog
 from beat.sources import source_catalog as geometry_source_catalog
 from beat.utility import check_point_keys, list2string
 
+logger = logging.getLogger("config")
+
+
 try:
     from beat.bem import source_catalog as bem_source_catalog
 
     bem_catalog = {"geodetic": bem_source_catalog}
 except ImportError:
+    logger.warning(
+        "To enable 'bem' mode packages 'pygmsh' and 'cutde' need to be installed."
+    )
     bem_catalog = {}
     bem_source_catalog = {}
 
@@ -64,8 +70,6 @@ for catalog in [geometry_source_catalog, bem_source_catalog]:
 
 
 guts_prefix = "beat"
-
-logger = logging.getLogger("config")
 
 stf_names = stf_catalog.keys()
 all_source_names = list(source_catalog.keys()) + list(bem_source_catalog.keys())
