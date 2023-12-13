@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 import os
 from dataclasses import dataclass
@@ -14,7 +16,6 @@ try:
     gmsh = pygmsh.helpers.gmsh
 
     nthreads = os.environ.get("NUM_THREADS", "1")
-    gmsh.option.setNumber("General.NumThreads", int(nthreads))
 
 except ImportError:
     raise ImportError("'Pygmsh' needs to be installed!")
@@ -187,6 +188,8 @@ class BEMSource(Source):
 
     def discretize_basesource(self, mesh_size, target=None, plot=False):
         with pygmsh.geo.Geometry() as geom:
+            gmsh.option.setNumber("General.NumThreads", int(nthreads))
+
             surf = self.get_source_surface(geom, mesh_size)
             if len(surf) > 1:
                 geom.add_surface_loop(surf)
@@ -928,6 +931,7 @@ def check_intersection(sources: list, mesh_size: float = 0.5) -> bool:
     n_sources = len(sources)
     if n_sources > 1:
         with pygmsh.occ.Geometry() as geom:
+            gmsh.option.setNumber("General.NumThreads", int(nthreads))
             gmsh.option.setNumber("General.Verbosity", 1)  # silence warnings
 
             surfaces = []
