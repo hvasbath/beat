@@ -809,7 +809,7 @@ class SeismicGeometryComposite(SeismicComposite):
                 pre_stack_cut=self.config.pre_stack_cut,
                 station_corrections=self.config.station_corrections,
                 domain=wc.domain,
-                point_to_sources=self.mapping,
+                mapping=self.mapping,
             )
 
             synths, _ = self.synthesizers[wmap._mapid](self.input_rvs)

@@ -29,7 +29,12 @@ if True:  # noqa: E402
 
     from beat import config as bconfig
     from beat import heart, inputf, plotting, utility
-    from beat.backend import backend_catalog, extract_bounds_from_summary, thin_buffer
+    from beat.backend import (
+        backend_catalog,
+        extract_bounds_from_summary,
+        multitrace_to_inference_data,
+        thin_buffer,
+    )
     from beat.config import bem_mode_str, dist_vars, ffi_mode_str, geometry_mode_str
     from beat.info import version
     from beat.models import Stage, estimate_hypers, load_model, sample
@@ -1044,7 +1049,7 @@ def result_check(mtrace, min_length):
 
 
 def command_summarize(args):
-    from arviz import convert_to_inference_data, summary
+    from arviz import summary
     from numpy import ravel, split, vstack
     from pyrocko.gf import RectangularSource
 
@@ -1313,12 +1318,10 @@ def command_summarize(args):
 
         if not os.path.exists(summary_file) or options.force:
             logger.info("Writing summary to %s" % summary_file)
-            for trace in rtrace._straces.values():
-                trace.model = problem.model
-            idata = convert_to_inference_data(
-                rtrace, model=problem.model, save_warmup=False, log_likelihood=False
-            )
-            df = summary(idata, round_to=4)
+
+            idata = multitrace_to_inference_data(rtrace)
+            df = summary(idata, round_to=4, skipna=True)
+            print(df)
             with open(summary_file, "w") as outfile:
                 df.to_string(outfile)
         else:

@@ -1,4 +1,5 @@
 import logging
+import os
 from dataclasses import dataclass
 from time import time
 
@@ -11,6 +12,9 @@ try:
     import pygmsh
 
     gmsh = pygmsh.helpers.gmsh
+
+    nthreads = os.environ.get("NUM_THREADS", "1")
+    gmsh.option.setNumber("General.NumThreads", nthreads)
 
 except ImportError:
     raise ImportError("'Pygmsh' needs to be installed!")

@@ -35,13 +35,13 @@ class GeoSynthesizer(tt.Op):
         containing :class:`pyrocko.gf.seismosizer.Source` Objects
     targets : List
         containing :class:`pyrocko.gf.targets.StaticTarget` Objects
-    point_to_sources : Dict
+    mapping : Dict
         variable names and list of integers how they map to source objects
     """
 
-    __props__ = ("engine", "sources", "targets", "point_to_sources")
+    __props__ = ("engine", "sources", "targets", "mapping")
 
-    def __init__(self, engine, sources, targets, point_to_sources):
+    def __init__(self, engine, sources, targets, mapping):
         if isinstance(engine, LocalEngine):
             self.outmode = "stacked_array"
         else:
@@ -51,7 +51,7 @@ class GeoSynthesizer(tt.Op):
         self.sources = tuple(sources)
         self.targets = tuple(targets)
         self.nobs = sum([target.lats.size for target in self.targets])
-        self.point_to_sources = point_to_sources
+        self.mapping = mapping
         self.n_sources_total = len(self.sources)
 
         # add source to point mapping here for mixed source setups
@@ -109,7 +109,7 @@ class GeoSynthesizer(tt.Op):
 
         source_points = utility.split_point(
             mpoint,
-            point_to_sources=self.point_to_sources,
+            mapping=self.mapping,
             n_sources_total=self.n_sources_total,
         )
 
@@ -334,7 +334,7 @@ class SeisSynthesizer(tt.Op):
     __props__ = (
         "engine",
         "sources",
-        "point_to_sources",
+        "mapping",
         "targets",
         "event",
         "arrival_taper",
@@ -350,7 +350,7 @@ class SeisSynthesizer(tt.Op):
         self,
         engine,
         sources,
-        point_to_sources,
+        mapping,
         targets,
         event,
         arrival_taper,
@@ -375,7 +375,7 @@ class SeisSynthesizer(tt.Op):
         self.sample_rate = self.engine.get_store(
             self.targets[0].store_id
         ).config.sample_rate
-        self.point_to_sources = point_to_sources
+        self.mapping = mapping
         self.n_sources_total = len(self.sources)
 
         if self.domain == "spectrum":
@@ -447,7 +447,7 @@ class SeisSynthesizer(tt.Op):
 
         source_points = utility.split_point(
             mpoint,
-            point_to_sources=self.point_to_sources,
+            mapping=self.mapping,
             n_sources_total=self.n_sources_total,
         )
 
