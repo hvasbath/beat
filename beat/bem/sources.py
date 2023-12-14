@@ -942,19 +942,10 @@ def check_intersection(sources: list, mesh_size: float = 0.5) -> bool:
 
             gmsh.model.occ.synchronize()
             before = len(gmsh.model.getEntities())
-            logger.debug("Building source fragments ...")
+            logger.debug("Building source union ...")
             t0 = time()
-            for i in range(n_sources - 1):
-                # surf1 = [s.dim_tag for s in surfaces[i]]
-                # surf2 = [s.dim_tag for s in surfaces[i + 1]]
-                # out, _ = gmsh.model.occ.intersect(
-                #     surf1, surf2, removeObject=False, removeTool=False
-                # )
-                logger.debug("Source %i", i)
-                surf1 = surfaces[i]
-                surf2 = surfaces[i + 1]
-                geom.boolean_fragments(surf1, surf2)
-                logger.debug("Time for fragmentation: %f", time() - t0)
+            geom.boolean_union(surfaces, False, False)
+            logger.debug("Time for union: %f", time() - t0)
 
             logger.debug("Synchronize")
             gmsh.model.occ.synchronize()
