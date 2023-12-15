@@ -275,7 +275,7 @@ def command_init(args):
             "--n_sources",
             dest="n_sources",
             type="string",
-            default=1,
+            default=[1],
             action="callback",
             callback=list_callback_int,
             help="List of integer numbers of sources per source type to invert for. Default: [1]",

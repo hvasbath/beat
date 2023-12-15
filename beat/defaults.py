@@ -234,16 +234,16 @@ parameter_info = {
         physical_bounds=(30.0, 30.5), default_bounds=(30.0, 30.5), unit="$[^\circ]$"
     ),
     "traction": Bounds(
-        physical_bounds=(0, 10000), default_bounds=(0, 10000), unit="$[MPa]$"
+        physical_bounds=(0, 1000), default_bounds=(0, 50), unit="$[MPa]$"
     ),
     "strike_traction": Bounds(
-        physical_bounds=(-15000, 15000), default_bounds=(-15000, 15000), unit="$[MPa]$"
+        physical_bounds=(-15000, 15000), default_bounds=(-50, 50), unit="$[MPa]$"
     ),
     "dip_traction": Bounds(
-        physical_bounds=(-15000, 15000), default_bounds=(-15000, 15000), unit="$[MPa]$"
+        physical_bounds=(-15000, 15000), default_bounds=(-50, 50), unit="$[MPa]$"
     ),
     "normal_traction": Bounds(
-        physical_bounds=(-15000, 15000), default_bounds=(-15000, 15000), unit="$[MPa]$"
+        physical_bounds=(-15000, 15000), default_bounds=(-50, 50), unit="$[MPa]$"
     ),
     "a_half_axis": Bounds(
         physical_bounds=(0.01, 100), default_bounds=(0.01, 10), unit="$[km]$"

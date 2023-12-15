@@ -41,10 +41,10 @@ dimensiontypes = {
     "length",
     "width",
     "diameter",
-    "major_axis",
-    "minor_axis",
-    "major_axis_bottom",
-    "minor_axis_bottom",
+    "a_half_axis",
+    "b_half_axis",
+    "a_half_axis_bottom",
+    "b_half_axis_bottom",
 }
 mttypes = {"mnn", "mee", "mdd", "mne", "mnd", "med"}
 degtypes = {"strike", "dip", "rake"}

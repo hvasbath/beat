@@ -83,7 +83,7 @@ class GeoSynthesizer(tt.Op):
         for i in inputs.values():
             inlist.append(tt.as_tensor_variable(i))
 
-        outm_shape = self.infer_shape()
+        outm_shape = self.infer_shape()[0]
 
         outm = tt.as_tensor_variable(num.zeros(outm_shape))
         outlist = [outm.type()]
@@ -513,7 +513,7 @@ class PolaritySynthesizer(tt.Op):
         for i in inputs.values():
             inlist.append(tt.as_tensor_variable(i))
 
-        outv_shape = self.infer_shape()
+        outv_shape = self.infer_shape()[0]
         outv = tt.as_tensor_variable(num.zeros(outv_shape))
 
         outlist = [outv.type()]
@@ -565,7 +565,7 @@ class SeisDataChopper(tt.Op):
         for i in inputs:
             inlist.append(tt.as_tensor_variable(i))
 
-        outm_shape = self.infer_shape()
+        outm_shape = self.infer_shape()[0]
         outm = tt.as_tensor_variable(num.zeros(outm_shape))
 
         outlist = [outm.type()]
@@ -612,7 +612,7 @@ class Sweeper(tt.Op):
         for i in inputs:
             inlist.append(tt.as_tensor_variable(i))
 
-        outv_shape = self.infer_shape()
+        outv_shape = self.infer_shape()[0]
         outv = tt.as_tensor_variable(num.zeros(outv_shape))
 
         outlist = [outv.type()]
@@ -716,7 +716,7 @@ class EulerPole(tt.Op):
             else:
                 self.fixed_values[varname] = v
 
-        outm_shape = self.infer_shape()
+        outm_shape = self.infer_shape()[0]
         outm = tt.as_tensor_variable(num.zeros(outm_shape))
         outlist = [outm.type()]
         return Apply(self, inlist, outlist)
@@ -779,7 +779,7 @@ class StrainRateTensor(tt.Op):
             else:
                 self.fixed_values[varname] = v
 
-        outm_shape = self.infer_shape()
+        outm_shape = self.infer_shape()[0]
 
         outm = tt.as_tensor_variable(num.zeros(outm_shape))
         outlist = [outm.type()]

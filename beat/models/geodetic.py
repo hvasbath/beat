@@ -689,7 +689,7 @@ class GeodeticGeometryComposite(GeodeticSourceComposite):
                 engine=self.engine,
                 sources=self.sources,
                 targets=self.targets,
-                point_to_sources=mapping.point_to_sources_mapping(),
+                mapping=mapping,
             )
 
     def __getstate__(self):
@@ -830,7 +830,7 @@ class GeodeticBEMComposite(GeodeticSourceComposite):
                 engine=self.engine,
                 sources=self.sources,
                 targets=self.targets,
-                point_to_sources=mapping,
+                mapping=mapping,
             )
 
     def get_synthetics(self, point):
