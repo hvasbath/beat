@@ -1244,7 +1244,6 @@ def command_summarize(args):
             for chain in tqdm(chains):
                 for idx in idxs:
                     point = stage.mtrace.point(idx=idx, chain=chain)
-                    print("from trace", point)
                     reference.update(point)
                     # normalize MT source, TODO put into get_derived_params
                     if isinstance(source, MTSourceWithMagnitude):
@@ -1287,7 +1286,6 @@ def command_summarize(args):
                         )
 
                     # TODO: in PT with large buffer sizes somehow memory leak
-                    print("after lijection", lpoint)
                     rtrace.write(lpoint, draw=chain)
                     del lpoint, point
 
@@ -1321,7 +1319,7 @@ def command_summarize(args):
 
             idata = multitrace_to_inference_data(rtrace)
             df = summary(idata, round_to=4, skipna=True)
-            print(df)
+            logger.info(df.__str__())
             with open(summary_file, "w") as outfile:
                 df.to_string(outfile)
         else:
