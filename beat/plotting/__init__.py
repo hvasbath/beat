@@ -45,11 +45,12 @@ geometry_plots = ["correlation_hist", "velocity_models"]
 
 
 ffi_plots = ["moment_rate", "slip_distribution"]
-
+bem_plots = ["correlation_hist", "slip_distribution_3d"]
 
 plots_mode_catalog = {
     "geometry": common_plots + geometry_plots,
     "ffi": common_plots + ffi_plots,
+    "bem": common_plots + bem_plots,
 }
 
 plots_datatype_catalog = {
