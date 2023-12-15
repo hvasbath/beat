@@ -1,7 +1,7 @@
 import logging
 import numpy as num
 from time import time
-
+import os
 from pyrocko.guts import Float, Tuple
 from pyrocko.orthodrome import ne_to_latlon
 from pyrocko.gf.seismosizer import Source, outline_rect_source
@@ -11,6 +11,7 @@ from dataclasses import dataclass
 try:
     import pygmsh
 
+    nthreads = int(os.environ.get("NUM_THREADS", "1"))
     gmsh = pygmsh.helpers.gmsh
 
 except ImportError:
@@ -185,7 +186,7 @@ class BEMSource(Source):
     def discretize_basesource(self, mesh_size, target=None, plot=False):
 
         with pygmsh.geo.Geometry() as geom:
-
+            gmsh.option.setNumber("General.NumThreads", nthreads)
             surf = self.get_source_surface(geom, mesh_size)
             if len(surf) > 1:
                 geom.add_surface_loop(surf)
@@ -920,7 +921,7 @@ def check_intersection(sources: list, mesh_size: float = 0.5):
     if n_sources > 1:
         with pygmsh.occ.Geometry() as geom:
             gmsh.option.setNumber("General.Verbosity", 1)  # silence warnings
-
+            gmsh.option.setNumber("General.NumThreads", nthreads)
             surfaces = []
             for source in sources:
                 logger.debug(source.__str__())
@@ -931,17 +932,18 @@ def check_intersection(sources: list, mesh_size: float = 0.5):
             before = len(gmsh.model.getEntities())
             logger.debug("Building source fragments ...")
             t0 = time()
-            for i in range(n_sources - 1):
+            # for i in range(n_sources - 1):
                 # surf1 = [s.dim_tag for s in surfaces[i]]
                 # surf2 = [s.dim_tag for s in surfaces[i + 1]]
                 # out, _ = gmsh.model.occ.intersect(
                 #     surf1, surf2, removeObject=False, removeTool=False
                 # )
-                logger.debug("Source %i", i)
-                surf1 = surfaces[i]
-                surf2 = surfaces[i + 1]
-                geom.boolean_fragments(surf1, surf2)
-                logger.debug("Time for fragmentation: %f", time() - t0)
+                # logger.debug("Source %i", i)
+                # surf1 = surfaces[i]
+                # surf2 = surfaces[i + 1]
+                # geom.boolean_fragments(surf1, surf2)
+            geom.boolean_union(surfaces, False, False)
+            logger.debug("Time for fragmentation: %f", time() - t0)
 
             logger.debug("Synchronize")
             gmsh.model.occ.synchronize()
