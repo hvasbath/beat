@@ -1379,7 +1379,5 @@ def multitrace_to_inference_data(mtrace):
             logger.warning("Variable '%s' contains NaN values." % varname)
         idata_posterior_dict[varname] = vals.squeeze()
 
-    print(idata_posterior_dict)
     idata = convert_to_inference_data(idata_posterior_dict)
-    print(idata)
     return idata
