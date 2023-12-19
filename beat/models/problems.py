@@ -224,8 +224,7 @@ class Problem(object):
         pc = self.config.problem_config
 
         with Model() as self.model:
-            self.rvs, self.fixed_params = pc.get_random_variables()
-
+            self.init_random_variables()
             self.init_hyperparams()
             self.init_hierarchicals()
 
@@ -372,9 +371,23 @@ class Problem(object):
             self.init_hierarchicals()
         return self._hierarchicalnames
 
+    def init_random_variables(self):
+        """
+        Evaluate problem setup and initialize random variables and
+        fixed variables dictionaries.
+        """
+        (
+            rvs_kwargs,
+            self.fixed_params,
+        ) = self.config.problem_config.get_random_variables()
+
+        self.rvs = {}
+        for varname, kwargs in rvs_kwargs.items():
+            self.rvs[varname] = init_uniform_random(kwargs)
+
     def init_hyperparams(self):
         """
-        Evaluate problem setup and return hyperparameter dictionary.
+        Evaluate problem setup and initialize hyperparameter dictionary.
         """
         pc = self.config.problem_config
         hyperparameters = copy.deepcopy(pc.hyperparameters)

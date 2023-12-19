@@ -45,7 +45,6 @@ from beat.heart import (
     ReferenceLocation,
     _domain_choices,
 )
-from beat.models.base import init_uniform_random
 from beat.sources import RectangularSource, stf_catalog
 from beat.sources import source_catalog as geometry_source_catalog
 from beat.utility import check_point_keys, list2string
@@ -1505,7 +1504,7 @@ class ProblemConfig(Object):
         Returns
         -------
         rvs : dict
-            variable random variables
+            random variable names and their kwargs
         fixed_params : dict
             fixed random parameters
         """
@@ -1527,7 +1526,7 @@ class ProblemConfig(Object):
                     transform=None,
                     dtype=tconfig.floatX,
                 )
-                rvs[param.name] = init_uniform_random(kwargs)
+                rvs[param.name] = kwargs
             else:
                 logger.info(
                     f"not solving for {param.name}, got fixed at {utility.list2string(param.lower.flatten())}"

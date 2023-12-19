@@ -210,7 +210,7 @@ def list_callback_int(option, opt, value, parser):
 
 def get_sampled_slip_variables(config):
     slip_varnames = config.problem_config.get_slip_variables()
-    rvs, fixed_rvs = config.problem_config.get_random_variables()
+    rvs, _ = config.problem_config.get_random_variables()
 
     varnames = list(set(slip_varnames).intersection(set(list(rvs.keys()))))
     return varnames
