@@ -6,7 +6,7 @@ from time import time
 
 import numpy as num
 import pytensor.tensor as tt
-from pymc import Deterministic, Uniform
+from pymc import Deterministic
 from pyrocko.gf import LocalEngine
 from pyrocko.trace import Trace
 from pytensor import config as tconfig
@@ -21,6 +21,7 @@ from beat.models.base import (
     ConfigInconsistentError,
     FaultGeometryNotFoundError,
     get_hypervalue_from_point,
+    init_uniform_random,
 )
 from beat.models.distributions import multivariate_normal_chol
 
@@ -268,15 +269,9 @@ class SeismicComposite(Composite):
                                 dtype=tconfig.floatX,
                             )
 
-                            try:
-                                self.hierarchicals[hierarchical_name] = Uniform(
-                                    **kwargs
-                                )
-                            except TypeError:
-                                kwargs.pop("name")
-                                self.hierarchicals[hierarchical_name] = Uniform.dist(
-                                    **kwargs
-                                )
+                            self.hierarchicals[hierarchical_name] = init_uniform_random(
+                                kwargs
+                            )
 
                             self._hierarchicalnames.append(hierarchical_name)
                         else:

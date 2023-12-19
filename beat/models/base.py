@@ -3,7 +3,7 @@ from collections import OrderedDict
 from logging import getLogger
 
 import numpy as num
-from pymc import Deterministic
+from pymc import Deterministic, Uniform
 from pyrocko.util import ensuredir
 
 from beat import config as bconfig
@@ -34,6 +34,18 @@ def get_hypervalue_from_point(point, observe, counter, hp_specific=False):
     else:
         hp = num.log(2.0)
     return hp
+
+
+def init_uniform_random(kwargs):
+    try:
+        dist = Uniform(**kwargs)
+    except TypeError:
+        kwargs.pop("name")
+        kwargs.pop("initval")
+        kwargs.pop("transform")
+        dist = Uniform.dist(**kwargs)
+
+    return dist
 
 
 class ConfigInconsistentError(Exception):

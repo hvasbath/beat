@@ -5,7 +5,7 @@ from logging import getLogger
 
 import numpy as num
 import pytensor.tensor as tt
-from pymc import Deterministic, Model, Potential, Uniform
+from pymc import Deterministic, Model, Potential
 from pyrocko import util
 from pyrocko.model import get_effective_latlon
 from pytensor import config as tconfig
@@ -13,6 +13,7 @@ from pytensor import config as tconfig
 from beat import config as bconfig
 from beat.backend import ListArrayOrdering, ListToArrayBijection
 from beat.models import geodetic, laplacian, polarity, seismic
+from beat.models.base import init_uniform_random
 from beat.utility import list2string, transform_sources, weed_input_rvs
 
 # disable pytensor rounding warning
@@ -380,7 +381,6 @@ class Problem(object):
 
         hyperparams = {}
         n_hyp = 0
-        modelinit = True
         self._hypernames = []
         for datatype, composite in self.composites.items():
             hypernames = composite.get_hypernames()
@@ -408,15 +408,7 @@ class Problem(object):
                         transform=None,
                     )
 
-                    try:
-                        hyperparams[hp_name] = Uniform(**kwargs)
-
-                    except TypeError:
-                        kwargs.pop("name")
-                        kwargs.pop("initval")
-                        kwargs.pop("transform")
-                        hyperparams[hp_name] = Uniform.dist(**kwargs)
-                        modelinit = False
+                    hyperparams[hp_name] = init_uniform_random(kwargs)
 
                     n_hyp += dimension
                     self._hypernames.append(hyperpar.name)
@@ -438,8 +430,7 @@ class Problem(object):
                 " covered by datasets/datatypes."
             )
 
-        if modelinit:
-            logger.info("Optimization for %i hyperparameters in total!", n_hyp)
+        logger.info("Initialized %i hyperparameters in total!", n_hyp)
 
         self.hyperparams = hyperparams
 

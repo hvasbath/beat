@@ -45,6 +45,7 @@ from beat.heart import (
     ReferenceLocation,
     _domain_choices,
 )
+from beat.models.base import init_uniform_random
 from beat.sources import RectangularSource, stf_catalog
 from beat.sources import source_catalog as geometry_source_catalog
 from beat.utility import check_point_keys, list2string
@@ -1508,7 +1509,6 @@ class ProblemConfig(Object):
         fixed_params : dict
             fixed random parameters
         """
-        from pymc import Uniform
 
         logger.debug("Optimization for %s sources", list2string(self.n_sources))
 
@@ -1527,15 +1527,7 @@ class ProblemConfig(Object):
                     transform=None,
                     dtype=tconfig.floatX,
                 )
-                try:
-                    rvs[param.name] = Uniform(**kwargs)
-
-                except TypeError:
-                    kwargs.pop("name")
-                    kwargs.pop("initval")
-                    kwargs.pop("transform")
-                    rvs[param.name] = Uniform.dist(**kwargs)
-
+                rvs[param.name] = init_uniform_random(kwargs)
             else:
                 logger.info(
                     f"not solving for {param.name}, got fixed at {utility.list2string(param.lower.flatten())}"
