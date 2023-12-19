@@ -197,10 +197,8 @@ class ListToArrayBijection(object):
         lpoint
         """
         a_list = copy.copy(self.list_arrays)
-        print("d2l", a_list, a_list.__class__)
 
         for list_ind, _, shp, _, var in self.ordering.vmap:
-            print(list_ind, var, shp)
             try:
                 a_list[list_ind] = dpt[var].ravel()
             except KeyError:
