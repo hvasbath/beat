@@ -2006,11 +2006,16 @@ def get_slowness_taper(fomosto_config, velocity_model, distances):
         phases=all_phases, distances=dists, zstart=mean_source_depth
     )
 
-    ps = num.array([arrivals[i].p for i in range(len(arrivals))])
+    if len(arrivals) == 0:
+        raise ValueError(
+            "No ray arrivals for tabluated phases in distance depth range! Please double check the coordinates of "
+            "the reference_location under gf_config!"
+        )
+
+    ps = num.array([ray.p for ray in arrivals])
 
     slownesses = ps / (cake.r2d * cake.d2m / km)
     smax = slownesses.max()
-
     return (0.0, 0.0, 1.1 * float(smax), 1.3 * float(smax))
 
 
@@ -2374,7 +2379,10 @@ def polarity_construct_gf(
             if not os.path.exists(phases_dir) or force:
                 store = gf.Store(store_dir, "r")
                 if polgf.always_raytrace:
-                    logger.info("Creating dummy store ...")
+                    logger.info(
+                        "Enabled `always_raytrace` flag - Creating dummy store without "
+                        "take-off angles. Please disable flag to calculate!"
+                    )
                 else:
                     logger.info("Calculating interpolation tables ...")
                     store.make_travel_time_tables(force=force)
