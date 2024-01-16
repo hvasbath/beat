@@ -1373,11 +1373,18 @@ def extract_bounds_from_summary(summary, varname, shape, roundto=None, alpha=0.0
 
 def multitrace_to_inference_data(mtrace):
     idata_posterior_dict = {}
+    coords = {}
+    dims = {}
     for varname in mtrace.varnames:
-        vals = mtrace.get_values(varname).T
+        vals = num.atleast_2d(mtrace.get_values(varname).T)
         if num.isnan(vals).any():
             logger.warning("Variable '%s' contains NaN values." % varname)
-        idata_posterior_dict[varname] = vals.squeeze()
+
+        size, draws = vals.shape
+        if size > 1:
+            vals = num.atleast_3d(vals).T
+
+        idata_posterior_dict[varname] = vals
 
     idata = convert_to_inference_data(idata_posterior_dict)
     return idata
