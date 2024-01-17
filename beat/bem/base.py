@@ -3,11 +3,11 @@ from __future__ import annotations
 import logging
 
 import numpy as num
-from time import time
-from pyrocko.moment_tensor import symmat6
-from pyrocko.gf import StaticResult, Response, Request
+from matplotlib import pyplot as plt
+from pyrocko.gf import StaticResult
+from pyrocko.guts import List, Object
 from pyrocko.guts_array import Array
-from pyrocko.guts import Int, Object, List
+from pyrocko.moment_tensor import symmat6, moment_to_magnitude
 
 from matplotlib import pyplot as plt
 
@@ -86,6 +86,17 @@ class BEMResponse(Object):
             else:
                 slips.append(None)
         return slips
+
+    def get_source_magnitudes(self, shear_modulus):
+        inverted_slips = self.source_slips()
+        total_slips = [num.linalg.norm(slips, axis=1) for slips in inverted_slips]
+
+        magnitudes = []
+        for source, slips in zip(self.discretized_sources, total_slips):
+            moments = source.get_areas_triangles() * total_slips * shear_modulus
+            magnitudes.append(moment_to_magnitude(moments.sum()))
+
+        return magnitudes
 
 
 class BEMEngine(object):
@@ -173,7 +184,7 @@ class BEMEngine(object):
             [source.triangles_xyz for source in discretized_sources]
         )
         disp_mat = HS.disp_matrix(
-            obs_pts=obs_points, tris=all_triangles, nu=self.config.nu
+            obs_pts=obs_points, tris=all_triangles, nu=self.config.poissons_ratio
         )
 
         n_all_triangles = all_triangles.shape[0]
@@ -224,8 +235,8 @@ class BEMEngine(object):
                         receiver_mesh,
                         source_mesh.triangles_xyz,
                         bcond.slip_component,
-                        nu=self.config.nu,
-                        mu=self.config.mu,
+                        nu=self.config.poissons_ratio,
+                        mu=self.config.shear_modulus,
                     )
 
                     if debug:

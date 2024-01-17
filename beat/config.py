@@ -117,6 +117,11 @@ derived_variables_mapping = {
     "RectangularSourcePole": ["magnitude", "coupling"],
 }
 
+derived_variables_mapping.update(
+    {source_name: ["magnitude"] for source_name in bem_source_catalog.keys()}
+)
+
+
 hyper_name_laplacian = "h_laplacian"
 
 response_file_name = "responses.pkl"
@@ -1194,8 +1199,8 @@ class BoundaryConditions(Object):
 
 
 class BEMConfig(MediumConfig):
-    nu = Float.T(default=0.25, help="Poisson's ratio")
-    mu = Float.T(default=33e9, help="Shear modulus [Pa]")
+    poissons_ratio = Float.T(default=0.25, help="Poisson's ratio")
+    shear_modulus = Float.T(default=33e9, help="Shear modulus [Pa]")
     earth_model_name = String.T(default="homogeneous-elastic-halfspace")
     mesh_size = Float.T(
         default=0.5,
@@ -1673,12 +1678,15 @@ class ProblemConfig(Object):
                 shapes = []
                 source_varnames = derived_variables_mapping[source_type]
                 for varname in source_varnames:
-                    if self.mode == geometry_mode_str:
+                    if self.mode in [geometry_mode_str, bem_mode_str]:
                         shape = n_source
                     elif self.mode == ffi_mode_str:
                         shape = (
                             1 if varname == "magnitude" else self.mode_config.npatches
                         )
+                    else:
+                        raise ValueError("Mode '%s' is not supported!" % self.mode)
+
                     if varname in derived:
                         derived[varname] += shape
                     else:

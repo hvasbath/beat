@@ -1291,6 +1291,13 @@ def command_summarize(args):
                                 derived.append(
                                     source.get_magnitude(store=store, target=target)
                                 )
+                        elif options.mode == bem_mode_str:
+                            response = composite.engine.process(
+                                sources=composite.sources, targets=composite.targets
+                            )
+                            derived = response.get_source_magnitudes(
+                                composite.engine.config.shear_modulus
+                            )
 
                     lpoint = problem.model.lijection.d2l(point)
 
