@@ -150,7 +150,9 @@ class DiscretizedBEMSource(object):
         Returns:
             :class:`numpy.ndarray` [n_triangles]
         """
-        return num.linalg.norm(num.cross(self.vector_p1p2, self.vector_p1p3), axis=1)
+        return (
+            num.linalg.norm(num.cross(self.vector_p1p2, self.vector_p1p3), axis=1) / 2
+        )
 
     def get_minmax_triangles_xyz(self):
         mins = self.triangles_xyz.min(0)
