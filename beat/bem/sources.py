@@ -86,6 +86,7 @@ class DiscretizedBEMSource(object):
 
     @property
     def vertices(self):
+        """Coordinates of vertices in [m] (n_vertices, 3)"""
         return self._points
 
     @property
@@ -98,7 +99,58 @@ class DiscretizedBEMSource(object):
 
     @property
     def triangles_xyz(self):
+        """
+        Returns:
+            :class:`numpy.ndarray` (n_triangles, n_points [3], n_dimensions [3])
+        """
         return self.vertices[self.triangles_idxs]
+
+    @property
+    def p1_xyz(self):
+        """
+        Coordinates xyz [m] of all points p1
+
+        Returns:
+            :class:`numpy.ndarray` [n_triangles, 3]
+        """
+        return self.triangles_xyz[:, 0]
+
+    @property
+    def p2_xyz(self):
+        """
+        Coordinates xyz [m] of all points p2
+
+        Returns:
+            :class:`numpy.ndarray` [n_triangles, 3]
+        """
+        return self.triangles_xyz[:, 1]
+
+    @property
+    def p3_xyz(self):
+        """
+        Coordinates xyz [m] of all points p3
+
+        Returns:
+            :class:`numpy.ndarray` [n_triangles, 3]
+        """
+        return self.triangles_xyz[:, 2]
+
+    @property
+    def vector_p1p2(self):
+        return self.p2_xyz - self.p1_xyz
+
+    @property
+    def vector_p1p3(self):
+        return self.p3_xyz - self.p1_xyz
+
+    def get_areas_triangles(self):
+        """
+        Area of triangles [$m^2$]
+
+        Returns:
+            :class:`numpy.ndarray` [n_triangles]
+        """
+        return num.linalg.norm(num.cross(self.vector_p1p2, self.vector_p1p3), axis=1)
 
     def get_minmax_triangles_xyz(self):
         mins = self.triangles_xyz.min(0)
