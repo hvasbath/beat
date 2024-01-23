@@ -33,19 +33,16 @@ seismic_plots = [
     "fuzzy_mt_decomp",
     "hudson",
     "lune",
-    "fuzzy_beachball",
     "station_variance_reductions",
 ]
 
 
 geodetic_plots = ["scene_fits", "gnss_fits", "geodetic_covariances"]
-polarity_plots = ["fuzzy_beachball", "fuzzy_mt_decomp", "lune", "hudson", "station_map"]
+polarity_plots = ["fuzzy_mt_decomp", "lune", "hudson", "station_map"]
 
-geometry_plots = ["correlation_hist", "velocity_models"]
-
-
-ffi_plots = ["moment_rate", "slip_distribution"]
-bem_plots = ["correlation_hist", "slip_distribution_3d"]
+geometry_plots = ["correlation_hist", "velocity_models", "fuzzy_beachball"]
+bem_plots = ["correlation_hist", "slip_distribution_3d", "fuzzy_beachball"]
+ffi_plots = ["moment_rate", "slip_distribution", "slip_distribution_3d"]
 
 plots_mode_catalog = {
     "geometry": common_plots + geometry_plots,

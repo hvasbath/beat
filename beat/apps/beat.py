@@ -588,7 +588,7 @@ def command_import(args):
             reference_sources = bconfig.init_reference_sources(
                 kite_model.sources,
                 n_sources,
-                c.problem_config.source_type,
+                c.problem_config.source_types[0],
                 c.problem_config.stf_type,
                 event=c.event,
             )

@@ -229,6 +229,7 @@ def traceplot(
 
     if posterior != "None":
         llk = trace.get_values("like", combine=combined, chains=chains, squeeze=False)
+
         llk = num.squeeze(llk[0])
         llk = num.atleast_2d(llk)
 

@@ -60,9 +60,6 @@ distributer_composite_catalog = {
 }
 
 
-interseismic_composite_catalog = {"geodetic": geodetic.GeodeticInterseismicComposite}
-
-
 class Problem(object):
     """
     Overarching class for the optimization problems to be solved.
@@ -699,48 +696,6 @@ class GeometryOptimizer(SourceOptimizer):
         # updating source objects with test-value in bounds
         tpoint = pc.get_test_point()
         self.point2sources(tpoint)
-
-
-class InterseismicOptimizer(SourceOptimizer):
-    """
-    Uses the backslip-model in combination with the blockmodel to formulate an
-    interseismic model.
-
-    Parameters
-    ----------
-    config : :class:'config.BEATconfig'
-        Contains all the information about the model setup and optimization
-        boundaries, as well as the sampler parameters.
-    """
-
-    def __init__(self, config, hypers=False):
-        logger.info("... Initialising Interseismic Optimizer ... \n")
-
-        super(InterseismicOptimizer, self).__init__(config, hypers)
-
-        pc = config.problem_config
-
-        if pc.source_type == "RectangularSource":
-            dsources = transform_sources(self.sources, pc.datatypes)
-        else:
-            raise TypeError(
-                "Interseismic Optimizer has to be used with" " RectangularSources!"
-            )
-
-        for datatype in pc.datatypes:
-            self.composites[datatype] = interseismic_composite_catalog[datatype](
-                config[datatype + "_config"],
-                config.project_dir,
-                dsources[datatype],
-                self.events,
-                hypers,
-            )
-
-        self.config = config
-
-        # updating source objects with fixed values
-        point = self.get_random_point()
-        self.point2sources(point)
 
 
 class DistributionOptimizer(Problem):

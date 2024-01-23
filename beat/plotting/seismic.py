@@ -1158,7 +1158,12 @@ def extract_mt_components(problem, po, include_magnitude=False):
     for n_source, source_type in zip(n_sources, source_types):
         if source_type in ["MTSource", "MTQTSource"]:
             varnames = ["mnn", "mee", "mdd", "mne", "mnd", "med"]
-        elif source_type in ["DCSource", "RectangularSource"]:
+        elif source_type in [
+            "DCSource",
+            "RectangularSource",
+            "RectangularBEMSource",
+            "DiskBEMSource",
+        ]:
             varnames = ["strike", "dip", "rake"]
         else:
             logger.warning("Plot is not supported for source_type %s" % source_type)
