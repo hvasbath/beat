@@ -1762,7 +1762,7 @@ def command_plot(args):
             "--nensemble",
             dest="nensemble",
             type="int",
-            default=1,
+            default=0,
             help="Int of the number of solutions that" " are used for fuzzy plots",
         )
 
