@@ -203,9 +203,10 @@ def draw_earthmodels(problem, plot_options):
                     sample_rate=gc.gf_config.sample_rate,
                 )
 
+                store_ids = [t.store_id for t in targets]
                 models = load_earthmodels(
                     store_superdir=composite.engine.store_superdirs[0],
-                    targets=targets,
+                    store_ids=store_ids,
                     depth_max=gc.gf_config.source_depth_max * km,
                 )
                 models_dict[outpath] = models[0]  # select only source site
