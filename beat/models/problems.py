@@ -5,7 +5,7 @@ from logging import getLogger
 
 import numpy as num
 import pytensor.tensor as tt
-from pymc import Deterministic, Model, Potential
+from pymc import Deterministic, Model, Potential, draw
 from pyrocko import util
 from pyrocko.model import get_effective_latlon
 from pytensor import config as tconfig
@@ -306,7 +306,7 @@ class Problem(object):
         if "hierarchicals" in include:
             for name, param in self.hierarchicals.items():
                 if not isinstance(param, num.ndarray):
-                    point[name] = param.random()
+                    point[name] = draw(param)
 
         if "priors" in include:
             for param in pc.priors.values():
@@ -318,7 +318,7 @@ class Problem(object):
                 self.init_hyperparams()
 
             hps = {
-                hp_name: param.random()
+                hp_name: draw(param)
                 for hp_name, param in self.hyperparams.items()
                 if not isinstance(param, num.ndarray)
             }
