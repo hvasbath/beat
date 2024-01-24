@@ -26,6 +26,7 @@ from .common import (
     draw_line_on_array,
     format_axes,
     get_gmt_config,
+    get_llk_idx_to_trace,
     get_result_point,
     get_weights_point,
     hide_ticks,
@@ -1181,6 +1182,7 @@ def extract_mt_components(problem, po, include_magnitude=False):
                 problem, stage_number=po.load_stage, load="trace", chains=[-1]
             )
 
+            best_idx = get_llk_idx_to_trace(stage.mtrace, po.post_llk)
             point = get_result_point(stage.mtrace, po.post_llk)
             source_points = utility.split_point(
                 point,
@@ -1208,6 +1210,7 @@ def extract_mt_components(problem, po, include_magnitude=False):
                         )
                         m6s[:, i] = mtfield
 
+                best_mt = m6s[best_idx, :]
                 if po.nensemble:
                     logger.info("Drawing %i solutions from ensemble ..." % po.nensemble)
                     csteps = float(n_mts) / po.nensemble
@@ -1215,10 +1218,6 @@ def extract_mt_components(problem, po, include_magnitude=False):
                     m6s = m6s[idxs, :]
                 else:
                     logger.info("Drawing full ensemble ...")
-
-                best_mt = point2array(
-                    point, varnames=varnames, rpoint=rpoint, idx_source=idx_source
-                )
 
                 list_m6s.append(m6s)
                 list_best_mts.append(best_mt)

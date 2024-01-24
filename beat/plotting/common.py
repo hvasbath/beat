@@ -203,6 +203,22 @@ def str_duration(t):
         return s + "%.1f d" % (t / (24.0 * 3600.0))
 
 
+def get_llk_idx_to_trace(mtrace, point_llk="max"):
+    """
+    Return Point idx to multitrace
+
+    Parameters
+    ----------
+    mtrace: pm.MultiTrace
+        sampled result trace containing the posterior ensemble
+    point_llk: str
+        returning according point with 'max', 'min', 'mean' likelihood
+    """
+    llk = mtrace.get_values(varname="like", combine=True)
+    posterior_idxs = utility.get_fit_indexes(llk)
+    return posterior_idxs[point_llk]
+
+
 def get_result_point(mtrace, point_llk="max"):
     """
     Return Point dict from multitrace
@@ -221,12 +237,8 @@ def get_result_point(mtrace, point_llk="max"):
     """
 
     if point_llk != "None":
-        llk = mtrace.get_values(varname="like", combine=True)
-
-        posterior_idxs = utility.get_fit_indexes(llk)
-
-        point = mtrace.point(idx=posterior_idxs[point_llk])
-
+        idx = get_llk_idx_to_trace(mtrace, point_llk="max")
+        point = mtrace.point(idx=idx)
     else:
         point = None
 
