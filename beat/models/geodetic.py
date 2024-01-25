@@ -87,6 +87,7 @@ class GeodeticComposite(Composite):
         # init geodetic targets
         self.targets = heart.init_geodetic_targets(
             datasets=self.datasets,
+            event=self.event,
             earth_model_name=gc.gf_config.earth_model_name,
             interpolation=gc.interpolation,
             crust_inds=[gc.gf_config.reference_model_idx],
@@ -778,6 +779,7 @@ class GeodeticGeometryComposite(GeodeticSourceComposite):
             for i, data in enumerate(self.datasets):
                 crust_targets = heart.init_geodetic_targets(
                     datasets=[data],
+                    event=self.event,
                     earth_model_name=gc.gf_config.earth_model_name,
                     interpolation=gc.interpolation,
                     crust_inds=crust_inds,
@@ -901,6 +903,7 @@ class GeodeticBEMComposite(GeodeticSourceComposite):
             for i, data in enumerate(self.datasets):
                 crust_targets = heart.init_geodetic_targets(
                     datasets=[data],
+                    event=self.event,
                     earth_model_name=gc.gf_config.earth_model_name,
                     interpolation=gc.interpolation,
                     crust_inds=crust_inds,

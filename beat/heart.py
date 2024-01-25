@@ -1608,6 +1608,7 @@ def get_store_id(prefix, earth_model_name, sample_rate, crust_ind=0):
 
 def init_geodetic_targets(
     datasets,
+    event,
     earth_model_name="ak135-f-average.m",
     interpolation="nearest_neighbor",
     crust_inds=[0],
@@ -1622,6 +1623,8 @@ def init_geodetic_targets(
     datasets : list
         of :class:`heart.GeodeticDataset` for which the targets are being
         initialised
+    event : :class:`pyrocko.model.Event`
+        for geographic referencing of the targets
     earth_model_name = str
         Name of the earth model that has been used for GF calculation.
     sample_rate : scalar, float
@@ -1641,8 +1644,8 @@ def init_geodetic_targets(
 
     targets = [
         gf.StaticTarget(
-            lons=d.lons,
-            lats=d.lats,
+            lons=num.full_like(d.lons, event.lon),
+            lats=num.full_like(d.lons, event.lat),
             east_shifts=d.east_shifts,
             north_shifts=d.north_shifts,
             interpolation=interpolation,

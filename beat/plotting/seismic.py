@@ -197,6 +197,7 @@ def draw_earthmodels(problem, plot_options):
             if not os.path.exists(outpath) or po.force:
                 targets = init_geodetic_targets(
                     datasets=composite.datasets,
+                    event=problem.config.event,
                     earth_model_name=gc.gf_config.earth_model_name,
                     interpolation="multilinear",
                     crust_inds=list(range(*gc.gf_config.n_variations)),
