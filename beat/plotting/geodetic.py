@@ -499,10 +499,15 @@ def scene_fits(problem, stage, plot_options):
 
     composite = problem.composites[datatype]
     event = composite.event
-    try:
-        sources = composite.sources
-        ref_sources = None
-    except AttributeError:
+
+    if po.reference:
+        bpoint = po.reference
+    else:
+        bpoint = get_result_point(stage.mtrace, po.post_llk)
+
+    bresults_tmp = composite.assemble_results(bpoint)
+
+    if mode == ffi_mode_str:
         logger.info("FFI scene fit, using reference source ...")
         ref_sources = composite.config.gf_config.reference_sources
         set_anchor(ref_sources, anchor="top")
@@ -511,16 +516,9 @@ def scene_fits(problem, stage, plot_options):
             datatype=datatype, component=composite.slip_varnames[0]
         )
         set_anchor(sources, anchor="top")
-
-    if po.reference:
-        if mode != ffi_mode_str:
-            composite.point2sources(po.reference)
-            ref_sources = [source.clone() for source in composite.sources]
-        bpoint = po.reference
     else:
-        bpoint = get_result_point(stage.mtrace, po.post_llk)
-
-    bresults_tmp = composite.assemble_results(bpoint)
+        sources = [source.clone() for source in composite.sources]
+        ref_sources = None
 
     tpoint = get_weights_point(composite, bpoint, problem.config)
 
@@ -767,6 +765,13 @@ def scene_fits(problem, stage, plot_options):
             r.set_y(r.get_y() - offset_n)
         map(ax.add_artist, rects)
 
+        print(offset_e, offset_n)
+        # print("leaves offset E", scene.quadtree.leaf_coordinates[:, 0] - offset_e)
+        # print("leaves offset N", scene.quadtree.leaf_coordinates[:, 1] - offset_n)
+
+        print("leaves E", scene.quadtree.leaf_coordinates[:, 0])
+        print("leaves N", scene.quadtree.leaf_coordinates[:, 1])
+
         ax.scatter(
             scene.quadtree.leaf_coordinates[:, 0] - offset_e,
             scene.quadtree.leaf_coordinates[:, 1] - offset_n,
@@ -779,6 +784,7 @@ def scene_fits(problem, stage, plot_options):
         bgcolor = kwargs.pop("color", None)
 
         for i, source in enumerate(sources):
+            print(source)
             if scene.frame.isMeter():
                 fn, fe = source.outline(cs="xy").T
             elif scene.frame.isDegree():
