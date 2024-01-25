@@ -765,13 +765,6 @@ def scene_fits(problem, stage, plot_options):
             r.set_y(r.get_y() - offset_n)
         map(ax.add_artist, rects)
 
-        print(offset_e, offset_n)
-        # print("leaves offset E", scene.quadtree.leaf_coordinates[:, 0] - offset_e)
-        # print("leaves offset N", scene.quadtree.leaf_coordinates[:, 1] - offset_n)
-
-        print("leaves E", scene.quadtree.leaf_coordinates[:, 0])
-        print("leaves N", scene.quadtree.leaf_coordinates[:, 1])
-
         ax.scatter(
             scene.quadtree.leaf_coordinates[:, 0] - offset_e,
             scene.quadtree.leaf_coordinates[:, 1] - offset_n,
@@ -784,7 +777,6 @@ def scene_fits(problem, stage, plot_options):
         bgcolor = kwargs.pop("color", None)
 
         for i, source in enumerate(sources):
-            print(source)
             if scene.frame.isMeter():
                 fn, fe = source.outline(cs="xy").T
             elif scene.frame.isDegree():
