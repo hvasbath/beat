@@ -111,7 +111,8 @@ class GeoSynthesizer(tt.Op):
             mpoint,
             mapping=self.mapping,
             n_sources_total=self.n_sources_total,
-        )
+            weed_params=True,
+            )
 
         for i, source in enumerate(self.sources):
             utility.update_source(source, **source_points[i])
@@ -220,96 +221,6 @@ class GeoLayerSynthesizerPsCmp(tt.Op):
 
     def infer_shape(self, node, input_shapes):
         return [(len(self.lats), 3)]
-
-
-class GeoInterseismicSynthesizer(tt.Op):
-    """
-    DEPRECATED!
-
-    pytensor wrapper to transform the parameters of block model to
-    parameters of a fault.
-    """
-
-    __props__ = ("lats", "lons", "engine", "targets", "sources", "reference")
-
-    def __init__(self, lats, lons, engine, targets, sources, reference):
-        self.lats = tuple(lats)
-        self.lons = tuple(lons)
-        self.engine = engine
-        self.targets = tuple(targets)
-        self.sources = tuple(sources)
-        self.reference = reference
-
-    def __getstate__(self):
-        return self.__dict__
-
-    def __setstate__(self, state):
-        self.__dict__.update(state)
-
-    def make_node(self, inputs):
-        """
-        Transforms pytensor tensors to node and allocates variables accordingly.
-
-        Parameters
-        ----------
-        inputs : dict
-            keys being strings of source attributes of the
-            :class:`pyrocko.gf.seismosizer.RectangularSource` that was used
-            to initialise the Operator.
-            values are :class:`pytensor.tensor.Tensor`
-        """
-        inlist = []
-
-        self.fixed_values = {}
-        self.varnames = []
-
-        for k, v in inputs.items():
-            if isinstance(v, tt.TensorVariable):
-                self.varnames.append(k)
-                inlist.append(tt.as_tensor_variable(v))
-            else:
-                self.fixed_values[k] = v
-
-        out = tt.as_tensor_variable(num.zeros((2, 2)))
-        outlist = [out.type()]
-        return Apply(self, inlist, outlist)
-
-    def perform(self, node, inputs, output):
-        """
-        Perform method of the Operator to calculate synthetic displacements.
-
-        Parameters
-        ----------
-        inputs : list
-            of :class:`numpy.ndarray`
-        output : list
-            of synthetic displacements of :class:`numpy.ndarray` (n x 3)
-        """
-        z = output[0]
-
-        point = {vname: i for vname, i in zip(self.varnames, inputs)}
-        point.update(self.fixed_values)
-
-        point = utility.adjust_point_units(point)
-        spoint, bpoint = interseismic.seperate_point(point)
-
-        source_points = utility.split_point(spoint)
-
-        for i, source_point in enumerate(source_points):
-            self.sources[i].update(**source_point)
-
-        z[0] = interseismic.geo_backslip_synthetics(
-            engine=self.engine,
-            targets=self.targets,
-            sources=self.sources,
-            lons=num.array(self.lons),
-            lats=num.array(self.lats),
-            reference=self.reference,
-            **bpoint,
-        )
-
-        def infer_shape(self, node, input_shapes):
-            return [(len(self.lats), 3)]
 
 
 class SeisSynthesizer(tt.Op):
@@ -449,6 +360,7 @@ class SeisSynthesizer(tt.Op):
             mpoint,
             mapping=self.mapping,
             n_sources_total=self.n_sources_total,
+            weed_params=True,
         )
 
         for i, source in enumerate(self.sources):

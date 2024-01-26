@@ -839,6 +839,7 @@ def draw_3d_slip_distribution(problem, po):
         mtrace = None
 
     datatype, cconf = list(problem.composites.items())[0]
+    fault = cconf.load_fault_geometry()
 
     if po.plot_projection in ["local", "latlon"]:
         perspective = "135/30"
@@ -849,7 +850,6 @@ def draw_3d_slip_distribution(problem, po):
     if gc:
         for corr in gc.corrections_config.euler_poles:
             if corr.enabled:
-                fault = cconf.load_fault_geometry()
                 if len(po.varnames) > 0 and po.varnames[0] in varname_choices:
                     from beat.ffi import euler_pole2slips
 

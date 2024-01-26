@@ -2206,14 +2206,14 @@ def init_config(
                 ' "geometry" mode: "%s"!' % (source_types[0], geometry_source_type)
             )
 
-        n_sources = gmc.problem_config.n_sources[0]
+        n_sources = gmc.problem_config.n_sources
         point = {k: v.testvalue for k, v in gmc.problem_config.priors.items()}
         point = utility.adjust_point_units(point)
-        source_points = utility.split_point(point, n_sources_total=n_sources)
+        source_points = utility.split_point(point, n_sources_total=n_sources[0])
 
         reference_sources = init_reference_sources(
             source_points,
-            n_sources,
+            n_sources[0],
             geometry_source_type,
             gmc.problem_config.stf_type,
             event=gmc.event,

@@ -693,6 +693,7 @@ class SeismicGeometryComposite(SeismicComposite):
             tpoint,
             mapping=self.mapping,
             n_sources_total=self.n_sources_total,
+            weed_params=True,
         )
 
         for i, source in enumerate(self.sources):

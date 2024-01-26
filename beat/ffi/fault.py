@@ -681,7 +681,8 @@ total number of patches: %i """ % (
 
             slips = self.get_total_slip(index, point)
             rakes = num.arctan2(-ucomps["uperp"], ucomps["uparr"]) * r2d + sf.rake
-            opening_fractions = ucomps["utens"] / slips
+            opening_fractions = num.divide(
+                ucomps["utens"], slips, out=np.zeros_like(slips), where=slips!=0)
 
             sf_point = {
                 "slip": slips,

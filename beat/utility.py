@@ -413,7 +413,8 @@ def weed_input_rvs(input_rvs, mode, datatype):
                 "duration",
                 "peak_ratio",
             ] + burian
-
+    elif mode == "ffi":
+        tobeweeded = []
     else:
         raise TypeError(f"Mode {mode} not supported!")
 
@@ -671,7 +672,7 @@ def adjust_point_units(point):
     return mpoint
 
 
-def split_point(point, mapping=None, n_sources_total=1, weed_params=True):
+def split_point(point, mapping=None, n_sources_total=1, weed_params=False):
     """
     Split point in solution space into List of dictionaries with source
     parameters for each source.
@@ -692,8 +693,11 @@ def split_point(point, mapping=None, n_sources_total=1, weed_params=True):
     source_points : list
         of :func:`pymc.model.Point`
     """
+    if mapping is not None:
+        point_to_sources = mapping.point_to_sources_mapping()
+    else:
+        point_to_sources = None
 
-    point_to_sources = mapping.point_to_sources_mapping()
     if weed_params:
         source_parameter_names = mapping.point_variable_names()
         for param in list(point.keys()):

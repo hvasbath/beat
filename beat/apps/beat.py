@@ -677,7 +677,7 @@ def command_import(args):
 
                 reference_sources = bconfig.init_reference_sources(
                     source_points,
-                    n_sources,
+                    n_sources[0],
                     c.problem_config.source_types[0],
                     c.problem_config.stf_type,
                     event=c.event,
@@ -692,7 +692,7 @@ def command_import(args):
                     new_bounds = {}
                     for param in ["time"]:
                         new_bounds[param] = extract_bounds_from_summary(
-                            summarydf, varname=param, shape=(n_sources,), roundto=0
+                            summarydf, varname=param, shape=(n_sources[0],), roundto=0
                         )
                         new_bounds[param].append(point[param])
 
@@ -1599,6 +1599,7 @@ def command_build_gfs(args):
 
                         targets = heart.init_geodetic_targets(
                             datasets,
+                            event=c.event,
                             earth_model_name=gf.earth_model_name,
                             interpolation=c.geodetic_config.interpolation,
                             crust_inds=[crust_ind],
