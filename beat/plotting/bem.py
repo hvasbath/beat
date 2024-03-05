@@ -102,6 +102,26 @@ def slip_distribution_3d(
                 )
 
                 if False:
+                    for ind in [86, 67, 63]:
+                        print("Index", ind)
+                        ax.text(
+                           dsource.centroids[ind, 0],
+                           dsource.centroids[ind, 1],
+                           dsource.centroids[ind, 2],
+                           str(ind),
+                           fontsize=6,
+                           va="center",
+                           ha="center",
+                        )
+                        print("centroid", dsource.centroids[ind])
+                        print("p1", dsource.triangles_xyz[ind, 0])
+                        print("p2", dsource.triangles_xyz[ind, 1])
+                        print("p3", dsource.triangles_xyz[ind, 2])
+                        print("uv strike", dsource.unit_strike_vectors[ind]) 
+                        print("uv dip", dsource.unit_dip_vectors[ind]) 
+                        print("uv normal", dsource.unit_normal_vectors[ind]) 
+
+                if False:
                     # plot vector normals for debugging
                     unit_vectors = getattr(dsource, f"unit_normal_vectors")
 

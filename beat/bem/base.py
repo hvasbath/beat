@@ -116,7 +116,7 @@ class BEMEngine(object):
         self._obs_points = None
         self._ncoords_targets = None
 
-    def process(self, sources: list, targets: list, debug=False) -> num.ndarray:
+    def process(self, sources: list, targets: list, debug=True) -> num.ndarray:
         mesh_size = self.config.mesh_size * km
 
         if self.config.check_mesh_intersection:
@@ -152,10 +152,12 @@ class BEMEngine(object):
         )
 
         if debug:
-            ax = plt.axes()
-            im = ax.matshow(coefficient_matrix)
+            figs, ax = plt.subplots(1, 1)
+            im = ax.matshow(num.log(num.abs(coefficient_matrix)))
+            print(num.abs(coefficient_matrix).max())
             ax.set_title("Interaction matrix")
             plt.colorbar(im)
+            plt.savefig("intermat.pdf")
             print("CEF shape", coefficient_matrix.shape)
 
         # solve with least squares
@@ -233,9 +235,13 @@ class BEMEngine(object):
                                 ("strike", "dip", "normal"), (g_strike, g_dip, g_normal)
                             )
                         ):
-                            axs[k].matshow(g_comp)
+                            axs[k].matshow(num.abs(g_comp))
                             axs[k].set_title(comp)
-
+                            idx = num.unravel_index(num.argmax(num.abs(g_comp), axis=None), g_comp.shape)
+                            print("td idx", idx)
+                            print("comp", comp, num.abs(g_comp).max())
+                            print("comp", comp, source_idx, receiver_idx)
+                        figs.savefig("%i_%i.pdf" % (source_idx, receiver_idx))
                         plt.show()
 
                     Gs_strike.append(g_strike)
