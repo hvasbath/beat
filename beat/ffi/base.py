@@ -804,7 +804,7 @@ filename: %s""" % (
 def _process_patch_geodetic(engine, gfs, targets, patch, patchidx, los_vectors, odws):
     logger.debug("Patch Number %i", patchidx)
     logger.debug("Calculating synthetics ...")
-
+    logger.debug(patch.__str__())
     disp = heart.geo_synthetics(
         engine=engine, targets=targets, sources=[patch], outmode="stacked_array"
     )

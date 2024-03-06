@@ -116,7 +116,10 @@ class Metropolis(backend.ArrayStepSharedLLK):
         self.backend = backend
 
         # initial point comes in reversed order for whatever reason
-        self.test_point = OrderedDict(reversed(list(model.initial_point().items())))
+        # rearrange to order of value_vars
+        init_point = model.initial_point()
+        self.test_point = {
+                val_var.name:init_point[val_var.name] for val_var in self.value_vars}
 
         self.initialize_population(model)
         self.compile_model_graph(model)
@@ -139,7 +142,6 @@ class Metropolis(backend.ArrayStepSharedLLK):
                 return_inferencedata=False,
             )
 
-        # print(prior_draws)
         self.array_population = num.zeros(self.n_chains)
         self.population = []
         for i in range(self.n_chains):
@@ -171,7 +173,7 @@ class Metropolis(backend.ArrayStepSharedLLK):
             shared=shared,
         )
 
-        self.prior_logp_func = logp_forw(
+        self.prior_logp_func  = logp_forw(
             point=self.test_point,
             out_vars=[model.varlogp],
             in_vars=self.value_vars,  # logp of dists

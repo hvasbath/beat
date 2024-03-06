@@ -1642,6 +1642,9 @@ def init_geodetic_targets(
 
     em_name = get_earth_model_prefix(earth_model_name)
 
+    for data in datasets:
+        data.update_local_coords(event)
+
     targets = [
         gf.StaticTarget(
             lons=num.full_like(d.lons, event.lon),
@@ -4168,6 +4171,14 @@ def geo_synthetics(
     :class:`numpy.ndarray` (target.samples; ux-North, uy-East, uz-Down)
     returns Nan in displacements if result is invalid!
     """
+
+    if False:
+        # for debugging
+        for source in sources:
+            print(source)
+
+        for target in targets:
+            print(target)
 
     response = engine.process(sources, targets)
 

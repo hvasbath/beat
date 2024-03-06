@@ -359,7 +359,7 @@ def _iter_sample(
 
         logger.debug("Step: Chain_%i step_%i" % (chain, i))
         point, out_list = step.step(point)
-
+        # print("before buffer", out_list, point)
         try:
             trace.buffer_write(out_list, step.cumulative_samples)
         except BufferError:  # buffer full
@@ -608,6 +608,7 @@ def logp_forw(point, out_vars, in_vars, shared):
     shared : List
         containing :class:`pytensor.tensor.Tensor` for dependent shared data
     """
+    logger.debug("Compiling PyTensor function")
     out_list, inarray0 = join_nonshared_inputs(point, out_vars, in_vars, shared)
     f = compile_pymc([inarray0], out_list)  # , on_unused_input="ignore")
     f.trust_input = True

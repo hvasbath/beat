@@ -150,6 +150,11 @@ class ArrayStepSharedLLK(BlockedStep):
         for name, shared_var in self.shared.items():
             shared_var.set_value(point[name])
 
+        # print("point", point)
+
+        # assure order and content of RVs consistent to value_vars
+        point = {val_var.name:point[val_var.name] for val_var in self.value_vars}
+
         q = self.bij.map(point)
         # print("before", q.data)
         apoint, alist = self.astep(q.data)

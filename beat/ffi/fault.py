@@ -306,7 +306,10 @@ total number of patches: %i """ % (
             if slips is not None:
                 rs.update(slip=slips[i])
 
-            pm = rs.get_moment(target=target, store=store)
+            if slips[i] != 0.:
+                pm = rs.get_moment(target=target, store=store)
+            else:
+                pm = 0.
             moments.append(pm)
 
         return moments
@@ -318,7 +321,6 @@ total number of patches: %i """ % (
         moments = []
         for index in range(self.nsubfaults):
             slips = self.get_total_slip(index, point)
-
             sf_moments = self.get_subfault_patch_moments(
                 index=index, slips=slips, store=store, target=target, datatype=datatype
             )
@@ -330,9 +332,12 @@ total number of patches: %i """ % (
         """
         Get total moment magnitude after Hanks and Kanamori 1979
         """
-        return moment_to_magnitude(
-            self.get_moment(point=point, store=store, target=target, datatype=datatype)
-        )
+        moment = self.get_moment(
+            point=point, store=store, target=target, datatype=datatype)
+        if moment:
+            return moment_to_magnitude(moment)
+        else:
+            return moment
 
     def get_total_slip(self, index=None, point={}, components=None):
         """
@@ -682,7 +687,7 @@ total number of patches: %i """ % (
             slips = self.get_total_slip(index, point)
             rakes = num.arctan2(-ucomps["uperp"], ucomps["uparr"]) * r2d + sf.rake
             opening_fractions = num.divide(
-                ucomps["utens"], slips, out=np.zeros_like(slips), where=slips!=0)
+                ucomps["utens"], slips, out=num.zeros_like(slips), where=slips!=0)
 
             sf_point = {
                 "slip": slips,

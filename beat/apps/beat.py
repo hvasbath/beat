@@ -1241,8 +1241,10 @@ def command_summarize(args):
                 )
                 store = engine.get_store(target.store_id)
 
+            logger.debug("n_chains %i", len(chains))
             for chain in tqdm(chains):
                 for idx in idxs:
+                    logger.debug("chain %i idx %i", chain, idx)
                     point = stage.mtrace.point(idx=idx, chain=chain)
                     reference.update(point)
                     # normalize MT source, TODO put into get_derived_params

@@ -509,10 +509,7 @@ def smc_sample(
                 step.beta = 1.0
                 save_sampler_state(step, update, stage_handler)
 
-                if stage == -1:
-                    chains = []
-                else:
-                    chains = None
+                chains = stage_handler.clean_directory(-1, chains, rm_flag)
             else:
                 step.covariance = step.calc_covariance()
                 step.proposal_dist = choose_proposal(
