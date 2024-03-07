@@ -51,31 +51,37 @@ parameter_info = {
         physical_bounds=(0.0, 1000.0), default_bounds=(0.0, 5.0), unit="$[km]$"
     ),
     "strike": Bounds(
-        physical_bounds=(-90.0, 420.0), default_bounds=(0, 180.0), unit="$[^\circ]$"
+        physical_bounds=(-90.0, 420.0), default_bounds=(0, 180.0), unit=r"$[^\circ]$"
     ),
     "strike1": Bounds(
-        physical_bounds=(-90.0, 420.0), default_bounds=(0, 180.0), unit="$[^\circ]$"
+        physical_bounds=(-90.0, 420.0), default_bounds=(0, 180.0), unit=r"$[^\circ]$"
     ),
     "strike2": Bounds(
-        physical_bounds=(-90.0, 420.0), default_bounds=(0, 180.0), unit="$[^\circ]$"
+        physical_bounds=(-90.0, 420.0), default_bounds=(0, 180.0), unit=r"$[^\circ]$"
     ),
     "dip": Bounds(
-        physical_bounds=(-45.0, 135.0), default_bounds=(45.0, 90.0), unit="$[^\circ]$"
+        physical_bounds=(-45.0, 135.0), default_bounds=(45.0, 90.0), unit=r"$[^\circ]$"
     ),
     "dip1": Bounds(
-        physical_bounds=(-45.0, 135.0), default_bounds=(45.0, 90.0), unit="$[^\circ]$"
+        physical_bounds=(-45.0, 135.0), default_bounds=(45.0, 90.0), unit=r"$[^\circ]$"
     ),
     "dip2": Bounds(
-        physical_bounds=(-45.0, 135.0), default_bounds=(45.0, 90.0), unit="$[^\circ]$"
+        physical_bounds=(-45.0, 135.0), default_bounds=(45.0, 90.0), unit=r"$[^\circ]$"
     ),
     "rake": Bounds(
-        physical_bounds=(-180.0, 270.0), default_bounds=(-90.0, 90.0), unit="$[^\circ]$"
+        physical_bounds=(-180.0, 270.0),
+        default_bounds=(-90.0, 90.0),
+        unit=r"$[^\circ]$",
     ),
     "rake1": Bounds(
-        physical_bounds=(-180.0, 270.0), default_bounds=(-90.0, 90.0), unit="$[^\circ]$"
+        physical_bounds=(-180.0, 270.0),
+        default_bounds=(-90.0, 90.0),
+        unit=r"$[^\circ]$",
     ),
     "rake2": Bounds(
-        physical_bounds=(-180.0, 270.0), default_bounds=(-90.0, 90.0), unit="$[^\circ]$"
+        physical_bounds=(-180.0, 270.0),
+        default_bounds=(-90.0, 90.0),
+        unit=r"$[^\circ]$",
     ),
     "mix": Bounds(physical_bounds=(0, 1), default_bounds=(0, 1), unit=""),
     "volume_change": Bounds(
@@ -91,7 +97,7 @@ parameter_info = {
         physical_bounds=moffdiag, default_bounds=(0.0, 0.0), unit=""
     ),
     "azimuth": Bounds(
-        physical_bounds=(0, 360), default_bounds=(0, 180), unit="$[^\circ]$"
+        physical_bounds=(0, 360), default_bounds=(0, 180), unit=r"$[^\circ]$"
     ),
     "amplitude": Bounds(
         physical_bounds=(1.0, 10e25), default_bounds=(1e10, 1e20), unit="$[Nm]$"
@@ -165,13 +171,13 @@ parameter_info = {
         unit="$[rad]$",
     ),
     "pole_lat": Bounds(
-        physical_bounds=(-90.0, 90.0), default_bounds=(0, 1), unit="$[^\circ]$"
+        physical_bounds=(-90.0, 90.0), default_bounds=(0, 1), unit=r"$[^\circ]$"
     ),
     "pole_lon": Bounds(
-        physical_bounds=(-180.0, 180.0), default_bounds=(0, 1), unit="$[^\circ]$"
+        physical_bounds=(-180.0, 180.0), default_bounds=(0, 1), unit=r"$[^\circ]$"
     ),
     "omega": Bounds(
-        physical_bounds=(-10.0, 10.0), default_bounds=(0.5, 0.6), unit="$[^\circ/myr]$"
+        physical_bounds=(-10.0, 10.0), default_bounds=(0.5, 0.6), unit=r"$[^\circ/myr]$"
     ),
     "w": Bounds(
         physical_bounds=(-3.0 / 8.0 * num.pi, 3.0 / 8.0 * num.pi),
@@ -186,15 +192,15 @@ parameter_info = {
     "kappa": Bounds(
         physical_bounds=(0.0, 2 * num.pi),
         default_bounds=(0.0, 2 * num.pi),
-        unit="$[^\circ]$",
+        unit=r"$[^\circ]$",
     ),
     "sigma": Bounds(
         physical_bounds=(-num.pi / 2.0, num.pi / 2.0),
         default_bounds=(-num.pi / 2.0, num.pi / 2.0),
-        unit="$[^\circ]$",
+        unit=r"$[^\circ]$",
     ),
     "h": Bounds(
-        physical_bounds=(0.0, 1.0), default_bounds=(0.0, 1.0), unit="$[^\circ]$"
+        physical_bounds=(0.0, 1.0), default_bounds=(0.0, 1.0), unit=r"$[^\circ]$"
     ),
     "length": Bounds(
         physical_bounds=(0.0, 7000.0), default_bounds=(5.0, 30.0), unit="$[km]$"
@@ -228,10 +234,10 @@ parameter_info = {
         physical_bounds=(-0.05, 0.05), default_bounds=(-0.05, 0.05), unit="$[m]$"
     ),
     "lat": Bounds(
-        physical_bounds=(30.0, 30.5), default_bounds=(30.0, 30.5), unit="$[^\circ]$"
+        physical_bounds=(30.0, 30.5), default_bounds=(30.0, 30.5), unit=r"$[^\circ]$"
     ),
     "lon": Bounds(
-        physical_bounds=(30.0, 30.5), default_bounds=(30.0, 30.5), unit="$[^\circ]$"
+        physical_bounds=(30.0, 30.5), default_bounds=(30.0, 30.5), unit=r"$[^\circ]$"
     ),
     "traction": Bounds(
         physical_bounds=(0, 1000), default_bounds=(0, 50), unit="$[MPa]$"
@@ -258,7 +264,7 @@ parameter_info = {
         physical_bounds=(0.01, 100), default_bounds=(0.01, 10), unit="$[km]$"
     ),
     "plunge": Bounds(
-        physical_bounds=(0, 90), default_bounds=(0, 20), unit="$[^\circ]$"
+        physical_bounds=(0, 90), default_bounds=(0, 20), unit=r"$[^\circ]$"
     ),
     "delta_east_shift_bottom": Bounds(
         physical_bounds=(-500, 500), default_bounds=(-10, 10), unit="$[km]$"

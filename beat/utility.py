@@ -11,11 +11,11 @@ import collections
 import copy
 import logging
 import os
-import pickle
 import re
 from functools import wraps
 from timeit import Timer
 
+import cloudpickle as pickle
 import numpy as num
 from pyrocko import catalog, orthodrome, util
 from pyrocko.cake import LayeredModel, m2d, read_nd_model_str

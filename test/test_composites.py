@@ -1,15 +1,12 @@
 import logging
 import os
-import shutil
 import unittest
 from copy import deepcopy
-from tempfile import mkdtemp
 
 import numpy as num
-import theano.tensor as tt
 from numpy.testing import assert_allclose
-from pyrocko import orthodrome, plot, trace, util
-from theano import function, shared
+from pyrocko import util
+from pytensor import function
 
 from beat import models
 
