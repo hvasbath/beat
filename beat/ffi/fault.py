@@ -306,10 +306,10 @@ total number of patches: %i """ % (
             if slips is not None:
                 rs.update(slip=slips[i])
 
-            if slips[i] != 0.:
+            if slips[i] != 0.0:
                 pm = rs.get_moment(target=target, store=store)
             else:
-                pm = 0.
+                pm = 0.0
             moments.append(pm)
 
         return moments
@@ -333,7 +333,8 @@ total number of patches: %i """ % (
         Get total moment magnitude after Hanks and Kanamori 1979
         """
         moment = self.get_moment(
-            point=point, store=store, target=target, datatype=datatype)
+            point=point, store=store, target=target, datatype=datatype
+        )
         if moment:
             return moment_to_magnitude(moment)
         else:
@@ -687,7 +688,8 @@ total number of patches: %i """ % (
             slips = self.get_total_slip(index, point)
             rakes = num.arctan2(-ucomps["uperp"], ucomps["uparr"]) * r2d + sf.rake
             opening_fractions = num.divide(
-                ucomps["utens"], slips, out=num.zeros_like(slips), where=slips!=0)
+                ucomps["utens"], slips, out=num.zeros_like(slips), where=slips != 0
+            )
 
             sf_point = {
                 "slip": slips,

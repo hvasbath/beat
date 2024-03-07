@@ -7,7 +7,6 @@ the course of sampling the chain.
 
 import logging
 import warnings
-from collections import OrderedDict
 from time import time
 
 import numpy as num
@@ -119,7 +118,8 @@ class Metropolis(backend.ArrayStepSharedLLK):
         # rearrange to order of value_vars
         init_point = model.initial_point()
         self.test_point = {
-                val_var.name:init_point[val_var.name] for val_var in self.value_vars}
+            val_var.name: init_point[val_var.name] for val_var in self.value_vars
+        }
 
         self.initialize_population(model)
         self.compile_model_graph(model)
@@ -173,7 +173,7 @@ class Metropolis(backend.ArrayStepSharedLLK):
             shared=shared,
         )
 
-        self.prior_logp_func  = logp_forw(
+        self.prior_logp_func = logp_forw(
             point=self.test_point,
             out_vars=[model.varlogp],
             in_vars=self.value_vars,  # logp of dists

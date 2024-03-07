@@ -15,7 +15,7 @@ from pyrocko.gf import LocalEngine
 from pyrocko.trace import nextpow2
 from pytensor.graph import Apply
 
-from beat import heart, interseismic, utility
+from beat import heart, utility
 from beat.fast_sweeping import fast_sweep
 
 km = 1000.0
@@ -112,7 +112,7 @@ class GeoSynthesizer(tt.Op):
             mapping=self.mapping,
             n_sources_total=self.n_sources_total,
             weed_params=True,
-            )
+        )
 
         for i, source in enumerate(self.sources):
             utility.update_source(source, **source_points[i])

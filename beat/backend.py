@@ -118,7 +118,6 @@ class ArrayStepSharedLLK(BlockedStep):
 
     Parameters
     ----------
-
     value_vars : list
         variables to be sampled
     out_vars : list
@@ -153,7 +152,7 @@ class ArrayStepSharedLLK(BlockedStep):
         # print("point", point)
 
         # assure order and content of RVs consistent to value_vars
-        point = {val_var.name:point[val_var.name] for val_var in self.value_vars}
+        point = {val_var.name: point[val_var.name] for val_var in self.value_vars}
 
         q = self.bij.map(point)
         # print("before", q.data)
@@ -172,7 +171,6 @@ class BaseChain(object):
 
     Parameters
     ----------
-
     model : Model
         If None, the model is taken from the `with` context.
     value_vars : list of variables
@@ -1378,8 +1376,6 @@ def extract_bounds_from_summary(summary, varname, shape, roundto=None, alpha=0.0
 
 def multitrace_to_inference_data(mtrace):
     idata_posterior_dict = {}
-    coords = {}
-    dims = {}
     for varname in mtrace.varnames:
         vals = num.atleast_2d(mtrace.get_values(varname).T)
         if num.isnan(vals).any():
