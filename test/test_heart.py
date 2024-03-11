@@ -1,7 +1,5 @@
 import logging
-import os
 import unittest
-from copy import deepcopy
 from time import time
 
 import numpy as num
@@ -64,14 +62,12 @@ class TestPolarity(unittest.TestCase):
         self.m9 = symmat6(*self.m6)
 
     def test_radiation(self):
-
         wavenames = ["any_P", "any_SH", "any_SV"]
 
         mt = MomentTensor.from_values(self.m6)
         print(mt)
 
         for wavename in wavenames:
-
             t0 = time()
             amps = radiation_matmul(
                 self.m9, self.takeoff_angles_rad, self.azimuths_rad, wavename=wavename
@@ -98,7 +94,6 @@ class TestPolarity(unittest.TestCase):
             assert_allclose(amps, amps_weights, atol=1e-6, rtol=1e-6)
 
     def test_polarity_bb(self):
-
         from matplotlib import pyplot as plt
 
         from beat.plotting import draw_ray_piercing_points_bb
@@ -141,7 +136,7 @@ class TestPolarity(unittest.TestCase):
                 ax,
                 wavename=wavename,
                 best_mt=None,
-                **kwargs
+                **kwargs,
             )
             draw_ray_piercing_points_bb(
                 ax,

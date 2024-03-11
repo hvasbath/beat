@@ -888,7 +888,7 @@ def draw_3d_slip_distribution(problem, po):
             from beat.backend import extract_bounds_from_summary
 
             summarydf = read_csv(
-                os.path.join(problem.outfolder, "summary.txt"), sep="\s+"
+                os.path.join(problem.outfolder, "summary.txt"), sep=r"\s+"
             )
             bounds = extract_bounds_from_summary(
                 summarydf, varname="uparr", shape=(fault.npatches,)

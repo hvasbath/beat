@@ -940,7 +940,7 @@ def scene_fits(problem, stage, plot_options):
             format_axes(
                 in_ax_res, remove=["right", "bottom"], visible=True, linewidth=0.75
             )
-            in_ax_res.set_xlabel("std. res. [$\sigma$]", fontsize=fontsize - 3)
+            in_ax_res.set_xlabel(r"std. res. [$\sigma$]", fontsize=fontsize - 3)
 
         if po.nensemble > 1:
             in_ax = plot_inset_hist(
@@ -1038,7 +1038,7 @@ def scene_fits(problem, stage, plot_options):
                 orientation="horizontal",
             )
             if po.plot_projection == "individual":
-                cblabel = "standard dev [$\sigma$]"
+                cblabel = r"standard dev [$\sigma$]"
 
             cbr.set_label(cblabel, fontsize=fontsize)
 

@@ -530,7 +530,7 @@ def subplot_waveforms(
     x = num.linspace(*stats.norm.ppf((0.001, 0.999)), 100)
     gauss = stats.norm.pdf(x)
     in_ax_res.plot(x, gauss, "k-", lw=0.5, alpha=0.8)
-    in_ax_res.set_title("std. res. [$\sigma$]", fontsize=5)
+    in_ax_res.set_title(r"std. res. [$\sigma$]", fontsize=5)
 
     if synth_plot_flag:
         # only plot if highlighted point exists
@@ -583,14 +583,14 @@ def subplot_waveforms(
         (
             tmarks[0],
             ytmarks[0],
-            "$\,$ " + str_duration(tmarks[0] - source.time),
+            r"$\,$ " + str_duration(tmarks[0] - source.time),
             hor_alignment,
             "bottom",
         ),
         (
             tmarks[1],
             ytmarks[1],
-            "$\Delta$ " + str_duration(tmarks[1] - tmarks[0]),
+            r"$\Delta$ " + str_duration(tmarks[1] - tmarks[0]),
             "center",
             "bottom",
         ),
@@ -702,7 +702,7 @@ def subplot_spectrum(
     x = num.linspace(*stats.norm.ppf((0.001, 0.999)), 100)
     gauss = stats.norm.pdf(x)
     in_ax_res.plot(x, gauss, "k-", lw=0.5, alpha=0.8)
-    in_ax_res.set_title("spc. std. res. [$\sigma$]", fontsize=5)
+    in_ax_res.set_title(r"spc. std. res. [$\sigma$]", fontsize=5)
 
     fxdata = result.processed_syn.get_xdata()
 
@@ -755,7 +755,7 @@ def subplot_spectrum(
     )
 
     axes.annotate(
-        "$ f \ |\ ^{%0.2g}_{%0.2g} \ $" % (fxdata[0], xpos),
+        r"$ f \ |\ ^{%0.2g}_{%0.2g} \ $" % (fxdata[0], xpos),
         xycoords="data",
         xy=(xpos, ymax_factor_f * ymax),
         xytext=(1.0, 1.0),
