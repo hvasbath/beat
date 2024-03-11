@@ -1,6 +1,5 @@
 import logging
 import unittest
-from time import time
 
 import numpy as num
 from matplotlib import pyplot as plt
@@ -14,7 +13,6 @@ logger = logging.getLogger("test_laplacian")
 
 class LaplacianTest(unittest.TestCase):
     def setUp(self):
-
         self.x = num.arange(0, 5.0)
         self.y = num.arange(-5, 2.0)
         xs, ys = num.meshgrid(self.x, self.y)
@@ -22,7 +20,6 @@ class LaplacianTest(unittest.TestCase):
         print(self.coords.shape)
 
     def test_distances(self):
-
         dists = laplacian.distances(self.coords, self.coords)
 
         plt.matshow(dists)

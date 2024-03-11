@@ -7,7 +7,7 @@ from time import time
 import numpy as num
 import pytensor.tensor as tt
 from pymc import Deterministic
-from pyrocko.gf import LocalEngine, RectangularSource
+from pyrocko.gf import LocalEngine
 from pytensor import config as tconfig
 from pytensor import shared
 
@@ -15,7 +15,6 @@ from beat import config as bconfig
 from beat import covariance as cov
 from beat import heart, pytensorf, utility
 from beat.ffi import get_gf_prefix, load_gf_library
-from beat.interseismic import geo_backslip_synthetics, seperate_point
 from beat.models.base import (
     Composite,
     ConfigInconsistentError,
@@ -34,7 +33,6 @@ km = 1000.0
 __all__ = [
     "GeodeticBEMComposite",
     "GeodeticGeometryComposite",
-    "GeodeticInterseismicComposite",
     "GeodeticDistributerComposite",
 ]
 
@@ -935,72 +933,6 @@ class GeodeticBEMComposite(GeodeticSourceComposite):
 
             self.weights[i].set_value(choli)
             data.covariance.update_slog_pdet()
-
-
-class GeodeticInterseismicComposite(GeodeticSourceComposite):
-    def __init__(self, gc, project_dir, sources, events, hypers=False):
-        super(GeodeticInterseismicComposite, self).__init__(
-            gc, project_dir, sources, events, hypers=hypers
-        )
-
-        for source in sources:
-            if not isinstance(source, RectangularSource):
-                raise TypeError("Sources have to be RectangularSources!")
-
-        if not hypers:
-            self._lats = self.Bij.l2a([data.lats for data in self.datasets])
-            self._lons = self.Bij.l2a([data.lons for data in self.datasets])
-
-            self.get_synths = pytensorf.GeoInterseismicSynthesizer(
-                lats=self._lats,
-                lons=self._lons,
-                engine=self.engine,
-                targets=self.targets,
-                sources=sources,
-                reference=self.event,
-            )
-
-    def get_synthetics(self, point):
-        """
-        Get synthetics for given point in solution space.
-
-        Parameters
-        ----------
-        point : :func:`pymc.Point`
-            Dictionary with model parameters
-        kwargs especially to change output of the forward model
-
-        Returns
-        -------
-        list with :class:`numpy.ndarray` synthetics for each target
-        """
-        tpoint = copy.deepcopy(point)
-        tpoint.update(self.fixed_rvs)
-        spoint, bpoint = seperate_point(tpoint)
-
-        self.point2sources(spoint)
-
-        synths = []
-        for target, data in zip(self.targets, self.datasets):
-            disp = geo_backslip_synthetics(
-                engine=self.engine,
-                sources=self.sources,
-                targets=[target],
-                lons=target.lons,
-                lats=target.lats,
-                reference=self.event,
-                **bpoint,
-            )
-            synths.append((disp * data.los_vector).sum(axis=1))
-
-        return synths
-
-    def update_weights(self, point, n_jobs=1, plot=False):
-        if not self.weights:
-            self.init_weights()
-
-        logger.warning("Not implemented yet!")
-        raise NotImplementedError("Not implemented yet!")
 
 
 class GeodeticDistributerComposite(GeodeticComposite):

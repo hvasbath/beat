@@ -277,6 +277,8 @@ def get_smoothing_operator_correlated(patches_coords, correlation_function="gaus
     """
 
     inter_patch_distances = distances(patches_coords, patches_coords)
+    # remove invalid diag at distance zero
+    num.fill_diagonal(inter_patch_distances, num.ones(inter_patch_distances.shape[0]))
 
     if correlation_function == "gaussian":
         a = 1 / num.power(inter_patch_distances, 2)
@@ -289,7 +291,8 @@ def get_smoothing_operator_correlated(patches_coords, correlation_function="gaus
             '"nearest_neighbor" correlation function!'
         )
 
-    num.fill_diagonal(a, num.zeros(a.shape[0]))  # remove invalid diag
+    # fill diagonal
+    num.fill_diagonal(a, num.zeros(a.shape[0]))
     norm_distances = a.sum(0)
     num.fill_diagonal(a, -norm_distances)
     return a

@@ -5,13 +5,12 @@ import numpy as num
 from matplotlib import pyplot as plt
 from pyrocko import util
 
-from beat.models.distributions import vonmises_std
 from beat.plotting import (
-    format_axes,
     draw_line_on_array,
+    format_axes,
+    hist2d_plot_op,
     lune_plot,
     spherical_kde_op,
-    hist2d_plot_op,
 )
 
 logger = logging.getLogger("test_distributed")
@@ -24,7 +23,6 @@ class TestPlotting(unittest.TestCase):
         unittest.TestCase.__init__(self, *args, **kwargs)
 
     def rtest_draw_line_array(self):
-
         amplitude = 10
         x = num.arange(0, 100, 0.5)
         y = amplitude * num.sin(x)
@@ -43,7 +41,6 @@ class TestPlotting(unittest.TestCase):
         plt.show()
 
     def test_spherical_kde_op(self):
-
         nsamples = 10
         lats0 = num.rad2deg(num.random.normal(loc=0.0, scale=0.1, size=nsamples))
         lons0 = num.rad2deg(num.random.normal(loc=-3.14, scale=0.3, size=nsamples))
@@ -57,7 +54,6 @@ class TestPlotting(unittest.TestCase):
         plt.show()
 
     def test_lune_plot(self):
-
         nsamples = 2100
         # latitude
         w = num.random.normal(loc=0.5, scale=0.1, size=nsamples)
@@ -74,7 +70,6 @@ class TestPlotting(unittest.TestCase):
         gmt.save("lune_test.pdf", resolution=300, size=10)
 
     def test_hist2d_plot_op(self):
-
         ndraws = 300
 
         ones = num.ones((ndraws))
@@ -102,6 +97,5 @@ class TestPlotting(unittest.TestCase):
 
 
 if __name__ == "__main__":
-
     util.setup_logging("test_plotting", "info")
     unittest.main()
