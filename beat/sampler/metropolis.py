@@ -94,7 +94,7 @@ class Metropolis(backend.ArrayStepSharedLLK):
 
         self.value_vars = inputvars(value_vars)
 
-        self.scaling = utility.scalar2floatX(num.atleast_1d(scale))
+        self.scaling = utility.scalar2floatX(scale)
 
         self.tune = tune
         self.check_bound = check_bound

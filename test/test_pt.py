@@ -1,5 +1,6 @@
 import logging
 import os
+import shutil
 import unittest
 from tempfile import mkdtemp
 
@@ -29,8 +30,8 @@ class TestPT(unittest.TestCase):
 
         logger.info("Test result in: \n %s" % self.test_folder_multi)
 
-        self.n_chains = 8
-        self.n_workers_posterior = 2
+        self.n_chains = 4
+        self.n_workers_posterior = 1
         self.n_samples = int(3e3)
         self.tune_interval = 50
         self.beta_tune_interval = 300
@@ -110,7 +111,7 @@ class TestPT(unittest.TestCase):
         history = load_objects(
             os.path.join(stage_handler.stage_path(-1), sample_p_outname)
         )
-
+        print(mtrace)
         idata = multitrace_to_inference_data(mtrace)
 
         n_steps = self.n_samples
@@ -206,7 +207,7 @@ class TestPT(unittest.TestCase):
         self._test_sample(self.n_chains, self.test_folder_multi)
 
     def tearDown(self):
-        pass  # shutil.rmtree(self.test_folder_multi)
+        shutil.rmtree(self.test_folder_multi)
 
 
 if __name__ == "__main__":
