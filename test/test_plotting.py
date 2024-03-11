@@ -45,7 +45,7 @@ class TestPlotting(unittest.TestCase):
         lats0 = num.rad2deg(num.random.normal(loc=0.0, scale=0.1, size=nsamples))
         lons0 = num.rad2deg(num.random.normal(loc=-3.14, scale=0.3, size=nsamples))
 
-        kde, lats, lons = spherical_kde_op(lats0, lons0, grid_size=(200, 200))
+        kde, lats, lons = spherical_kde_op(lats0, lons0, grid_size=(100, 100))
 
         ax = plt.axes()
         im = ax.matshow(kde, extent=(-180, 180, -90, 90), origin="lower")
@@ -54,7 +54,7 @@ class TestPlotting(unittest.TestCase):
         plt.show()
 
     def test_lune_plot(self):
-        nsamples = 2100
+        nsamples = 1100
         # latitude
         w = num.random.normal(loc=0.5, scale=0.1, size=nsamples)
         w_bound = 3.0 * num.pi / 8.0

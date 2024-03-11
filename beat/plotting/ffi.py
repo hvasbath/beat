@@ -277,7 +277,7 @@ def source_geometry(
 
     if values is not None:
         if cmap is None:
-            cmap = plt.cm.get_cmap("RdYlBu_r")
+            cmap = plt.get_cmap("RdYlBu_r")
 
         poly_patches = Poly3DCollection(verts=arr_coords, zorder=1, cmap=cmap)
         poly_patches.set_array(values)

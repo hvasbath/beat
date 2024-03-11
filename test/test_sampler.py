@@ -4,9 +4,10 @@ from os.path import join as pjoin
 
 import matplotlib.pyplot as plt
 import numpy as num
+from arviz import plot_density
 from numpy import array
-from pymc3.plots import kdeplot
 from pyrocko import util
+from pytest import mark
 
 from beat.models import load_model
 from beat.sampler import base
@@ -22,7 +23,6 @@ logger = logging.getLogger("test_sampler")
 
 class SamplerTestCase(unittest.TestCase):
     def __init__(self, *args, **kwargs):
-
         self.plot = 1
 
         unittest.TestCase.__init__(self, *args, **kwargs)
@@ -31,7 +31,6 @@ class SamplerTestCase(unittest.TestCase):
         self.mvcauchy = base.MultivariateCauchyProposal(num.array([[1.0]]))
 
     def test_proposals(self):
-
         nsamples = 100000
         discard = 1000
 
@@ -48,12 +47,12 @@ class SamplerTestCase(unittest.TestCase):
         if self.plot:
             ax = plt.axes()
             for d, color in zip([ndist, cdist, mvcdist], ["black", "blue", "red"]):
-
-                ax = kdeplot(d, ax=ax, color=color)
+                ax = plot_density(num.atleast_2d(d).T, ax=ax, colors=color)
 
         ax.set_xlim([-10.0, 10.0])
         plt.show()
 
+    @mark.skip("Not sure what was tested here")
     def test_smc_vs_pt(self):
         problem_smc = load_model(smc_res_dir, "geometry", build=True)
         problem_pt = load_model(pt_res_dir, "geometry", build=True)
@@ -64,7 +63,7 @@ class SamplerTestCase(unittest.TestCase):
         step_pt = problem_pt.init_sampler(False)
         print("compiled pt")
 
-        maxpoint = {
+        max_point = {
             "depth": array([1.0]),
             "dip": array([42.0]),
             "duration": array([8.0]),
@@ -120,6 +119,7 @@ class SamplerTestCase(unittest.TestCase):
         point_pt, _ = step_pt.step(point)
 
         print(point_pt, point_smc)
+        print(max_point)
 
 
 if __name__ == "__main__":

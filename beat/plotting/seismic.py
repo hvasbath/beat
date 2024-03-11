@@ -564,7 +564,7 @@ def subplot_waveforms(
                 data=num.atleast_2d(time_shifts),
                 best_data=best_data,
                 bbox_to_anchor=(-0.0985, 0.16, inset_axs_width, inset_axs_height),
-                # cmap=plt.cm.get_cmap('seismic'),
+                # cmap=plt.get_cmap('seismic'),
                 # cbounds=time_shift_bounds,
                 color=time_shift_color,
                 alpha=0.7,

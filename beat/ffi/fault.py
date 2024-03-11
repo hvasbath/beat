@@ -1768,7 +1768,7 @@ def optimize_discretization(
                         10,
                         num.vstack(gfs_array)[:, gfidx],
                         edgecolors="none",
-                        cmap=plt.cm.get_cmap("jet"),
+                        cmap=plt.get_cmap("jet"),
                     )
                     ax.set_title("Patch idx %i" % gfidx)
 
