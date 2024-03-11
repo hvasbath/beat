@@ -882,15 +882,18 @@ def calc_sample_covariance(buffer, lij, bij, beta):
     """
     n_points = len(buffer)
 
-    population_array = num.zeros((n_points, bij.ordering.size))
-    for i, (lpoint, _) in enumerate(buffer):
-        point = lij.l2d(lpoint)
-        population_array[i, :] = bij.map(point).data
+    point = lij.l2d(buffer[0][0])
+    point_array = bij.map(point).data
 
     like_idx = lij.ordering["like"].list_ind
     weights = num.array([lpoint[like_idx] for lpoint, _ in buffer])
     temp_weights = num.exp((weights - weights.max())).ravel()
     norm_weights = temp_weights / num.sum(temp_weights)
+
+    population_array = num.zeros((n_points, point_array.size))
+    for i, (lpoint, _) in enumerate(buffer):
+        point = lij.l2d(lpoint)
+        population_array[i, :] = bij.map(point).data
 
     cov = num.cov(population_array, aweights=norm_weights, bias=False, rowvar=0)
 

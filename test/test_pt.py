@@ -1,6 +1,5 @@
 import logging
 import os
-import shutil
 import unittest
 from tempfile import mkdtemp
 
@@ -30,13 +29,13 @@ class TestPT(unittest.TestCase):
 
         logger.info("Test result in: \n %s" % self.test_folder_multi)
 
-        self.n_chains = 4
+        self.n_chains = 8
         self.n_workers_posterior = 2
-        self.n_samples = int(3e4)
+        self.n_samples = int(3e3)
         self.tune_interval = 50
-        self.beta_tune_interval = 3000
+        self.beta_tune_interval = 300
         self.swap_interval = (10, 15)
-        self.buffer_size = self.n_samples / 10.0
+        self.buffer_size = int(self.n_samples / 10)
         self.burn = 0.5
         self.thin = 1
 
@@ -104,12 +103,15 @@ class TestPT(unittest.TestCase):
             keep_tmp=False,
         )
 
+        print("Result folder:", test_folder)
         stage_handler = SampleStage(test_folder)
 
-        mtrace = stage_handler.load_multitrace(-1, varnames=PT_test.vars)
+        mtrace = stage_handler.load_multitrace(-1, varnames=PT_test.value_vars)
         history = load_objects(
             os.path.join(stage_handler.stage_path(-1), sample_p_outname)
         )
+
+        idata = multitrace_to_inference_data(mtrace)
 
         n_steps = self.n_samples
         burn = self.burn
@@ -129,8 +131,7 @@ class TestPT(unittest.TestCase):
                 return num.vstack(xout)
 
         with PT_test:
-            idata = multitrace_to_inference_data(mtrace)
-            plot_trace(idata, transform=burn_sample)
+            plot_trace(idata, transform=None)
 
         fig, axes = plt.subplots(
             nrows=1, ncols=2, figsize=mpl_papersize("a5", "portrait")
@@ -205,7 +206,7 @@ class TestPT(unittest.TestCase):
         self._test_sample(self.n_chains, self.test_folder_multi)
 
     def tearDown(self):
-        shutil.rmtree(self.test_folder_multi)
+        pass  # shutil.rmtree(self.test_folder_multi)
 
 
 if __name__ == "__main__":

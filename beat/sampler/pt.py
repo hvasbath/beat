@@ -751,7 +751,7 @@ def sample_pt_chain(
     :class:`numpy.NdArray` with end-point of the MarkovChain
     """
     if isinstance(draws, Proposal):
-        n_steps = int(draws())
+        n_steps = draws()[0]
     else:
         n_steps = draws
 
@@ -769,7 +769,6 @@ def sample_pt_chain(
         trace,
         chain,
         tune,
-        model,
         random_seed,
         overwrite=False,
         update_proposal=update_proposal,
@@ -908,10 +907,6 @@ def pt_sample(
 
 
 def _sample():
-    from mpi4py import MPI
-
-    MPI.pickle.PROTOCOL = HIGHEST_PROTOCOL
-
     # Define MPI message tags
     tags = distributed.enum("READY", "INIT", "DONE", "EXIT", "SAMPLE", "BETA")
 
@@ -940,6 +935,12 @@ def _sample():
 
 
 if __name__ == "__main__":
+    import cloudpickle
+    from mpi4py import MPI
+
+    MPI.pickle.__init__(cloudpickle.dumps, cloudpickle.loads)
+    MPI.pickle.PROTOCOL = HIGHEST_PROTOCOL
+
     try:
         _, levelname, project_dir = sys.argv
     except ValueError:

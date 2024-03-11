@@ -163,11 +163,11 @@ in the directory %s""".lstrip()
     def __del__(self):
         if self.tempdir:
             if not self.keep_tmp:
-                logger.debug('removing temporary directory under: "%s"' % self.tempdir)
+                logger.info('removing temporary directory under: "%s"' % self.tempdir)
                 shutil.rmtree(self.tempdir)
                 self.tempdir = None
             else:
-                logger.warning("not removing temporary directory: %s" % self.tempdir)
+                logger.info("not removing temporary directory: %s" % self.tempdir)
 
 
 samplers = {"pt": "beat/sampler/pt.py"}
