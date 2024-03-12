@@ -27,7 +27,8 @@ classifiers = [
 dependencies = [
     "numpy",
     "scipy",
-    "pymc>=5.9.2",
+    "pytensor>=2.18.4",
+    "pymc>=5.10.0",
     "tqdm>=4.64.0",
     "matplotlib>=3.1.1",
     "psutil>=5.9.0",
