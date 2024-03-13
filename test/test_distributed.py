@@ -16,7 +16,6 @@ class TestDistributed(unittest.TestCase):
         self.beatpath = project_root
 
     def test_mpi_runner(self):
-
         logger.info("testing")
         runner = MPIRunner()
         runner.run(self.beatpath + "/test/pt_toy_example.py", n_jobs=self.n_jobs)
@@ -29,6 +28,5 @@ class TestDistributed(unittest.TestCase):
 
 
 if __name__ == "__main__":
-
     util.setup_logging("test_distributed", "info")
     unittest.main()

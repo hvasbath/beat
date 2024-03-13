@@ -11,12 +11,12 @@ References
     S 0025-5718(04)01678-3
 """
 
+import fast_sweep_ext
 import numpy as num
 import pytensor
 import pytensor.tensor as tt
 from pytensor.ifelse import ifelse
-
-import fast_sweep_ext
+from pytensor.scan.utils import until
 
 km = 1000.0
 
@@ -293,9 +293,7 @@ def get_rupture_times_pytensor(slownesses, patch_size, nuc_x, nuc_y):
         # xnew =  |
         #         |0.5 * [ a+b+sqrt( 2*f^2*h^2 - (a-b)^2 ) ], |a-b| < f*h
         start_new = ifelse(
-            tt.le(
-                slownesses[dip_ind, str_ind] * patch_size, tt.abs_(ST_xmin - ST_ymin)
-            ),
+            tt.le(slownesses[dip_ind, str_ind] * patch_size, tt.abs(ST_xmin - ST_ymin)),
             tt.min((ST_xmin, ST_ymin)) + slownesses[dip_ind, str_ind] * patch_size,
             (
                 ST_xmin
@@ -332,7 +330,7 @@ def get_rupture_times_pytensor(slownesses, patch_size, nuc_x, nuc_y):
         PreviousTimes = StartTimes.copy()
         return (
             (StartTimes, PreviousTimes, err_val, iteration + 1),
-            pytensor.scan_module.until(err_val < epsilon),
+            until(err_val < epsilon),
         )
 
     # while loop until err < epsilon

@@ -16,7 +16,6 @@ from pyrocko.guts import Float
 
 from beat.utility import get_rotation_matrix
 
-
 # MTQT constants
 pi = num.pi
 pi4 = pi / 4.0
@@ -348,7 +347,6 @@ class RectangularSource(gf.RectangularSource):
 
     @classmethod
     def from_kite_source(cls, source, kwargs):
-
         d = dict(
             lat=source.lat,
             lon=source.lon,
@@ -362,7 +360,7 @@ class RectangularSource(gf.RectangularSource):
             rake=source.rake,
             slip=source.slip,
             anchor="top",
-            **kwargs
+            **kwargs,
         )
 
         if hasattr(source, "decimation_factor"):
@@ -445,7 +443,6 @@ class MTQTSource(gf.SourceWithMagnitude):
     )
 
     def __init__(self, **kwargs):
-
         self.R = get_rotation_matrix()
         self.roty_pi4 = self.R["y"](-pi4)
         self.rotx_pi = self.R["x"](pi)
@@ -555,7 +552,7 @@ class MTQTSource(gf.SourceWithMagnitude):
         )
         return meta.DiscretizedMTSource(
             m6s=self.m6[num.newaxis, :] * amplitudes[:, num.newaxis],
-            **self._dparams_base_repeated(times)
+            **self._dparams_base_repeated(times),
         )
 
     def pyrocko_moment_tensor(self, store=None, target=None):
@@ -620,7 +617,7 @@ class MTSourceWithMagnitude(gf.SourceWithMagnitude):
 
     def __init__(self, **kwargs):
         if "m6" in kwargs:
-            for (k, v) in zip("mnn mee mdd mne mnd med".split(), kwargs.pop("m6")):
+            for k, v in zip("mnn mee mdd mne mnd med".split(), kwargs.pop("m6")):
                 kwargs[k] = float(v)
 
         Source.__init__(self, **kwargs)
@@ -664,7 +661,7 @@ class MTSourceWithMagnitude(gf.SourceWithMagnitude):
         m6s = self.scaled_m6 * m0
         return meta.DiscretizedMTSource(
             m6s=m6s[num.newaxis, :] * amplitudes[:, num.newaxis],
-            **self._dparams_base_repeated(times)
+            **self._dparams_base_repeated(times),
         )
 
     def pyrocko_moment_tensor(self):
@@ -676,7 +673,7 @@ class MTSourceWithMagnitude(gf.SourceWithMagnitude):
             self,
             moment_tensor=self.pyrocko_moment_tensor(),
             magnitude=float(mt.moment_magnitude()),
-            **kwargs
+            **kwargs,
         )
 
     @classmethod

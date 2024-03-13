@@ -86,7 +86,6 @@ class TestBackend(TestCase):
             self.expected_chain_data[data_key] = num.array(data)
 
     def test_text_chain(self):
-
         textchain = TextChain(dir_path=self.test_dir_path, model=self.PT_test)
         textchain.setup(10, 0, overwrite=True)
 
@@ -111,7 +110,6 @@ class TestBackend(TestCase):
             )
 
     def test_chain_bin(self):
-
         numpy_chain = NumpyChain(dir_path=self.test_dir_path, model=self.PT_test)
         numpy_chain.setup(10, 0, overwrite=True)
         print(numpy_chain)

@@ -16,7 +16,6 @@ class TestProposals(unittest.TestCase):
         self.draws = 10
 
     def test_proposals(self):
-
         for proposal in available_proposals():
             if proposal in multivariate_proposals:
                 scale = num.eye(2) * 0.5
@@ -28,6 +27,5 @@ class TestProposals(unittest.TestCase):
 
 
 if __name__ == "__main__":
-
     util.setup_logging("test_proposals", "info")
     unittest.main()

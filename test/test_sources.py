@@ -1,10 +1,12 @@
 import logging
 import unittest
+from importlib.util import find_spec
 
 import numpy as num
 import pyrocko.moment_tensor as mtm
 from numpy.testing import assert_allclose
 from pyrocko import util
+from pytest import mark
 
 from beat.sources import MTQTSource
 
@@ -17,7 +19,6 @@ class TestSources(unittest.TestCase):
         unittest.TestCase.__init__(self, *args, **kwargs)
 
     def test_MTSourceQT(self):
-
         # from Tape & Tape 2015 Appendix A:
         (u, v, kappa, sigma, h) = (
             3.0 / 8.0 * pi,
@@ -58,10 +59,13 @@ class TestSources(unittest.TestCase):
         print("M9 NEED", mt.m9)
         print("M9 NWU", mt.m9_nwu)
 
+    @mark.skipif(
+        (find_spec("mtpar") is None), reason="Test needs 'mtpar' to be installed"
+    )
     def test_vs_mtpar(self):
         try:
             import mtpar
-        except (ImportError):
+        except ImportError:
             logger.warning(
                 "This test needs mtpar to be installed: "
                 "https://github.com/rmodrak/mtpar/"
@@ -122,6 +126,5 @@ class TestSources(unittest.TestCase):
 
 
 if __name__ == "__main__":
-
     util.setup_logging("test_sources", "info")
     unittest.main()

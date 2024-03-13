@@ -3,11 +3,11 @@ import unittest
 from time import time
 
 import numpy as num
-import theano.tensor as tt
+import pytensor.tensor as tt
 from pyrocko import util
-from theano import function
+from pytensor import function
 
-from beat import theanof
+from beat import pytensorf
 from beat.fast_sweeping import fast_sweep
 
 km = 1000.0
@@ -31,7 +31,6 @@ class FastSweepingTestCase(unittest.TestCase):
         return 1.0 / velocities
 
     def _numpy_implementation(self):
-
         slownesses = self.get_slownesses()
 
         t0 = time()
@@ -43,14 +42,13 @@ class FastSweepingTestCase(unittest.TestCase):
             self.nuc_x,
             self.nuc_y,
         )
-        print("np", numpy_start_times)
+        # print("np", numpy_start_times)
         t1 = time()
 
         logger.info("done numpy fast_sweeping in %f" % (t1 - t0))
         return numpy_start_times
 
-    def _theano_implementation(self):
-
+    def _pytensor_implementation(self):
         Slownesses = self.get_slownesses()
 
         slownesses = tt.dmatrix("slownesses")
@@ -64,22 +62,21 @@ class FastSweepingTestCase(unittest.TestCase):
 
         patch_size = tt.cast(self.patch_size / km, "float64")
 
-        theano_start_times = fast_sweep.get_rupture_times_theano(
+        pytensor_start_times = fast_sweep.get_rupture_times_pytensor(
             slownesses, patch_size, nuc_x, nuc_y
         )
 
         t0 = time()
-        f = function([slownesses, nuc_x, nuc_y], theano_start_times)
+        f = function([slownesses, nuc_x, nuc_y], pytensor_start_times)
         t1 = time()
-        theano_start_times = f(Slownesses, self.nuc_x, self.nuc_y)
+        pytensor_start_times = f(Slownesses, self.nuc_x, self.nuc_y)
         t2 = time()
 
-        logger.info("Theano compile time %f" % (t1 - t0))
-        logger.info("done Theano fast_sweeping in %f" % (t2 - t1))
-        return theano_start_times
+        logger.info("pytensor compile time %f" % (t1 - t0))
+        logger.info("done pytensor fast_sweeping in %f" % (t2 - t1))
+        return pytensor_start_times
 
-    def _theano_c_wrapper(self):
-
+    def _pytensor_c_wrapper(self):
         Slownesses = self.get_slownesses()
 
         slownesses = tt.dvector("slownesses")
@@ -91,7 +88,7 @@ class FastSweepingTestCase(unittest.TestCase):
         nuc_y = tt.lscalar("nuc_y")
         nuc_y.tag.test_value = self.nuc_y
 
-        cleanup = theanof.Sweeper(
+        cleanup = pytensorf.Sweeper(
             self.patch_size / km, self.n_patch_dip, self.n_patch_strike, "c"
         )
 
@@ -100,13 +97,13 @@ class FastSweepingTestCase(unittest.TestCase):
         t0 = time()
         f = function([slownesses, nuc_y, nuc_x], start_times)
         t1 = time()
-        theano_c_wrap_start_times = f(Slownesses.flatten(), self.nuc_y, self.nuc_x)
-        print("tc", theano_c_wrap_start_times)
+        pytensor_c_wrap_start_times = f(Slownesses.flatten(), self.nuc_y, self.nuc_x)
+        # print("tc", pytensor_c_wrap_start_times)
         t2 = time()
-        logger.info("Theano C wrapper compile time %f" % (t1 - t0))
-        logger.info("done theano C wrapper fast_sweeping in %f" % (t2 - t1))
-        print("Theano C wrapper compile time %f" % (t1 - t0))
-        return theano_c_wrap_start_times
+        logger.info("pytensor C wrapper compile time %f", (t1 - t0))
+        logger.info("done pytensor C wrapper fast_sweeping in %f", (t2 - t1))
+        logger.info("pytensor C wrapper compile time %f", (t1 - t0))
+        return pytensor_c_wrap_start_times
 
     def _c_implementation(self):
         slownesses = self.get_slownesses()
@@ -121,15 +118,15 @@ class FastSweepingTestCase(unittest.TestCase):
             self.nuc_y,
         )
         t1 = time()
-        print("c", c_start_times)
+        # print("c", c_start_times)
         logger.info("done c fast_sweeping in %f" % (t1 - t0))
         return c_start_times
 
     def test_differences(self):
         np_i = self._numpy_implementation().flatten()
-        t_i = self._theano_implementation().flatten()
+        t_i = self._pytensor_implementation().flatten()
         c_i = self._c_implementation()
-        tc_i = self._theano_c_wrapper()
+        tc_i = self._pytensor_c_wrapper()
 
         num.testing.assert_allclose(np_i, t_i, rtol=0.0, atol=1e-6)
         num.testing.assert_allclose(np_i, c_i, rtol=0.0, atol=1e-6)
