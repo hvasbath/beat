@@ -626,7 +626,6 @@ filename: %s""" % (
         matrix : size (ntargets, nsamples)
         option : tensor.batched_dot(sd.dimshuffle((1,0,2)), u).sum(axis=0)
         """
-
         if targetidxs is None:
             raise ValueError("Target indexes have to be defined!")
 
@@ -695,7 +694,7 @@ filename: %s""" % (
                     s_st_floor_rt_floor,
                 ],
                 axis=1,
-            ).T  #
+            )  #
 
         else:
             raise NotImplementedError(
