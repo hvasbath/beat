@@ -4,7 +4,9 @@
 Detailed Installation instructions
 **********************************
 
-BEAT can be installed on any Unix based system with python>=3.8
+That section covers the detailed installation of numerical libraries to speedup performance of numpy and Pytensor.
+
+BEAT can be installed on any Unix based system with python>=3.9
 that supports its prerequisites.
 
 
@@ -25,7 +27,7 @@ optimizations of your numerics libraries.
 
 Then we will need a fortran compiler and the python developers library::
 
-    sudo apt-get install git python3-dev gfortran
+    [sudo] apt-get install git python3-dev gfortran
 
 BEAT does many intensive calculations, which is why we need to get as much as
 possible out of the available libraries in terms of computational efficiency.
@@ -36,13 +38,15 @@ Although, this process is somewhat tedious and not straight forward for
 everybody, it is really worth doing so! If you have done a similar optimization
 to your machine's libraries already, you can start at the Main Packages section.
 
-For everyone else I summarized the relevant points below.
+For everyone else I summarized the relevant points below. BEAT v2 runs on the successor of *theano*, which is *pytensor*.
+Thus, I keep here the link to the *theano* configuration below, since it still might be helpful.
 For all the heavy details I refer to these links:
 
 `Numpy configure <https://hunseblog.wordpress.com/2014/09/15/installing-numpy-and-openblas/>`__
 
-`Pytensor/Pytensor configure <http://www.johnwittenauer.net/configuring-Pytensor-for-high-performance-deep-learning/>`__
+`Theano configure <http://www.johnwittenauer.net/configuring-theano-for-high-performance-deep-learning/>`__
 
+`Pytensor configure <https://pytensor.readthedocs.io/en/latest/troubleshooting.html#how-do-i-configure-test-my-blas-library>`__
 
 OpenBlas
 """"""""
@@ -50,10 +54,10 @@ If the OpenBlas library is compiled locally, it is optimized for your machine
 and speeds up the calculations::
 
     cd ~/src  # or where you keep your source files
-    git clone https://github.com/xianyi/OpenBLAS
+    git clone https://github.com/OpenMathLib/OpenBLAS
     cd OpenBLAS
     make FC=gfortran
-    sudo make PREFIX=/usr/local install
+    [sudo] make PREFIX=/usr/local install
 
 Now we have to tell the system where to find the new OpenBLAS library.
 In the directory /etc/ld.so.conf.d/ should be a file `libc.conf` containing
@@ -84,7 +88,7 @@ Numpy
 This following step is completely optional and one may decide to use a standard pip numpy package.
 Building numpy from source requires cython::
 
-    pip3 install cython
+    pip install cython
 
 If you compile numpy locally against the previously installed OpenBlas
 library you can gain significant speedup. For my machine it resulted
@@ -160,13 +164,14 @@ For the bleeding edge installation do::
     pip3 install .
 
 For any troubleshooting and detailed installation instructions I refer to the
-`pytensor <http://deeplearning.net/software/Pytensor/install.html>`__ webpage.
+`pytensor <https://pytensor.readthedocs.io/en/latest/troubleshooting.html#how-do-i-configure-test-my-blas-library>`__ webpage.
 
 CPU setup
 #########
 
 Optional: Setup for libamdm
 ___________________________
+Might be DEPRECATED! I haven't had the chance to test again. In case you do, please let me know updates on that!
 Only for 64-bit machines!
 This again speeds up the elementary operations! Pytensor will for sure work
 without including this, but the performance increase (below)
@@ -208,50 +213,6 @@ intended to be used. Set amdlibm = True if you did the optional step! ::
 
     [lib]
     amdlibm = False  # if applicable set True here
-
-
-GPU setup DEPRECATED
-####################
-Only for Pytensor version < 0.9.
-For NVIDIA graphics cards there is the CUDA package that needs to be installed.::
-
-    sudo apt-get install nvidia-current
-    sudo apt-get install nvdidia-cuda-toolkit
-
-Restart the system.
-To check if the installation worked well type::
-
-    nvidia-smi
-
-This should display stats about your graphics card model.
-
-Now we have to tell Pytensor where to find the cuda package.
-For doing so we have to add the library folder to the $LD_LIBRARY_PATH and the
-CUDA root direct to the $PATH.
-
-In bash you can do it like this, e.g. (depending on the path to your cuda
-installation) add to your .bashrc file in the home directory::
-
-    export CUDA_LIB="/usr/local/cuda-5.5/lib64"
-    export CUDA_ROOT="/usr/local/cuda-5.5/bin"
-
-    export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:$CUDA_LIB
-    export PATH=${PATH}:$CUDA_ROOT
-
-Pytensor also supports OpenCL, however, I haven't set it up myself so far and
-cannot provide instructions on how to do it.
-
-In your home directory create a file `.Pytensorrc` with these settings::
-
-    [blas]
-    ldflags = -L/usr/local/lib -lopenblas -lgfortran
-
-    [nvcc]
-    fastmath = True
-
-    [global]
-    device = gpu
-    floatX = float32
 
 
 Check performance
@@ -298,86 +259,3 @@ Using the GPU::
     Used the gpu
 
 Congratulations, you are done with the numerics installations!
-
-
-Main Packages
--------------
-
-BEAT relies on 2 main libraries. Detailed installation instructions for each
-can be found on the respective websites:
-
- - `pymc <https://github.com/pymc-devs/pymc>`__
- - `pyrocko <http://pyrocko.org/>`__
-
-
-pymc
-""""
-Pymc is a framework that provides various optimization algorithms allows and
-allows to build Bayesian models. BEAT relies on an older version of pymc- work into upgrading it::
-
-    pip install pymc==5.9.2
-
-
-Pyrocko
-"""""""
-Pyrocko is an extensive library for seismological applications and provides a
-framework to efficiently store and access Greens Functions.
-Please follow these `install-instructions <https://pyrocko.org/docs/current/install/>`__ depending on your Operating System.
-
-OpenMPI
-"""""""
-For the Parallel Tempering algorithm OpenMPI and the python
-bindings are required. If you do not have any MPI library installed, this needs to be installed first.
-For now BEAT only supports MPI versions <3. Available mpi versions can be listed with the command::
-
-    apt-cache madison libopenmpi-dev
-
-To install openmpi for a specific version for example version 2.1.1-8::
-
-    sudo apt install openmpi-bin=2.1.1-8 libopenmpi-dev=2.1.1-8 -V
-
-Finally, the python wrapper::
-
-    sudo pip3 install mpi4py
-
-
-BEAT
-""""
-After these long and heavy installations, you can setup BEAT itself::
-
-    cd ~/src/beat
-    pip3 install .
-
-Greens Functions
-----------------
-
-To calculate the Greens Functions we rely on modeling codes written by
-`Rongjiang Wang <http://www.gfz-potsdam.de/en/section/physics-of-earthquakes-and-volcanoes/staff/profil/rongjiang-wang/>`__.
-If you plan to use the GreensFunction calculation framework,
-these codes are required and need to be compiled manually.
-The original codes are packaged for windows and can be found
-`here <http://www.gfz-potsdam.de/en/section/physics-of-earthquakes-and-volcanoes/data-products-services/downloads-software/>`__.
-
-For Unix systems the codes had to be repackaged.
-
-The packages below are also github repositories and you may want to use "git clone" to download:
-
-    git clone <url>
-
-For example to clone the github repository for QSEIS please execute::
-
-    git clone https://github.com/pyrocko/fomosto-qseis
-
-This also enables easy updating for potential future changes.
-
-For configuration and compilation please follow the descriptions provided in each repository respectively.
-
-Seismic synthetics
-
-* `QSEIS <https://git.pyrocko.org/pyrocko/fomosto-qseis/>`__
-* `QSSP <https://git.pyrocko.org/pyrocko/fomosto-qssp/>`__
-
-
-Geodetic synthetics
-
-* `PSGRN_PSCMP <https://git.pyrocko.org/pyrocko/fomosto-psgrn-pscmp>`__

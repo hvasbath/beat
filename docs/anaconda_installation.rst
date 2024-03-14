@@ -10,59 +10,55 @@ A general advice when dealing with anaconda is that the "sudo" command must NOT 
 instead of the respective anaconda environment.
 Below are a series of commands that might be able to get you up and running using anaconda3 (thanks to Rebecca Salvage).
 
-Create and activate a new conda environment e.g. called "beat" using python3.8 (minimum required is 3.8)::
+Create and activate a new conda environment e.g. called "beatenv" using python3.11 (minimum required is 3.9)::
 
-  conda create -n beat python=3.8
-  conda activate beat
+  conda create -n beatenv python=3.11
+  conda activate beatenv
   cd ~/src  # or wherever you keep the packages
-
-Download the beat source package from github (requires git to be installed on your machine)::
-
-  git clone https://github.com/hvasbath/beat
 
 Download and install several required packages::
 
-  conda install -n beat libgfortran openblas pytensor pygpu openmpi pandas numpy openmpi
+  conda install -n beatenv libgfortran openblas pytensor numpy
 
-Install mpi4py through conda-forge::
+Install pymc and pyrocko packages::
 
-  conda install -c conda-forge mpi4py
+  conda install -n beatenv -c conda-forge pymc
+  conda install -n beatenv -c pyrocko pyrocko
 
-Configure pytensor to find your libraries by creating a file ".pytensorrc" in your home directory containing::
+Once all the requirements are installed we install *BEAT* with::
 
-  [blas]
-  ldflags = -L/path/to/your/anaconda/environments/beat/lib -lopenblas -lgfortran
-
-  [nvcc]
-  fastmath = True
-
-  [global]
-  device = cpu
-  floatX = float64
-
-For testing if numpy and pytensor installations worked fine::
-
-  cd ~/src/beat
-  python3 test/numpy_test.py
-  PYTENSOR_FLAGS=mode=FAST_RUN,device=cpu,floatX=float32 python3 test/gpu_test.py
-
-Install pymc pyrocko packages::
-
-  conda install -n beat -c conda-forge pymc=5.9.2
-  conda install -n beat -c pyrocko pyrocko
-
-Once all the requirements are installed we install BEAT with::
-
-  cd ~/src/beat
-  pip3 install .
+  pip install beat
 
 Then for a fast check if beat is running one can start it calling the help::
 
   beat init --help
 
-Greens Function calculations
-----------------------------
 
+Optional: Install MPI for the PT sampler
+----------------------------------------
+Install openmpi and mpi4py through conda-forge::
+
+  conda install -n openmpi
+  conda install -c conda-forge mpi4py
+
+
+Optional: Install pygmsh and cutde for the BEM module
+-----------------------------------------------------
+There are optional dependencies that are required in order to use the Boundary Element Method (BEM) module.
+For meshing *BEAT* uses the gmsh library and a python wrapper pygmsh::
+
+  [sudo] apt install gmsh
+  pip install pygmsh
+
+To calculate synthetic surface displacements for triangular dislocations::
+
+  conda install -c conda-forge cutde
+
+Install and configure your GPU for *cutde* following this `page <https://github.com/tbenthompson/cutde?tab=readme-ov-file#gpu-installation>`__.
+
+
+Optional: Greens Function calculations
+--------------------------------------
 To calculate the Greens Functions we rely on modeling codes written by
 `Rongjiang Wang <http://www.gfz-potsdam.de/en/section/physics-of-earthquakes-and-volcanoes/staff/profil/rongjiang-wang/>`__.
 If you plan to use the GreensFunction calculation framework,
@@ -72,7 +68,7 @@ The original codes are packaged for windows and can be found
 
 For Unix systems the codes had to be repackaged.
 
-The packages below are also github repositories and you may want to use "git clone" to download:
+The packages below are also github repositories and you may want to use "git clone" to download::
 
     git clone <url>
 

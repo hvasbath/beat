@@ -936,7 +936,13 @@ def _sample():
 
 if __name__ == "__main__":
     import cloudpickle
-    from mpi4py import MPI
+
+    try:
+        from mpi4py import MPI
+
+        logger.debug("Found MPI")
+    except ImportError:
+        raise ImportError("'mpi4py' and a mpi library need to be installed!")
 
     MPI.pickle.__init__(cloudpickle.dumps, cloudpickle.loads)
     MPI.pickle.PROTOCOL = HIGHEST_PROTOCOL
