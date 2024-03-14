@@ -80,6 +80,15 @@ def _create_flat_names(varname, shape):
     return ["{}__{}".format(varname, "_".join(idxs)) for idxs in zip(*labels)]
 
 
+def _create_flat_names_summary(varname, shape):
+    if not shape or sum(shape) == 1:
+        return [varname]
+
+    labels = (num.ravel(xs).tolist() for xs in num.indices(shape))
+    labels = (map(str, [xs]) for xs in labels)
+    return ["{}{}".format(varname, "".join(idxs)) for idxs in zip(*labels)]
+
+
 def _create_shape(flat_names):
     """Determine shape from `_create_flat_names` output."""
     try:
@@ -1350,9 +1359,9 @@ def extract_bounds_from_summary(summary, varname, shape, roundto=None, alpha=0.0
     def do_nothing(value):
         return value
 
-    indexes = _create_flat_names(varname, shape)
-    lower_quant = "hpd_{0:g}".format(100 * alpha / 2)
-    upper_quant = "hpd_{0:g}".format(100 * (1 - alpha / 2))
+    indexes = _create_flat_names_summary(varname, shape)
+    lower_quant = "hdi_{0:g}%".format(100 * alpha / 2)
+    upper_quant = "hdi_{0:g}%".format(100 * (1 - alpha / 2))
 
     bounds = []
     for quant in [lower_quant, upper_quant]:

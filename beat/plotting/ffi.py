@@ -891,7 +891,10 @@ def draw_3d_slip_distribution(problem, po):
                 os.path.join(problem.outfolder, "summary.txt"), sep=r"\s+"
             )
             bounds = extract_bounds_from_summary(
-                summarydf, varname="uparr", shape=(fault.npatches,)
+                summarydf,
+                varname="uparr",
+                shape=(fault.npatches,),
+                alpha=0.06,
             )
             reference["slip_variation"] = bounds[1] - bounds[0]
             slip_units = "m"

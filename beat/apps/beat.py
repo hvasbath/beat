@@ -645,7 +645,11 @@ def command_import(args):
                     param = wmap.time_shifts_id
 
                     new_bounds[param] = extract_bounds_from_summary(
-                        summarydf, varname=param, shape=(wmap.hypersize,), roundto=0
+                        summarydf,
+                        varname=param,
+                        shape=(wmap.hypersize,),
+                        roundto=0,
+                        alpha=0.06,
                     )
                     new_bounds[param].append(point[param])
 
@@ -692,7 +696,11 @@ def command_import(args):
                     new_bounds = {}
                     for param in ["time"]:
                         new_bounds[param] = extract_bounds_from_summary(
-                            summarydf, varname=param, shape=(n_sources[0],), roundto=0
+                            summarydf,
+                            varname=param,
+                            shape=(n_sources[0],),
+                            roundto=0,
+                            alpha=0.06,
                         )
                         new_bounds[param].append(point[param])
 
@@ -710,7 +718,11 @@ def command_import(args):
                         shape = (n_sources,)
 
                     new_bounds[param] = extract_bounds_from_summary(
-                        summarydf, varname=param, shape=shape, roundto=1
+                        summarydf,
+                        varname=param,
+                        shape=shape,
+                        roundto=1,
+                        alpha=0.06,
                     )
                     new_bounds[param].append(point[param])
 
@@ -733,7 +745,11 @@ def command_import(args):
                 for param in common_source_params:
                     try:
                         new_bounds[param] = extract_bounds_from_summary(
-                            summarydf, varname=param, shape=(n_sources,), roundto=0
+                            summarydf,
+                            varname=param,
+                            shape=(n_sources,),
+                            roundto=0,
+                            alpha=0.06,
                         )
                         new_bounds[param].append(point[param])
                     except KeyError:
