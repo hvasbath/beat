@@ -668,6 +668,25 @@ class GeodeticSourceComposite(GeodeticComposite):
         llk = Deterministic(self._like_name, logpts)
         return llk.sum()
 
+    def get_pyrocko_events(self, point=None):
+        """
+        Transform sources to pyrocko events.
+
+        Returns
+        -------
+        events : list
+            of :class:`pyrocko.model.Event`
+        """
+
+        if point is not None:
+            self.point2sources(point)
+
+        target = self.targets[0]
+        store = self.engine.get_store(target.store_id)
+        return [
+            source.pyrocko_event(store=store, target=target) for source in self.sources
+        ]
+
 
 class GeodeticGeometryComposite(GeodeticSourceComposite):
     def __init__(self, gc, project_dir, sources, mapping, events, hypers=False):
@@ -689,25 +708,6 @@ class GeodeticGeometryComposite(GeodeticSourceComposite):
     def __getstate__(self):
         self.engine.close_cashed_stores()
         return self.__dict__.copy()
-
-    def get_pyrocko_events(self, point=None):
-        """
-        Transform sources to pyrocko events.
-
-        Returns
-        -------
-        events : list
-            of :class:`pyrocko.model.Event`
-        """
-
-        if point is not None:
-            self.point2sources(point)
-
-        target = self.targets[0]
-        store = self.engine.get_store(target.store_id)
-        return [
-            source.pyrocko_event(store=store, target=target) for source in self.sources
-        ]
 
     def get_synthetics(self, point):
         """
