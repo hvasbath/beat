@@ -1109,9 +1109,9 @@ def command_summarize(args):
             "--stage_number",
             dest="stage_number",
             type="int",
-            default=None,
+            default=-1,
             help='Int of the stage number "n" of the stage to be summarized.'
-            " Default: all stages up to last complete stage",
+            " Default: -1, i.e. posterior probability density",
         )
 
     parser, options, args = cl_parse(command_str, args, setup=setup)
@@ -1762,9 +1762,9 @@ def command_plot(args):
             "--stage_number",
             dest="stage_number",
             type="int",
-            default=None,
+            default=-1,
             help='Int of the stage number "n" of the stage to be plotted.'
-            " Default: all stages up to last complete stage",
+            " Default: -1, i.e. the posterior probability density",
         )
 
         parser.add_option(
@@ -2263,7 +2263,7 @@ def command_export(args):
             type="int",
             default=-1,
             help='Int of the stage number "n" of the stage to be summarized.'
-            " Default: all stages up to last complete stage",
+            " Default: -1, i.e. the posterior probability density",
         )
 
         parser.add_option(
