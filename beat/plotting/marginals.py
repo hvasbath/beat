@@ -660,6 +660,7 @@ def correlation_plot_hist(
     label_pad = 25
     logger.info("Drawing correlation figure ...")
 
+    logger.warning("Does NOT seperate parameters correctly for Mixed Type Setups!")
     if varnames is None:
         varnames = mtrace.varnames
 

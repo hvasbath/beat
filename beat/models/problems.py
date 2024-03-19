@@ -640,12 +640,20 @@ class SourceOptimizer(Problem):
 
         # Init sources
         self.sources = []
+        running_idx = 0
         for source_type, n_source in zip(pc.source_types, pc.n_sources):
-            for i in range(n_source):
+            for _ in range(n_source):
                 if self.nevents > 1:
-                    event = self.events[i]
+                    event = self.events[running_idx]
                 else:
                     event = self.event
+
+                logger.info(
+                    "Using %s for %i sources for event %s",
+                    source_type,
+                    n_source,
+                    event.__str__(),
+                )
 
                 source = bconfig.source_catalog[source_type].from_pyrocko_event(event)
                 source.stf = bconfig.stf_catalog[pc.stf_type](duration=event.duration)
@@ -654,6 +662,7 @@ class SourceOptimizer(Problem):
                 if source.stf is not None:
                     source.stf.anchor = -1.0
 
+                running_idx += 1
                 self.sources.append(source)
 
 

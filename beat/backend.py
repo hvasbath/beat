@@ -340,10 +340,17 @@ class FileChain(BaseChain):
             )
 
         for varname, shape in zip(varnames, shapes):
-            self.flat_names[varname] = _create_flat_names(varname, shape)
-            self.var_shapes[varname] = shape
-            self.var_dtypes[varname] = "float64"
-            self.varnames.append(varname)
+            if varname in self.varnames:
+                # TODO for mixed source setups needs resolving
+                raise ValueError(
+                    "Sampled stage contains parameter `%s` to be summarized! "
+                    "--calc_derived cannot be used! Needs patching ..." % varname
+                )
+            else:
+                self.flat_names[varname] = _create_flat_names(varname, shape)
+                self.var_shapes[varname] = shape
+                self.var_dtypes[varname] = "float64"
+                self.varnames.append(varname)
 
     def _load_df(self):
         raise ValueError("This method must be defined in inheriting classes!")

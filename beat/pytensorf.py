@@ -52,9 +52,6 @@ class GeoSynthesizer(tt.Op):
         self.targets = tuple(targets)
         self.nobs = sum([target.lats.size for target in self.targets])
         self.mapping = mapping
-        self.n_sources_total = len(self.sources)
-
-        # add source to point mapping here for mixed source setups
 
     def __getstate__(self):
         if isinstance(self.engine, LocalEngine):
@@ -110,7 +107,6 @@ class GeoSynthesizer(tt.Op):
         source_points = utility.split_point(
             mpoint,
             mapping=self.mapping,
-            n_sources_total=self.n_sources_total,
             weed_params=True,
         )
 
@@ -128,99 +124,6 @@ class GeoSynthesizer(tt.Op):
 
     def infer_shape(self, fgraph=None, node=None, input_shapes=None):
         return [(self.nobs, 3)]
-
-
-class GeoLayerSynthesizerPsCmp(tt.Op):
-    """
-    DEPRECATED!
-
-    pytensor wrapper for a geodetic forward model for static observation
-    points. Direct call to PsCmp, needs PsGrn Greens Function store!
-    Deprecated, currently not used in composites.
-
-    Parameters
-    ----------
-    lats : n x 1 :class:`numpy.ndarray`
-        with latitudes of observation points
-    lons : n x 1 :class:`numpy.ndarray`
-        with longitudes of observation points
-    store_superdir : str
-        with absolute path to the GF store super directory
-    crust_ind : int
-        with the index to the GF store
-    sources : :class:`pscmp.RectangularSource`
-        to be used in generating the synthetic displacements
-    """
-
-    __props__ = ("lats", "lons", "store_superdir", "crust_ind", "sources")
-
-    def __init__(self, lats, lons, store_superdir, crust_ind, sources):
-        self.lats = tuple(lats)
-        self.lons = tuple(lons)
-        self.store_superdir = store_superdir
-        self.crust_ind = crust_ind
-        self.sources = tuple(sources)
-
-    def __getstate__(self):
-        return self.__dict__
-
-    def __setstate__(self, state):
-        self.__dict__.update(state)
-
-    def make_node(self, inputs):
-        """
-        Transforms pytensor tensors to node and allocates variables accordingly.
-
-        Parameters
-        ----------
-        inputs : dict
-            keys being strings of source attributes of the
-            :class:`pscmp.RectangularSource` that was used to initialise
-            the Operator
-            values are :class:`pytensor.tensor.Tensor`
-        """
-        inlist = []
-        self.varnames = list(inputs.keys())
-
-        for i in inputs.values():
-            inlist.append(tt.as_tensor_variable(i))
-
-        out = tt.as_tensor_variable(num.zeros((2, 2)))
-        outlist = [out.type()]
-        return Apply(self, inlist, outlist)
-
-    def perform(self, node, inputs, output):
-        """
-        Perform method of the Operator to calculate synthetic displacements.
-
-        Parameters
-        ----------
-        inputs : list
-            of :class:`numpy.ndarray`
-        output : list
-            of synthetic displacements of :class:`numpy.ndarray` (n x 1)
-        """
-        z = output[0]
-
-        point = {vname: i for vname, i in zip(self.varnames, inputs)}
-
-        point = utility.adjust_point_units(point)
-
-        source_points = utility.split_point(point)
-
-        for i, source in enumerate(self.sources):
-            source.update(**source_points[i])
-
-        z[0] = heart.geo_layer_synthetics_pscmp(
-            store_superdir=self.store_superdir,
-            crust_ind=self.crust_ind,
-            lons=self.lons,
-            lats=self.lats,
-            sources=self.sources,
-        )
-
-    def infer_shape(self, node, input_shapes):
-        return [(len(self.lats), 3)]
 
 
 class SeisSynthesizer(tt.Op):
@@ -287,7 +190,6 @@ class SeisSynthesizer(tt.Op):
             self.targets[0].store_id
         ).config.sample_rate
         self.mapping = mapping
-        self.n_sources_total = len(self.sources)
 
         if self.domain == "spectrum":
             nsamples = nextpow2(self.arrival_taper.nsamples(self.sample_rate))
@@ -359,7 +261,6 @@ class SeisSynthesizer(tt.Op):
         source_points = utility.split_point(
             mpoint,
             mapping=self.mapping,
-            n_sources_total=self.n_sources_total,
             weed_params=True,
         )
 

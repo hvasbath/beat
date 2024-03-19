@@ -866,6 +866,16 @@ def command_clone(args):
         )
 
         parser.add_option(
+            "--n_sources",
+            dest="n_sources",
+            type="string",
+            default=[1],
+            action="callback",
+            callback=list_callback_int,
+            help="List of integer numbers of sources per source type to invert for. Default: [1]",
+        )
+
+        parser.add_option(
             "--mode",
             dest="mode",
             choices=mode_choices,
@@ -974,7 +984,7 @@ def command_clone(args):
                 shutil.copytree(linear_gf_dir_name, cloned_linear_gf_dir_name)
                 logger.info("Successfully cloned linear GF libraries.")
 
-        if len(options.source_types) == 0:
+        if len(options.source_types) == 0 and sum(options.n_sources) == 1:
             old_priors = copy.deepcopy(c.problem_config.priors)
 
             new_prior_names = (
@@ -986,14 +996,14 @@ def command_clone(args):
 
         else:
             logger.info('Replacing sources with "%s"' % options.source_types)
+            c.problem_config.n_sources = options.n_sources
             c.problem_config.source_types = options.source_types
-            c.problem_config.init_vars()
             c.problem_config.set_decimation_factor()
-            re_init = False
+            re_init = True
 
         if re_init:
             logger.info(
-                "Re-initialized priors because of new datatype!"
+                "Re-initialized priors because of new source/datatype!"
                 " Please check prior bounds!"
             )
             c.problem_config.init_vars()

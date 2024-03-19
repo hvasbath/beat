@@ -627,13 +627,16 @@ def transform_sources(sources, datatypes, decimation_factors=None):
     for datatype in datatypes:
         transformed_sources = []
 
-        for source in sources:
+        for idx, source in enumerate(sources):
             transformed_source = source.clone()
 
             if decimation_factors is not None:
-                transformed_source.update(
-                    decimation_factor=decimation_factors[datatype], anchor="top"
-                )
+                try:
+                    transformed_source.update(
+                        decimation_factor=decimation_factors[datatype], anchor="top"
+                    )
+                except KeyError:
+                    logger.info("Not setting decimation for source %i" % idx)
 
             if datatype == "geodetic" or datatype == "polarity":
                 transformed_source.stf = None
@@ -672,7 +675,7 @@ def adjust_point_units(point):
     return mpoint
 
 
-def split_point(point, mapping=None, n_sources_total=1, weed_params=False):
+def split_point(point, mapping=None, n_sources_total=None, weed_params=False):
     """
     Split point in solution space into List of dictionaries with source
     parameters for each source.
@@ -683,7 +686,7 @@ def split_point(point, mapping=None, n_sources_total=1, weed_params=False):
         :func:`pymc.model.Point`
     mapping : :class: `beat.config.DatatypeParameterMapping`
     n_sources_total : int
-        of int with number of sources for each type in setup
+        total number of sources for each type in setup
     weed_params: bool
         if True only source related parameters are kept in the point
         if False it may raise an error.
@@ -693,8 +696,16 @@ def split_point(point, mapping=None, n_sources_total=1, weed_params=False):
     source_points : list
         of :func:`pymc.model.Point`
     """
+
+    if mapping is not None and n_sources_total is not None:
+        raise ValueError("Must provide either mapping or n_sources_total")
+
+    if mapping is None and n_sources_total is None:
+        raise ValueError("Must provide either mapping or n_sources_total")
+
     if mapping is not None:
         point_to_sources = mapping.point_to_sources_mapping()
+        n_sources_total = mapping.n_sources
     else:
         point_to_sources = None
 
@@ -712,8 +723,13 @@ def split_point(point, mapping=None, n_sources_total=1, weed_params=False):
             source_idxs = range(n_sources_total)
 
         for value, idx in zip(values, source_idxs):
-            source_points[idx][param] = float(value)
-
+            try:
+                source_points[idx][param] = float(value)
+            except IndexError:
+                raise IndexError(
+                    "Tried to set index %i for parameter %s, but does not exist."
+                    % (idx, param)
+                )
     return source_points
 
 

@@ -167,7 +167,6 @@ class PolarityComposite(Composite):
         source_points = split_point(
             tpoint,
             mapping=self.mapping,
-            n_sources_total=self.n_sources_total,
             weed_params=True,
         )
 

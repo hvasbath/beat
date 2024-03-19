@@ -926,6 +926,10 @@ def seismic_fits(problem, stage, plot_options):
 
         ns_id_codes_sorted = [list(ns_id_to_target_codes.keys())[ii] for ii in iorder]
 
+        if len(ns_id_codes_sorted) == 0:
+            logger.info("Did not find targets for event, skipping plotting ...")
+            continue
+
         figures = {}
         # draw station specific data-fits
         for istation, ns_id in enumerate(ns_id_codes_sorted):
@@ -1189,7 +1193,6 @@ def extract_mt_components(problem, po, include_magnitude=False):
             source_points = utility.split_point(
                 point,
                 mapping=composite.mapping,
-                n_sources_total=composite.n_sources_total,
                 weed_params=True,
             )
 

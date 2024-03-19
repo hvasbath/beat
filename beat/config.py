@@ -1229,6 +1229,7 @@ def get_parameter(variable, nvars=1, lower=1, upper=2):
 
 class DatatypeParameterMapping(Object):
     sources_variables = List.T(Dict.T(String.T(), Int.T()))
+    n_sources = Int.T()
 
     def __init__(self, **kwargs):
         Object.__init__(self, **kwargs)
@@ -1286,7 +1287,7 @@ class SourcesParameterMapping(Object):
     """
 
     source_types = List.T(String.T(), default=[])
-    n_sources = List.T(String.T(), default=[])
+    n_sources = List.T(Int.T(), default=[])
     datatypes = List.T(StringChoice.T(choices=_datatype_choices), default=[])
     mappings = Dict.T(String.T(), DatatypeParameterMapping.T())
 
@@ -1299,7 +1300,7 @@ class SourcesParameterMapping(Object):
     def add(self, sources_variables: TDict = {}, datatype: str = "geodetic"):
         if datatype in self.mappings:
             self.mappings[datatype] = DatatypeParameterMapping(
-                sources_variables=sources_variables
+                sources_variables=sources_variables, n_sources=sum(self.n_sources)
             )
         else:
             raise ValueError(

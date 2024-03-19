@@ -34,7 +34,7 @@ _beat_options()
     arg_subsub["sample"]="--hypers $_std"
     arg_subsub["summarize"]="--stage_number --calc_derived --force $_std"
     arg_subsub["export"]="--stage_number --reference --fix_output --force $_std"
-    arg_subsub["clone"]="--datatypes --source_types --sampler --copy_data $_std"
+    arg_subsub["clone"]="--datatypes --source_types --n_sources --sampler --copy_data $_std"
     arg_subsub["plot"]="--post_llk --stage_number --varnames --format --dpi --force --nensemble --reference --source_idxs --hypers --build --plot_projection $_std"
     arg_subsub["check"]="--datatypes --what --targets $_std"
 

@@ -74,17 +74,20 @@ class SeismicComposite(Composite):
                 project_dir, bconfig.multi_event_seismic_data_name(i)
             )
 
-            logger.info(
-                "Loading seismic data for event %i"
-                " from: %s " % (i, seismic_data_path)
-            )
-            self.datahandlers.append(
-                heart.init_datahandler(
-                    seismic_config=sc,
-                    seismic_data_path=seismic_data_path,
-                    responses_path=responses_path,
+            if os.path.exists(seismic_data_path):
+                logger.info(
+                    "Loading seismic data for event %i"
+                    " from: %s " % (i, seismic_data_path)
                 )
-            )
+                self.datahandlers.append(
+                    heart.init_datahandler(
+                        seismic_config=sc,
+                        seismic_data_path=seismic_data_path,
+                        responses_path=responses_path,
+                    )
+                )
+            else:
+                logger.info("Did not find seismic data for event %i." % i)
 
         self.noise_analyser = cov.SeismicNoiseAnalyser(
             structure=sc.noise_estimator.structure,
@@ -98,13 +101,19 @@ class SeismicComposite(Composite):
         for i, wc in enumerate(sc.waveforms):
             logger.info('Initialising seismic wavemap for "%s" ...' % wc.name)
             if wc.include:
-                wmap = heart.init_wavemap(
-                    waveformfit_config=wc,
-                    datahandler=self.datahandlers[wc.event_idx],
-                    event=self.events[wc.event_idx],
-                    mapnumber=i,
-                )
-
+                try:
+                    wmap = heart.init_wavemap(
+                        waveformfit_config=wc,
+                        datahandler=self.datahandlers[wc.event_idx],
+                        event=self.events[wc.event_idx],
+                        mapnumber=i,
+                    )
+                except IndexError:
+                    raise IndexError(
+                        "Did not find seismic data for event %i ! "
+                        "Data for sub-events follows naming: "
+                        "seismic_data_subevent_1.pkl, seismic_data_subevent_2.pkl, etc."
+                    )
                 self.wavemaps.append(wmap)
             else:
                 logger.info(
@@ -686,13 +695,17 @@ class SeismicGeometryComposite(SeismicComposite):
             if self.nevents == 1:
                 tpoint["time"] += self.event.time  # single event
             else:
-                for i, event in enumerate(self.events):  # multi event
-                    tpoint["time"][i] += event.time
+                # careful! if setup with multi-source geodetic and geodetic + seismic
+                # the joint source needs to be first, TODO clean-up
+                times = tpoint["time"]
+                for i in range(times.size):  # multi event
+                    times[i] += self.events[i].time
+
+                tpoint["time"] = times
 
         source_points = utility.split_point(
             tpoint,
             mapping=self.mapping,
-            n_sources_total=self.n_sources_total,
             weed_params=True,
         )
 
@@ -853,7 +866,7 @@ class SeismicGeometryComposite(SeismicComposite):
         sc = self.config
         synths = []
         obs = []
-        for wmap in self.wavemaps:
+        for i, wmap in enumerate(self.wavemaps):
             wc = wmap.config
             if not wmap.is_prepared or force:
                 wmap.prepare_data(
