@@ -181,7 +181,7 @@ parameter_info = {
     ),
     "w": Bounds(
         physical_bounds=(-3.0 / 8.0 * num.pi, 3.0 / 8.0 * num.pi),
-        default_bounds=(-0.005, 0.005),
+        default_bounds=(-3.0 / 8.0 * num.pi, 3.0 / 8.0 * num.pi),
         unit="$[rad]$",
     ),
     "v": Bounds(
