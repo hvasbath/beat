@@ -1203,7 +1203,7 @@ def extract_mt_components(problem, po, include_magnitude=False):
                     try:
                         m6s[:, i] = (
                             stage.mtrace.get_values(varname, combine=True, squeeze=True)
-                            .T[running_source_idx]
+                            .T[idx_source]
                             .ravel()
                         )
 
@@ -1226,6 +1226,7 @@ def extract_mt_components(problem, po, include_magnitude=False):
 
                 list_m6s.append(m6s)
                 list_best_mts.append(best_mt)
+                running_source_idx += 1
         else:
             llk_str = "ref"
             point = po.reference
@@ -1239,7 +1240,7 @@ def extract_mt_components(problem, po, include_magnitude=False):
                         list_best_mts.append(None)
 
                 else:
-                    for idx_source in range(n_sources):
+                    for idx_source in range(n_source):
                         list_m6s.append(
                             [
                                 point2array(
