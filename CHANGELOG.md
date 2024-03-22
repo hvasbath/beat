@@ -19,7 +19,7 @@ Contributors: Hannes Vasyura-Bathke @hvasbath
 - n_sources in config is now list of integers, previous: integer
 - source_type to: list of source_types, variable changed to source_types
 - adopted ruff linting
-- replace nose with pytest testing 
+- replace nose with pytest testing
 
 ## [1.2.5]  24 Mai 2023
 Contributors: Hannes Vasyura-Bathke @hvasbath
