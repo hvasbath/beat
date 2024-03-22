@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "beat"
 version = "2.0.0"
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 license = {text = "GPLv3"}
 description = "'Bayesian Earthquake Analysis Tool'"
 readme = "README.md"
@@ -19,7 +19,7 @@ keywords = ["Bayesian Inference", "seismology", "geodesy", "earthquake", "volcan
 classifiers = [
     "Intended Audience :: Science/Research",
     "Topic :: Scientific/Engineering :: Physics",
-    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
     "Programming Language :: C",
     "Operating System :: POSIX",
     "Operating System :: MacOS"
