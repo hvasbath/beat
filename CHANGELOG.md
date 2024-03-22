@@ -4,6 +4,23 @@ All notable changes to BEAT will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [2.0.0] 24 March 2024
+Major new release! Previous project setups are not back-compatible. Supports python3.9+.
+
+Contributors: Hannes Vasyura-Bathke @hvasbath
+
+### Added
+- new inference mode: "bem" for Boundary Element Modeling
+- allow for multi-source type inference: e.g. MTSource, RectangularSource
+- added parameter defaults module and config functionality
+
+### Changed
+- using pymc v5 and pytensor instead of pymc v3 and theano --> makes old setups incompatible
+- n_sources in config is now list of integers, previous: integer
+- source_type to: list of source_types, variable changed to source_types
+- adopted ruff linting
+- replace nose with pytest testing 
+
 ## [1.2.5]  24 Mai 2023
 Contributors: Hannes Vasyura-Bathke @hvasbath
 
