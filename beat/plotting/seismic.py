@@ -1962,6 +1962,13 @@ def station_variance_reductions(problem, stage, plot_options):
 
         cg_to_target_codes = utility.gather(unique_target_codes, lambda t: t[3])
 
+        if len(ns_id_to_target_codes) == 0:
+            logger.info(
+                "Did not find targets for event %s, skipping plotting ..."
+                % event.__str__()
+            )
+            continue
+
         # get channel group specific mean variance reductions
         cg_var_reductions = {}
         for cg, target_codes in cg_to_target_codes.items():
