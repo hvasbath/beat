@@ -8,6 +8,9 @@ https://pyrocko.org/beat/
 
 Based on pyrocko, pytensor and pymc
 
+## News
+The new BEAT v2.0.0 is not backward compatible with project setups from BEAT v1.x.x!
+
 ## Tutorials
 Step by step points on how to use the tool for several scenarios can be found here:
 [Examples](https://pyrocko.org/beat/docs/current/examples/index.html#)
