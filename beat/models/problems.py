@@ -4,19 +4,21 @@ import time
 from logging import getLogger
 
 import numpy as num
-import theano.tensor as tt
-from pymc3 import Deterministic, Model, Potential, Uniform
+import pytensor.tensor as tt
+from pymc import Deterministic, Model, Potential, draw
 from pyrocko import util
 from pyrocko.model import get_effective_latlon
-from theano import config as tconfig
+from pytensor import config as tconfig
 
 from beat import config as bconfig
 from beat.backend import ListArrayOrdering, ListToArrayBijection
 from beat.models import geodetic, laplacian, polarity, seismic
+from beat.models.base import init_uniform_random
 from beat.utility import list2string, transform_sources, weed_input_rvs
 
-# disable theano rounding warning
-tconfig.warn.round = False
+# disable pytensor rounding warning
+tconfig.compute_test_value = "pdb"
+tconfig.warn__round = False
 
 km = 1000.0
 
@@ -27,7 +29,6 @@ __all__ = ["GeometryOptimizer", "DistributionOptimizer", "load_model"]
 
 
 class InconsistentNumberHyperparametersError(Exception):
-
     context = (
         "Configuration file has to be updated!"
         + " Hyperparameters have to be re-estimated. \n"
@@ -48,15 +49,15 @@ geometry_composite_catalog = {
     "geodetic": geodetic.GeodeticGeometryComposite,
 }
 
+bem_composite_catalog = {
+    "geodetic": geodetic.GeodeticBEMComposite,
+}
 
 distributer_composite_catalog = {
     "seismic": seismic.SeismicDistributerComposite,
     "geodetic": geodetic.GeodeticDistributerComposite,
     "laplacian": laplacian.LaplacianDistributerComposite,
 }
-
-
-interseismic_composite_catalog = {"geodetic": geodetic.GeodeticInterseismicComposite}
 
 
 class Problem(object):
@@ -74,7 +75,6 @@ class Problem(object):
     _hierarchicalnames = None
 
     def __init__(self, config, hypers=False):
-
         self.model = None
 
         self._like_name = "like"
@@ -156,7 +156,7 @@ class Problem(object):
                     backend=sc.backend,
                 )
                 t2 = time.time()
-                logger.info("Compilation time: %f" % (t2 - t1))
+                logger.info("Compilation time: %f \n" % (t2 - t1))
 
             elif sc.name == "SMC":
                 logger.info(
@@ -176,12 +176,12 @@ class Problem(object):
                     n_chains=sc.parameters.n_chains,
                     tune_interval=sc.parameters.tune_interval,
                     coef_variation=sc.parameters.coef_variation,
-                    proposal_dist=sc.parameters.proposal_dist,
+                    proposal_name=sc.parameters.proposal_dist,
                     likelihood_name=self._like_name,
                     backend=sc.backend,
                 )
                 t2 = time.time()
-                logger.info("Compilation time: %f" % (t2 - t1))
+                logger.info("Compilation time: %f \n" % (t2 - t1))
 
             elif sc.name == "PT":
                 logger.info(
@@ -211,7 +211,7 @@ class Problem(object):
 
     def built_model(self):
         """
-        Initialise :class:`pymc3.Model` depending on problem composites,
+        Initialise :class:`pymc.Model` depending on problem composites,
         geodetic and/or seismic data are included. Composites also determine
         the problem to be solved.
         """
@@ -221,12 +221,11 @@ class Problem(object):
         pc = self.config.problem_config
 
         with Model() as self.model:
-
-            self.rvs, self.fixed_params = pc.get_random_variables()
-
+            self.init_random_variables()
             self.init_hyperparams()
+            self.init_hierarchicals()
 
-            total_llk = tt.zeros((1), tconfig.floatX)
+            total_llk = tt.zeros((1, 1), tconfig.floatX)
 
             for datatype, composite in self.composites.items():
                 if datatype in bconfig.modes_catalog[pc.mode].keys():
@@ -244,10 +243,8 @@ class Problem(object):
                 )
 
             # deterministic RV to write out llks to file
-            like = Deterministic("tmp", total_llk)
-
-            # will overwrite deterministic name ...
-            llk = Potential(self._like_name, like)
+            like = Potential("dummy", total_llk.sum())
+            llk = Deterministic(self._like_name, like)  # noqa: F841
             logger.info("Model building was successful! \n")
 
     def plant_lijection(self):
@@ -256,14 +253,14 @@ class Problem(object):
         """
         if self.model is not None:
             lordering = ListArrayOrdering(self.model.unobserved_RVs, intype="tensor")
-            lpoint = [var.tag.test_value for var in self.model.unobserved_RVs]
+            lpoint = [var.get_test_value() for var in self.model.unobserved_RVs]
             self.model.lijection = ListToArrayBijection(lordering, lpoint)
         else:
             raise AttributeError("Model needs to be built!")
 
     def built_hyper_model(self):
         """
-        Initialise :class:`pymc3.Model` depending on configuration file,
+        Initialise :class:`pymc.Model` depending on configuration file,
         geodetic and/or seismic data are included. Estimates initial parameter
         bounds for hyperparameters.
         """
@@ -282,10 +279,9 @@ class Problem(object):
                 point[param.name] = param.testvalue
 
         with Model() as self.model:
-
             self.init_hyperparams()
 
-            total_llk = tt.zeros((1), tconfig.floatX)
+            total_llk = tt.zeros((1, 1), tconfig.floatX)
 
             for composite in self.composites.values():
                 if hasattr(composite, "analyse_noise"):
@@ -296,8 +292,8 @@ class Problem(object):
 
                 total_llk += composite.get_hyper_formula(self.hyperparams)
 
-            like = Deterministic("tmp", total_llk)
-            llk = Potential(self._like_name, like)
+            like = Potential("dummy", total_llk.sum())
+            llk = Deterministic(self._like_name, like)  # noqa: F841
             logger.info("Hyper model building was successful!")
 
     def get_random_point(self, include=["priors", "hierarchicals", "hypers"]):
@@ -310,19 +306,19 @@ class Problem(object):
         if "hierarchicals" in include:
             for name, param in self.hierarchicals.items():
                 if not isinstance(param, num.ndarray):
-                    point[name] = param.random()
+                    point[name] = draw(param)
 
         if "priors" in include:
             for param in pc.priors.values():
-                shape = pc.get_parameter_shape(param)
-                point[param.name] = param.random(shape)
+                size = pc.get_parameter_size(param)
+                point[param.name] = param.random(size)
 
         if "hypers" in include:
             if len(self.hyperparams) == 0:
                 self.init_hyperparams()
 
             hps = {
-                hp_name: param.random()
+                hp_name: draw(param)
                 for hp_name, param in self.hyperparams.items()
                 if not isinstance(param, num.ndarray)
             }
@@ -372,16 +368,29 @@ class Problem(object):
             self.init_hierarchicals()
         return self._hierarchicalnames
 
+    def init_random_variables(self):
+        """
+        Evaluate problem setup and initialize random variables and
+        fixed variables dictionaries.
+        """
+        (
+            rvs_kwargs,
+            self.fixed_params,
+        ) = self.config.problem_config.get_random_variables()
+
+        self.rvs = {}
+        for varname, kwargs in rvs_kwargs.items():
+            self.rvs[varname] = init_uniform_random(kwargs)
+
     def init_hyperparams(self):
         """
-        Evaluate problem setup and return hyperparameter dictionary.
+        Evaluate problem setup and initialize hyperparameter dictionary.
         """
         pc = self.config.problem_config
         hyperparameters = copy.deepcopy(pc.hyperparameters)
 
         hyperparams = {}
         n_hyp = 0
-        modelinit = True
         self._hypernames = []
         for datatype, composite in self.composites.items():
             hypernames = composite.get_hypernames()
@@ -404,18 +413,12 @@ class Problem(object):
                         shape=dimension,
                         lower=num.repeat(hyperpar.lower, ndata),
                         upper=num.repeat(hyperpar.upper, ndata),
-                        testval=num.repeat(hyperpar.testvalue, ndata),
+                        initval=num.repeat(hyperpar.testvalue, ndata),
                         dtype=tconfig.floatX,
                         transform=None,
                     )
 
-                    try:
-                        hyperparams[hp_name] = Uniform(**kwargs)
-
-                    except TypeError:
-                        kwargs.pop("name")
-                        hyperparams[hp_name] = Uniform.dist(**kwargs)
-                        modelinit = False
+                    hyperparams[hp_name] = init_uniform_random(kwargs)
 
                     n_hyp += dimension
                     self._hypernames.append(hyperpar.name)
@@ -437,8 +440,7 @@ class Problem(object):
                 " covered by datasets/datatypes."
             )
 
-        if modelinit:
-            logger.info("Optimization for %i hyperparameters in total!", n_hyp)
+        logger.info("Initialized %i hyperparameters in total!", n_hyp)
 
         self.hyperparams = hyperparams
 
@@ -469,7 +471,7 @@ class Problem(object):
 
         Parameters
         ----------
-        point : :func:`pymc3.Point`
+        point : :func:`pymc.Point`
             Dictionary with model parameters, for which the VRs are calculated
         """
         vrs = {}
@@ -496,7 +498,7 @@ class Problem(object):
 
         Parameters
         ----------
-        point : :func:`pymc3.Point`
+        point : :func:`pymc.Point`
             Dictionary with model parameters, for which the sources are
             updated
         """
@@ -509,7 +511,7 @@ class Problem(object):
 
         Parameters
         ----------
-        point : :func:`pymc3.Point`
+        point : :func:`pymc.Point`
             Dictionary with model parameters, for which the events are
             returned
 
@@ -540,7 +542,7 @@ class Problem(object):
 
         Parameters
         ----------
-        point : :func:`pymc3.Point`
+        point : :func:`pymc.Point`
             Dictionary with model parameters, for which the covariance matrixes
             with respect to velocity model uncertainties are calculated
         n_jobs : int
@@ -569,7 +571,7 @@ class Problem(object):
 
         Parameters
         ----------
-        point : :func:`pymc3.Point`
+        point : :func:`pymc.Point`
             Dictionary with model parameters
         kwargs especially to change output of seismic forward model
             outmode = 'traces'/ 'array' / 'data'
@@ -624,34 +626,44 @@ class SourceOptimizer(Problem):
     """
 
     def __init__(self, config, hypers=False):
-
         super(SourceOptimizer, self).__init__(config, hypers)
 
         pc = config.problem_config
+        n_sources_total = sum(pc.n_sources)
 
-        if self.nevents != pc.n_sources and self.nevents != 1:
+        if self.nevents != n_sources_total and self.nevents != 1:
             raise ValueError(
                 "Number of events and sources have to be equal or only one "
                 "event has to be used! Number if events %i and number of "
-                "sources: %i!" % (self.nevents, pc.n_sources)
+                "sources: %i!" % (self.nevents, n_sources_total)
             )
 
         # Init sources
         self.sources = []
-        for i in range(pc.n_sources):
-            if self.nevents > 1:
-                event = self.events[i]
-            else:
-                event = self.event
+        running_idx = 0
+        for source_type, n_source in zip(pc.source_types, pc.n_sources):
+            for _ in range(n_source):
+                if self.nevents > 1:
+                    event = self.events[running_idx]
+                else:
+                    event = self.event
 
-            source = bconfig.source_catalog[pc.source_type].from_pyrocko_event(event)
-            source.stf = bconfig.stf_catalog[pc.stf_type](duration=event.duration)
+                logger.info(
+                    "Using %s for %i sources for event %s",
+                    source_type,
+                    n_source,
+                    event.__str__(),
+                )
 
-            # hardcoded inversion for hypocentral time
-            if source.stf is not None:
-                source.stf.anchor = -1.0
+                source = bconfig.source_catalog[source_type].from_pyrocko_event(event)
+                source.stf = bconfig.stf_catalog[pc.stf_type](duration=event.duration)
 
-            self.sources.append(source)
+                # hardcoded inversion for hypocentral time
+                if source.stf is not None:
+                    source.stf.anchor = -1.0
+
+                running_idx += 1
+                self.sources.append(source)
 
 
 class GeometryOptimizer(SourceOptimizer):
@@ -671,14 +683,19 @@ class GeometryOptimizer(SourceOptimizer):
         super(GeometryOptimizer, self).__init__(config, hypers)
 
         pc = config.problem_config
+        if pc.mode == "geometry":
+            composite_catalog = geometry_composite_catalog
+        elif pc.mode == "bem":
+            composite_catalog = bem_composite_catalog
 
         dsources = transform_sources(self.sources, pc.datatypes, pc.decimation_factors)
-
+        mappings = pc.get_variables_mapping()
         for datatype in pc.datatypes:
-            self.composites[datatype] = geometry_composite_catalog[datatype](
+            self.composites[datatype] = composite_catalog[datatype](
                 config[datatype + "_config"],
                 config.project_dir,
                 dsources[datatype],
+                mappings[datatype],
                 self.events,
                 hypers,
             )
@@ -688,48 +705,6 @@ class GeometryOptimizer(SourceOptimizer):
         # updating source objects with test-value in bounds
         tpoint = pc.get_test_point()
         self.point2sources(tpoint)
-
-
-class InterseismicOptimizer(SourceOptimizer):
-    """
-    Uses the backslip-model in combination with the blockmodel to formulate an
-    interseismic model.
-
-    Parameters
-    ----------
-    config : :class:'config.BEATconfig'
-        Contains all the information about the model setup and optimization
-        boundaries, as well as the sampler parameters.
-    """
-
-    def __init__(self, config, hypers=False):
-        logger.info("... Initialising Interseismic Optimizer ... \n")
-
-        super(InterseismicOptimizer, self).__init__(config, hypers)
-
-        pc = config.problem_config
-
-        if pc.source_type == "RectangularSource":
-            dsources = transform_sources(self.sources, pc.datatypes)
-        else:
-            raise TypeError(
-                "Interseismic Optimizer has to be used with" " RectangularSources!"
-            )
-
-        for datatype in pc.datatypes:
-            self.composites[datatype] = interseismic_composite_catalog[datatype](
-                config[datatype + "_config"],
-                config.project_dir,
-                dsources[datatype],
-                self.events,
-                hypers,
-            )
-
-        self.config = config
-
-        # updating source objects with fixed values
-        point = self.get_random_point()
-        self.point2sources(point)
 
 
 class DistributionOptimizer(Problem):
@@ -845,7 +820,6 @@ class DistributionOptimizer(Problem):
                 ds.extend(displacements)
 
             elif datatype == "seismic":
-
                 targets_gfs = [[] for i in range(composite.n_t)]
                 for pidx in range(npatches):
                     Gseis, dseis = composite.get_synthetics(
@@ -899,11 +873,10 @@ class DistributionOptimizer(Problem):
         return point
 
 
-problem_modes = list(bconfig.modes_catalog.keys())
 problem_catalog = {
-    problem_modes[0]: GeometryOptimizer,
-    problem_modes[1]: DistributionOptimizer,
-    problem_modes[2]: InterseismicOptimizer,
+    bconfig.geometry_mode_str: GeometryOptimizer,
+    bconfig.ffi_mode_str: DistributionOptimizer,
+    bconfig.bem_mode_str: GeometryOptimizer,
 }
 
 

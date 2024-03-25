@@ -5,23 +5,22 @@ from logging import getLogger
 from time import time
 
 import numpy as num
-import theano.tensor as tt
-from pymc3 import Deterministic, Uniform
-from pyrocko.gf import LocalEngine, RectangularSource
-from theano import config as tconfig
-from theano import shared
-from theano.printing import Print
+import pytensor.tensor as tt
+from pymc import Deterministic
+from pyrocko.gf import LocalEngine
+from pytensor import config as tconfig
+from pytensor import shared
 
 from beat import config as bconfig
 from beat import covariance as cov
-from beat import heart, theanof, utility
+from beat import heart, pytensorf, utility
 from beat.ffi import get_gf_prefix, load_gf_library
-from beat.interseismic import geo_backslip_synthetics, seperate_point
 from beat.models.base import (
     Composite,
     ConfigInconsistentError,
     FaultGeometryNotFoundError,
     get_hypervalue_from_point,
+    init_uniform_random,
 )
 from beat.models.distributions import multivariate_normal_chol
 
@@ -32,8 +31,8 @@ km = 1000.0
 
 
 __all__ = [
+    "GeodeticBEMComposite",
     "GeodeticGeometryComposite",
-    "GeodeticInterseismicComposite",
     "GeodeticDistributerComposite",
 ]
 
@@ -60,7 +59,6 @@ class GeodeticComposite(Composite):
     weights = None
 
     def __init__(self, gc, project_dir, events, hypers=False):
-
         super(GeodeticComposite, self).__init__(events)
 
         logger.debug("Setting up geodetic structure ...\n")
@@ -72,9 +70,22 @@ class GeodeticComposite(Composite):
         self.datasets = utility.load_objects(geodetic_data_path)
         logger.info("Number of geodetic datasets: %i " % self.n_t)
 
+        # initialise local coordinate system and corrections
+        if gc.corrections_config.has_enabled_corrections:
+            correction_configs = gc.corrections_config.iter_corrections()
+            logger.info("Initialising corrections ...")
+            for data in self.datasets:
+                data.setup_corrections(
+                    event=self.event, correction_configs=correction_configs
+                )
+        else:
+            for data in self.datasets:
+                data.update_local_coords(self.event)
+
         # init geodetic targets
         self.targets = heart.init_geodetic_targets(
             datasets=self.datasets,
+            event=self.event,
             earth_model_name=gc.gf_config.earth_model_name,
             interpolation=gc.interpolation,
             crust_inds=[gc.gf_config.reference_model_idx],
@@ -95,22 +106,14 @@ class GeodeticComposite(Composite):
             config=gc.noise_estimator, events=self.events
         )
 
-        if gc.corrections_config.has_enabled_corrections:
-            correction_configs = gc.corrections_config.iter_corrections()
-            logger.info("Initialising corrections ...")
-            for data in self.datasets:
-                data.setup_corrections(
-                    event=self.event, correction_configs=correction_configs
-                )
-
         self.config = gc
 
         if hypers:
             self._llks = []
-            for t in range(self.n_t):
-                self._llks.append(
-                    shared(num.array([1.0]), name="geo_llk_%i" % t, borrow=True)
-                )
+            self._llks.extend(
+                shared(num.array([1.0]), name="geo_llk_%i" % t, borrow=True)
+                for t in range(self.n_t)
+            )
 
     def init_weights(self):
         self.weights = []
@@ -211,7 +214,7 @@ class GeodeticComposite(Composite):
 
         Parameters
         ----------
-        point : :func:`pymc3.Point`
+        point : :func:`pymc.Point`
             Dictionary with model parameters
 
         Returns
@@ -221,7 +224,7 @@ class GeodeticComposite(Composite):
 
         logger.debug("Assembling geodetic data ...")
 
-        processed_synts = self.get_synthetics(point, outmode="stacked_arrays")
+        processed_synts = self.get_synthetics(point)
 
         results = []
         for i, data in enumerate(self.datasets):
@@ -247,7 +250,6 @@ class GeodeticComposite(Composite):
         force=False,
         update=False,
     ):
-
         from kite.scene import Scene, UserIOWarning
         from pyrocko.guts import dump
 
@@ -263,7 +265,7 @@ class GeodeticComposite(Composite):
                 for dataset in datasets
             }
 
-            outname = os.path.join(results_path, "%s_C_%s" % ("geodetic", cov_mat))
+            outname = os.path.join(results_path, f"geodetic_C_{cov_mat}")
             logger.info('"geodetic covariances" to: %s', outname)
             num.savez(outname, **covs)
 
@@ -290,7 +292,7 @@ class GeodeticComposite(Composite):
                 for campaign in campaigns:
                     model_camp = gnss.GNSSCampaign(
                         stations=copy.deepcopy(campaign.stations),
-                        name="%s_model" % campaign.name,
+                        name=f"{campaign.name}_model",
                     )
 
                     dataset_to_result = {}
@@ -317,7 +319,7 @@ class GeodeticComposite(Composite):
                         try:
                             scene_path = os.path.join(config.datadir, dataset.name)
                             logger.info(
-                                "Loading full resolution kite scene: %s" % scene_path
+                                f"Loading full resolution kite scene: {scene_path}"
                             )
                             scene = Scene.load(scene_path)
                         except UserIOWarning:
@@ -328,17 +330,16 @@ class GeodeticComposite(Composite):
                             continue
 
                         for attr in ["processed_obs", "processed_syn", "processed_res"]:
-
                             filename = get_filename(attr, ending="csv")
                             displacements = getattr(result, attr)
                             dataset.export_to_csv(filename, displacements)
-                            logger.info("Stored CSV file to: %s" % filename)
+                            logger.info(f"Stored CSV file to: {filename}")
 
                             filename = get_filename(attr, ending="yml")
                             vals = map_displacement_grid(displacements, scene)
                             scene.displacement = vals
                             scene.save(filename)
-                            logger.info("Stored kite scene to: %s" % filename)
+                            logger.info(f"Stored kite scene to: {filename}")
 
         # export stdz residuals
         self.analyse_noise(point)
@@ -356,13 +357,13 @@ class GeodeticComposite(Composite):
         Ramp estimation in azimuth and range direction of a radar scene and/or
         Rotation of GNSS stations around an Euler pole
         """
-        hierarchicals = problem_config.hierarchicals
         self._hierarchicalnames = []
+        hierarchicals = problem_config.hierarchicals
         for number, corr in enumerate(
             self.config.corrections_config.iter_corrections()
         ):
             logger.info(
-                "Evaluating config for %s corrections " "for datasets..." % corr.feature
+                f"Evaluating config for {corr.feature} corrections for datasets..."
             )
             if corr.enabled:
                 for data in self.datasets:
@@ -375,11 +376,8 @@ class GeodeticComposite(Composite):
 
                     for hierarchical_name in hierarchical_names:
                         if not corr.enabled and hierarchical_name in hierarchicals:
-
                             raise ConfigInconsistentError(
-                                "%s %s disabled, but they are defined"
-                                " in the problem configuration"
-                                " (hierarchicals)!" % (corr.feature, data.name)
+                                f"{corr.feature} {data.name} disabled, but they are defined in the problem configuration (hierarchicals)!"
                             )
 
                         if (
@@ -388,46 +386,34 @@ class GeodeticComposite(Composite):
                             and data.name in corr.dataset_names
                         ):
                             raise ConfigInconsistentError(
-                                "%s %s corrections enabled, but they are"
-                                " not defined in the problem configuration!"
-                                " (hierarchicals)" % (corr.feature, data.name)
+                                f"{corr.feature} {data.name} corrections enabled, but they are not defined in the problem configuration! (hierarchicals)"
                             )
 
-                        param = hierarchicals[hierarchical_name]
                         if hierarchical_name not in self.hierarchicals:
+                            param = hierarchicals[hierarchical_name]
                             if not num.array_equal(param.lower, param.upper):
                                 kwargs = dict(
                                     name=param.name,
                                     shape=param.dimension,
                                     lower=param.lower,
                                     upper=param.upper,
-                                    testval=param.testvalue,
+                                    initval=param.testvalue,
                                     transform=None,
                                     dtype=tconfig.floatX,
                                 )
 
-                                try:
-                                    self.hierarchicals[hierarchical_name] = Uniform(
-                                        **kwargs
-                                    )
-                                except TypeError:
-                                    kwargs.pop("name")
-                                    self.hierarchicals[
-                                        hierarchical_name
-                                    ] = Uniform.dist(**kwargs)
+                                self.hierarchicals[
+                                    hierarchical_name
+                                ] = init_uniform_random(kwargs)
 
                                 self._hierarchicalnames.append(hierarchical_name)
                             else:
                                 logger.info(
-                                    "not solving for %s, got fixed at %s"
-                                    % (
-                                        param.name,
-                                        utility.list2string(param.lower.flatten()),
-                                    )
+                                    f"not solving for {param.name}, got fixed at {utility.list2string(param.lower.flatten())}"
                                 )
                                 self.hierarchicals[hierarchical_name] = param.lower
             else:
-                logger.info("No %s correction!" % corr.feature)
+                logger.info(f"No {corr.feature} correction!")
 
         logger.info("Initialized %i hierarchical parameters." % len(self.hierarchicals))
 
@@ -460,11 +446,11 @@ class GeodeticComposite(Composite):
             with numpy array-like items and variable name keys
         """
         results = self.assemble_results(point)
-        for l, result in enumerate(results):
-            choli = self.datasets[l].covariance.chol_inverse
+        for i_l, result in enumerate(results):
+            choli = self.datasets[i_l].covariance.chol_inverse
             tmp = choli.dot(result.processed_res)
             _llk = num.asarray([num.dot(tmp, tmp)])
-            self._llks[l].set_value(_llk)
+            self._llks[i_l].set_value(_llk)
 
     def get_variance_reductions(self, point, results=None, weights=None):
         """
@@ -505,7 +491,6 @@ class GeodeticComposite(Composite):
 
         var_reds = OrderedDict()
         for dataset, weight, result in zip(self.datasets, weights, results):
-
             hp = get_hypervalue_from_point(
                 point, dataset, counter, hp_specific=hp_specific
             )
@@ -579,6 +564,8 @@ class GeodeticSourceComposite(GeodeticComposite):
         directory of the model project, where to find the data
     sources : list
         of :class:`pyrocko.gf.seismosizer.Source`
+    mapping : list
+        of dict of varnames and their sizes
     events : list
         of :class:`pyrocko.model.Event`
         contains information of reference event, coordinates of reference
@@ -587,19 +574,24 @@ class GeodeticSourceComposite(GeodeticComposite):
         if true initialise object for hyper parameter optimization
     """
 
-    def __init__(self, gc, project_dir, sources, events, hypers=False):
-
+    def __init__(self, gc, project_dir, sources, mapping, events, hypers=False):
         super(GeodeticSourceComposite, self).__init__(
             gc, project_dir, events, hypers=hypers
         )
 
-        self.engine = LocalEngine(store_superdirs=[gc.gf_config.store_superdir])
+        if isinstance(gc.gf_config, bconfig.GeodeticGFConfig):
+            self.engine = LocalEngine(store_superdirs=[gc.gf_config.store_superdir])
+        elif isinstance(gc.gf_config, bconfig.BEMConfig):
+            from beat.bem import BEMEngine
+
+            self.engine = BEMEngine(gc.gf_config)
 
         self.sources = sources
+        self.mapping = mapping
 
-    def __getstate__(self):
-        self.engine.close_cashed_stores()
-        return self.__dict__.copy()
+    @property
+    def n_sources_total(self):
+        return len(self.sources)
 
     def point2sources(self, point):
         """
@@ -609,64 +601,35 @@ class GeodeticSourceComposite(GeodeticComposite):
         tpoint.update(self.fixed_rvs)
         tpoint = utility.adjust_point_units(tpoint)
 
-        # remove hyperparameters from point
-        hps = self.config.get_hypernames()
-
-        for hyper in hps:
-            if hyper in tpoint:
-                tpoint.pop(hyper)
-
-        source_params = list(self.sources[0].keys())
-        for param in list(tpoint.keys()):
-            if param not in source_params:
-                tpoint.pop(param)
-
-        source_points = utility.split_point(tpoint)
+        source_points = utility.split_point(
+            tpoint,
+            mapping=self.mapping,
+            weed_params=True,
+        )
         for i, source in enumerate(self.sources):
             utility.update_source(source, **source_points[i])
             # reset source time may result in store error otherwise
             source.time = 0.0
 
-    def get_pyrocko_events(self, point=None):
-        """
-        Transform sources to pyrocko events.
-
-        Returns
-        -------
-        events : list
-            of :class:`pyrocko.model.Event`
-        """
-
-        if point is not None:
-            self.point2sources(point)
-
-        events = []
-        target = self.targets[0]
-        store = self.engine.get_store(target.store_id)
-        for source in self.sources:
-            events.append(source.pyrocko_event(store=store, target=target))
-
-        return events
-
     def get_formula(self, input_rvs, fixed_rvs, hyperparams, problem_config):
         """
         Get geodetic likelihood formula for the model built. Has to be called
         within a with model context.
-        Part of the pymc3 model.
+        Part of the pymc model.
 
         Parameters
         ----------
         input_rvs : dict
-            of :class:`pymc3.distribution.Distribution`
+            of :class:`pymc.distribution.Distribution`
         fixed_rvs : dict
             of :class:`numpy.array`
         hyperparams : dict
-            of :class:`pymc3.distribution.Distribution`
+            of :class:`pymc.distribution.Distribution`
         problem_config : :class:`config.ProblemConfig`
 
         Returns
         -------
-        posterior_llk : :class:`theano.tensor.Tensor`
+        posterior_llk : :class:`pytensor.tensor.Tensor`
         """
         hp_specific = self.config.dataset_specific_residual_noise_estimation
         tpoint = problem_config.get_test_point()
@@ -691,7 +654,6 @@ class GeodeticSourceComposite(GeodeticComposite):
             tt.cast((self.sdata - los_disp) * self.sodws, tconfig.floatX)
         )
 
-        self.init_hierarchicals(problem_config)
         self.analyse_noise(tpoint)
         self.init_weights()
         if self.config.corrections_config.has_enabled_corrections:
@@ -705,30 +667,55 @@ class GeodeticSourceComposite(GeodeticComposite):
         llk = Deterministic(self._like_name, logpts)
         return llk.sum()
 
+    def get_pyrocko_events(self, point=None):
+        """
+        Transform sources to pyrocko events.
+
+        Returns
+        -------
+        events : list
+            of :class:`pyrocko.model.Event`
+        """
+
+        if point is not None:
+            self.point2sources(point)
+
+        target = self.targets[0]
+        store = self.engine.get_store(target.store_id)
+        return [
+            source.pyrocko_event(store=store, target=target) for source in self.sources
+        ]
+
 
 class GeodeticGeometryComposite(GeodeticSourceComposite):
-    def __init__(self, gc, project_dir, sources, events, hypers=False):
-
+    def __init__(self, gc, project_dir, sources, mapping, events, hypers=False):
         super(GeodeticGeometryComposite, self).__init__(
-            gc, project_dir, sources, events, hypers=hypers
+            gc, project_dir, sources, mapping, events, hypers=hypers
         )
 
+        logger.info("Initialising geometry geodetic composite ...")
         if not hypers:
             # synthetics generation
             logger.debug("Initialising synthetics functions ... \n")
-            self.get_synths = theanof.GeoSynthesizer(
-                engine=self.engine, sources=self.sources, targets=self.targets
+            self.get_synths = pytensorf.GeoSynthesizer(
+                engine=self.engine,
+                sources=self.sources,
+                targets=self.targets,
+                mapping=mapping,
             )
 
-    def get_synthetics(self, point, **kwargs):
+    def __getstate__(self):
+        self.engine.close_cashed_stores()
+        return self.__dict__.copy()
+
+    def get_synthetics(self, point):
         """
         Get synthetics for given point in solution space.
 
         Parameters
         ----------
-        point : :func:`pymc3.Point`
+        point : :func:`pymc.Point`
             Dictionary with model parameters
-        kwargs especially to change output of the forward model
 
         Returns
         -------
@@ -737,7 +724,10 @@ class GeodeticGeometryComposite(GeodeticSourceComposite):
         self.point2sources(point)
 
         displacements = heart.geo_synthetics(
-            engine=self.engine, targets=self.targets, sources=self.sources, **kwargs
+            engine=self.engine,
+            targets=self.targets,
+            sources=self.sources,
+            outmode="stacked_arrays",
         )
 
         synths = []
@@ -786,6 +776,131 @@ class GeodeticGeometryComposite(GeodeticSourceComposite):
             for i, data in enumerate(self.datasets):
                 crust_targets = heart.init_geodetic_targets(
                     datasets=[data],
+                    event=self.event,
+                    earth_model_name=gc.gf_config.earth_model_name,
+                    interpolation=gc.interpolation,
+                    crust_inds=crust_inds,
+                    sample_rate=gc.gf_config.sample_rate,
+                )
+
+                logger.debug(f"Track {data.name}")
+                cov_pv = cov.geodetic_cov_velocity_models(
+                    engine=self.engine,
+                    sources=self.sources,
+                    targets=crust_targets,
+                    dataset=data,
+                    plot=plot,
+                    event=self.event,
+                    n_jobs=1,
+                )
+
+                cov_pv = utility.ensure_cov_psd(cov_pv)
+                data.covariance.pred_v = cov_pv
+        else:
+            logger.info(
+                "Not updating geodetic velocity model-covariances because "
+                "number of model variations is too low! < %i" % thresh
+            )
+
+        # update shared weights from covariance matrices
+        for i, data in enumerate(self.datasets):
+            choli = data.covariance.chol_inverse
+
+            self.weights[i].set_value(choli)
+            data.covariance.update_slog_pdet()
+
+
+class GeodeticBEMComposite(GeodeticSourceComposite):
+    def __init__(self, gc, project_dir, sources, mapping, events, hypers=False):
+        super(GeodeticBEMComposite, self).__init__(
+            gc, project_dir, sources, mapping, events, hypers=hypers
+        )
+        logger.info("Initialising BEM geodetic composite ...")
+
+        if not hypers:
+            # synthetics generation
+            logger.debug("Initialising synthetics functions ... \n")
+            self.get_synths = pytensorf.GeoSynthesizer(
+                engine=self.engine,
+                sources=self.sources,
+                targets=self.targets,
+                mapping=mapping,
+            )
+
+    def get_synthetics(self, point):
+        """
+        Get synthetics for given point in solution space.
+
+        Parameters
+        ----------
+        point : :func:`pymc.Point`
+            Dictionary with model parameters
+        kwargs especially to change output of the forward model
+
+        Returns
+        -------
+        list with :class:`numpy.ndarray` synthetics for each target
+        """
+        self.point2sources(point)
+
+        displacements = heart.geo_synthetics(
+            engine=self.engine,
+            targets=self.targets,
+            sources=self.sources,
+            outmode="arrays",
+        )
+
+        synths = []
+        for disp, data in zip(displacements, self.datasets):
+            los_d = (disp * data.los_vector).sum(axis=1)
+            synths.append(los_d)
+
+        if self.config.corrections_config.has_enabled_corrections:
+            synths = self.apply_corrections(synths, point=point, operation="+")
+
+        return synths
+
+    def update_weights(self, point, n_jobs=1, plot=False):
+        """
+        Updates weighting matrixes (in place) with respect to the point in the
+        solution space.
+
+        Parameters
+        ----------
+        point : dict
+            with numpy array-like items and variable name keys
+        """
+        gc = self.config
+
+        if not self.weights:
+            self.init_weights()
+
+        self.point2sources(point)
+
+        # update data covariances in case model dependent non-toeplitz
+        if self.config.noise_estimator.structure == "non-toeplitz":
+            logger.info("Updating data-covariances ...")
+            self.analyse_noise(point)
+
+        crust_inds = range(*gc.gf_config.n_variations)
+        thresh = 5
+        if len(crust_inds) > thresh:
+            raise NotImplementedError(
+                "Needs updating for this composite to vary elastic parameters."
+            )
+
+            logger.info("Updating geodetic velocity model-covariances ...")
+            if self.config.noise_estimator.structure == "non-toeplitz":
+                logger.warning(
+                    "Non-toeplitz estimation in combination with model "
+                    "prediction covariances is still EXPERIMENTAL and results"
+                    " should be interpreted with care!!"
+                )
+
+            for i, data in enumerate(self.datasets):
+                crust_targets = heart.init_geodetic_targets(
+                    datasets=[data],
+                    event=self.event,
                     earth_model_name=gc.gf_config.earth_model_name,
                     interpolation=gc.interpolation,
                     crust_inds=crust_inds,
@@ -805,83 +920,18 @@ class GeodeticGeometryComposite(GeodeticSourceComposite):
 
                 cov_pv = utility.ensure_cov_psd(cov_pv)
                 data.covariance.pred_v = cov_pv
-                choli = data.covariance.chol_inverse
-
-                self.weights[i].set_value(choli)
-                data.covariance.update_slog_pdet()
         else:
             logger.info(
                 "Not updating geodetic velocity model-covariances because "
                 "number of model variations is too low! < %i" % thresh
             )
 
+        # update shared weights from covariance matrices
+        for i, data in enumerate(self.datasets):
+            choli = data.covariance.chol_inverse
 
-class GeodeticInterseismicComposite(GeodeticSourceComposite):
-    def __init__(self, gc, project_dir, sources, events, hypers=False):
-
-        super(GeodeticInterseismicComposite, self).__init__(
-            gc, project_dir, sources, events, hypers=hypers
-        )
-
-        for source in sources:
-            if not isinstance(source, RectangularSource):
-                raise TypeError("Sources have to be RectangularSources!")
-
-        if not hypers:
-            self._lats = self.Bij.l2a([data.lats for data in self.datasets])
-            self._lons = self.Bij.l2a([data.lons for data in self.datasets])
-
-            self.get_synths = theanof.GeoInterseismicSynthesizer(
-                lats=self._lats,
-                lons=self._lons,
-                engine=self.engine,
-                targets=self.targets,
-                sources=sources,
-                reference=self.event,
-            )
-
-    def get_synthetics(self, point, **kwargs):
-        """
-        Get synthetics for given point in solution space.
-
-        Parameters
-        ----------
-        point : :func:`pymc3.Point`
-            Dictionary with model parameters
-        kwargs especially to change output of the forward model
-
-        Returns
-        -------
-        list with :class:`numpy.ndarray` synthetics for each target
-        """
-        tpoint = copy.deepcopy(point)
-        tpoint.update(self.fixed_rvs)
-        spoint, bpoint = seperate_point(tpoint)
-
-        self.point2sources(spoint)
-
-        synths = []
-        for target, data in zip(self.targets, self.datasets):
-            disp = geo_backslip_synthetics(
-                engine=self.engine,
-                sources=self.sources,
-                targets=[target],
-                lons=target.lons,
-                lats=target.lats,
-                reference=self.event,
-                **bpoint
-            )
-            synths.append((disp * data.los_vector).sum(axis=1))
-
-        return synths
-
-    def update_weights(self, point, n_jobs=1, plot=False):
-
-        if not self.weights:
-            self.init_weights()
-
-        logger.warning("Not implemented yet!")
-        raise NotImplementedError("Not implemented yet!")
+            self.weights[i].set_value(choli)
+            data.covariance.update_slog_pdet()
 
 
 class GeodeticDistributerComposite(GeodeticComposite):
@@ -891,7 +941,6 @@ class GeodeticDistributerComposite(GeodeticComposite):
     """
 
     def __init__(self, gc, project_dir, events, hypers=False):
-
         super(GeodeticDistributerComposite, self).__init__(
             gc, project_dir, events, hypers=hypers
         )
@@ -917,7 +966,7 @@ class GeodeticDistributerComposite(GeodeticComposite):
         crust_inds : list
             of int to indexes of Green's Functions
         make_shared : bool
-            if True transforms gfs to :class:`theano.shared` variables
+            if True transforms gfs to :class:`pytensor.shared` variables
         """
 
         if crust_inds is None:
@@ -994,16 +1043,16 @@ class GeodeticDistributerComposite(GeodeticComposite):
         Parameters
         ----------
         input_rvs : list
-            of :class:`pymc3.distribution.Distribution`
+            of :class:`pymc.distribution.Distribution`
         hyperparams : dict
-            of :class:`pymc3.distribution.Distribution`
+            of :class:`pymc.distribution.Distribution`
 
         Returns
         -------
-        llk : :class:`theano.tensor.Tensor`
+        llk : :class:`pytensor.tensor.Tensor`
             log-likelihood for the distributed slip
         """
-        logger.info("Loading %s Green's Functions" % self.name)
+        logger.info(f"Loading {self.name} Green's Functions")
         self.load_gfs(
             crust_inds=[self.config.gf_config.reference_model_idx], make_shared=False
         )
@@ -1032,7 +1081,6 @@ class GeodeticDistributerComposite(GeodeticComposite):
             tt.cast((self.sdata - mu) * self.sodws, tconfig.floatX)
         )
 
-        self.init_hierarchicals(problem_config)
         if self.config.corrections_config.has_enabled_corrections:
             residuals = self.apply_corrections(residuals)
 
@@ -1041,16 +1089,15 @@ class GeodeticDistributerComposite(GeodeticComposite):
         )
 
         llk = Deterministic(self._like_name, logpts)
-
         return llk.sum()
 
-    def get_synthetics(self, point, outmode="data"):
+    def get_synthetics(self, point):
         """
         Get synthetics for given point in solution space.
 
         Parameters
         ----------
-        point : :func:`pymc3.Point`
+        point : :func:`pymc.Point`
             Dictionary with model parameters
         kwargs especially to change output of the forward model
 
@@ -1149,12 +1196,15 @@ class GeodeticDistributerComposite(GeodeticComposite):
 
                 cov_pv = utility.ensure_cov_psd(cov_pv)
                 data.covariance.pred_v = cov_pv
-                choli = data.covariance.chol_inverse
-
-                self.weights[i].set_value(choli)
-                data.covariance.update_slog_pdet()
         else:
             logger.info(
                 "Not updating geodetic velocity model-covariances because "
                 "number of model variations is too low! < %i" % thresh
             )
+
+        # update shared weights from covariance matrices
+        for i, data in enumerate(self.datasets):
+            choli = data.covariance.chol_inverse
+
+            self.weights[i].set_value(choli)
+            data.covariance.update_slog_pdet()

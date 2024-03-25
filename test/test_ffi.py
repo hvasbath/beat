@@ -3,13 +3,15 @@ import unittest
 from time import time
 
 import numpy as num
-import theano.tensor as tt
+import pytensor.tensor as tt
 from pyrocko import model, util
-from theano import config as tconfig
-from theano import function
+from pyrocko.gf import RectangularSource
+from pytensor import config as tconfig
+from pytensor import function
 
 from beat import ffi
-from beat.heart import DynamicTarget, WaveformMapping
+from beat.config import SeismicGFLibraryConfig, WaveformFitConfig
+from beat.heart import DynamicTarget
 from beat.utility import get_random_uniform
 
 km = 1000.0
@@ -21,11 +23,13 @@ class FFITest(unittest.TestCase):
     def __init__(self, *args, **kwargs):
         unittest.TestCase.__init__(self, *args, **kwargs)
 
+        var = "uparr"
         nsamples = 10
         ntargets = 30
         npatches = 40
-        sample_rate = 2.0
+        # sample_rate = 2.0
 
+        self.event = model.Event(lat=10.0, lon=10.0, depth=2.0 * km)
         self.times = get_random_uniform(300.0, 500.0, ntargets)
 
         self.starttime_min = 0.0
@@ -45,37 +49,44 @@ class FFITest(unittest.TestCase):
         durations = num.linspace(self.duration_min, self.duration_max, self.ndurations)
         starttimes = num.linspace(self.starttime_min, self.starttime_max, nstarttimes)
 
-        lats = num.random.randint(low=-90, high=90, size=ntargets)
-        lons = num.random.randint(low=-180, high=180, size=ntargets)
-
-        stations = [model.Station(lat=lat, lon=lon) for lat, lon in zip(lats, lons)]
+        # lats = num.random.randint(low=-90, high=90, size=ntargets)
+        # lons = num.random.randint(low=-180, high=180, size=ntargets)
+        # stations = [model.Station(lat=lat, lon=lon) for lat, lon in zip(lats, lons)]
 
         targets = [DynamicTarget(store_id="Test_em_2.000_0") for i in range(ntargets)]
 
-        wavemap = WaveformMapping(name="any_P", stations=stations, targets=targets)
+        wave_config = WaveformFitConfig()
+        # wavemap = WaveformMapping(name="any_P", stations=stations, targets=targets)
 
-        # TODO needs updating
-        # self.gfs = ffi.SeismicGFLibrary(
-        #    wavemap=wavemap, component='uperp',
-        #    duration_sampling=duration_sampling,
-        #    starttime_sampling=starttime_sampling,
-        #    starttime_min=self.starttime_min,
-        #    duration_min=self.duration_min)
-        # self.gfs.setup(
-        #    ntargets, npatches, self.ndurations, nstarttimes,
-        #    nsamples, allocate=True)
+        gfl_config = SeismicGFLibraryConfig(
+            component=var,
+            datatype="seismic",
+            event=self.event,
+            reference_sources=[RectangularSource.from_pyrocko_event(self.event)],
+            duration_sampling=duration_sampling,
+            starttime_sampling=starttime_sampling,
+            wave_config=wave_config,
+            dimensions=(ntargets, npatches, self.ndurations, nstarttimes, nsamples),
+            starttime_min=float(starttimes.min()),
+            duration_min=float(durations.min()),
+            mapnumber=1,
+        )
 
+        self.gfs = ffi.SeismicGFLibrary(config=gfl_config)
+
+        self.gfs.setup(
+            ntargets, npatches, self.ndurations, nstarttimes, nsamples, allocate=True
+        )
+        print(self.gfs)
         tracedata = num.tile(num.arange(nsamples), nstarttimes).reshape(
             (nstarttimes, nsamples)
         )
 
-        # for i, target in enumerate(targets):
-        #    for patchidx in range(npatches):
-        #        for duration in durations:
-        #            tmin = self.times[i]
-        #            self.gfs.put(
-        #                tracedata * i, tmin, target, patchidx, duration,
-        #                starttimes)
+        for i, target in enumerate(targets):
+            for patchidx in range(npatches):
+                tmin = self.times[i]
+                self.gfs.set_patch_time(targetidx=i, tmin=tmin)
+                self.gfs.put(tracedata * i, i, patchidx, durations, starttimes)
 
     def test_gf_setup(self):
         print(self.gfs)
@@ -164,7 +175,6 @@ class FFITest(unittest.TestCase):
         num.testing.assert_allclose(outnum, outtheanofor, rtol=0.0, atol=1e-6)
 
     def test_snuffle(self):
-
         self.gfs.get_traces(
             targets=self.gfs.wavemap.targets[0:2],
             patchidxs=[0],

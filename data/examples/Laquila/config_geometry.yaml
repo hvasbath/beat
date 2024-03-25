@@ -29,12 +29,12 @@ event: !pf.Event
 project_dir: /home/vasyurhm/BEATS/LaquilaJointPonlyUPDATE
 problem_config: !beat.ProblemConfig
   mode: geometry
-  source_type: RectangularSource
+  source_types: [RectangularSource]
   stf_type: HalfSinusoid
   decimation_factors:
     geodetic: 4
     seismic: 1
-  n_sources: 1
+  n_sources: [1]
   datatypes: [geodetic, seismic]
   hyperparameters:
     h_SAR: !beat.heart.Parameter

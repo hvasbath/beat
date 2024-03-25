@@ -1,5 +1,4 @@
 import numpy as num
-
 import voronoi_ext
 
 
@@ -33,7 +32,6 @@ def get_voronoi_cell_indexes_c(
 def get_voronoi_cell_indexes_numpy(
     gf_points_dip, gf_points_strike, voronoi_points_dip, voronoi_points_strike
 ):
-
     n_voros = voronoi_points_dip.size
     n_gfs = gf_points_dip.size
 

@@ -5,7 +5,7 @@ import unittest
 import numpy as num
 from pyrocko import util
 
-from beat import paripool
+from beat.parallel import paripool
 
 logger = logging.getLogger("test_paripool")
 
@@ -22,9 +22,8 @@ class ParipoolTestCase(unittest.TestCase):
         self.factors = num.array([0, 1, 2, 3, 2, 1, 0])
 
     def test_pool(self):
-
         featureClass = [[k, 1] for k in self.factors]  # list of arguments
-        p = paripool.paripool(add, featureClass, chunksize=2, nprocs=4, timeout=3)
+        p = paripool(add, featureClass, chunksize=2, nprocs=4, timeout=3)
 
         ref_values = (self.factors + 1).tolist()
         ref_values[3] = None

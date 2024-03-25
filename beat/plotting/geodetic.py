@@ -1,39 +1,37 @@
 import copy
 import logging
-import math
 import os
-
-from scipy import stats
 
 import numpy as num
 from matplotlib import pyplot as plt
-from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.patches import FancyArrow
 from matplotlib.ticker import MaxNLocator
-from pymc3.plots.utils import make_2d
 from pyrocko import gmtpy
 from pyrocko import orthodrome as otd
 from pyrocko.cake_plot import light
 from pyrocko.cake_plot import str_to_mpl_color as scolor
-from pyrocko.plot import AutoScaler, mpl_graph_color, mpl_papersize, nice_value
+from pyrocko.plot import mpl_graph_color, mpl_papersize
+from scipy import stats
 
 from beat import utility
 from beat.config import ffi_mode_str
 from beat.models import Stage
 
 from .common import (
+    cbtick,
     format_axes,
     get_gmt_colorstring_from_mpl,
-    get_latlon_ratio,
     get_nice_plot_bounds,
     get_result_point,
+    get_weights_point,
     km,
-    cbtick,
+    plot_covariances,
+    plot_exists,
     plot_inset_hist,
+    save_figs,
     scale_axes,
     set_anchor,
-    plot_covariances,
-    get_weights_point,
+    set_locator_axes,
 )
 
 logger = logging.getLogger("plotting.geodetic")
@@ -43,8 +41,8 @@ def map_displacement_grid(displacements, scene):
     arr = num.full_like(scene.displacement, fill_value=num.nan)
     qt = scene.quadtree
 
-    for syn_v, l in zip(displacements, qt.leaves):
-        arr[l._slice_rows, l._slice_cols] = syn_v
+    for syn_v, leaf in zip(displacements, qt.leaves):
+        arr[leaf._slice_rows, leaf._slice_cols] = syn_v
 
     arr[scene.displacement_mask] = num.nan
     return arr
@@ -113,7 +111,6 @@ def shaded_displacements(
 
 
 def gnss_fits(problem, stage, plot_options):
-
     from pyrocko import automap
     from pyrocko.model import gnss
 
@@ -179,7 +176,7 @@ def gnss_fits(problem, stage, plot_options):
             dataset_to_result[dataset] = result
 
     if po.plot_projection == "latlon":
-        event = problem.config.event
+        # event = problem.config.event
         locations = campaign.stations  # + [event]
         # print(locations)
         # lat, lon = otd.geographic_midpoint_locations(locations)
@@ -320,7 +317,7 @@ def gnss_fits(problem, stage, plot_options):
                     W="0.1p,black",
                     G=color_str,
                     t=70,
-                    *m.jxyr
+                    *m.jxyr,
                 )
                 m.gmt.psxy(in_rows=in_rows[0:2], W="1p,black", *m.jxyr)
             else:  # point source
@@ -331,7 +328,7 @@ def gnss_fits(problem, stage, plot_options):
                     G=color_str,
                     S="c%fp" % float(source.magnitude * source_scale_factor),
                     t=70,
-                    *m.jxyr
+                    *m.jxyr,
                 )
 
         if dataset:
@@ -341,7 +338,6 @@ def gnss_fits(problem, stage, plot_options):
                 from beat.models.corrections import StrainRateCorrection
 
                 for i, corr in enumerate(dataset.corrections):
-
                     if isinstance(corr, StrainRateCorrection):
                         lats, lons = corr.get_station_coordinates()
                         mid_lat, mid_lon = otd.geographic_midpoint(lats, lons)
@@ -355,7 +351,7 @@ def gnss_fits(problem, stage, plot_options):
                             S="x%f" % offset_scale,
                             A="9p+g%s+p1p" % color_str,
                             W=color_str,
-                            *m.jxyr
+                            *m.jxyr,
                         )
 
         m.draw_axes()
@@ -383,7 +379,7 @@ def gnss_fits(problem, stage, plot_options):
 
             out_filename = "/tmp/histbounds.txt"
             m.gmt.pshistogram(
-                in_rows=make_2d(all_var_reductions[dataset.component]),
+                in_rows=num.atleast_2d(all_var_reductions[dataset.component]),
                 W=(imax - imin) / nbins,
                 out_filename=out_filename,
                 Z=Z,
@@ -407,13 +403,13 @@ def gnss_fits(problem, stage, plot_options):
             ] + jxyr
 
             m.gmt.pshistogram(
-                in_rows=make_2d(all_var_reductions[dataset.component]),
+                in_rows=num.atleast_2d(all_var_reductions[dataset.component]),
                 W=(imax - imin) / nbins,
                 G="lightorange",
                 Z=Z,
                 F=True,
                 L="0.5p,orange",
-                *hist_args
+                *hist_args,
             )
 
             # plot vertical line on hist with best solution
@@ -423,7 +419,7 @@ def gnss_fits(problem, stage, plot_options):
                     [bvar_reductions_comp[dataset.component], po.nensemble],
                 ),
                 W="1.5p,red",
-                *jxyr
+                *jxyr,
             )
 
         figs.append(m)
@@ -432,7 +428,6 @@ def gnss_fits(problem, stage, plot_options):
 
 
 def geodetic_covariances(problem, stage, plot_options):
-
     datatype = "geodetic"
     mode = problem.config.problem_config.mode
     problem.init_hierarchicals()
@@ -440,7 +435,7 @@ def geodetic_covariances(problem, stage, plot_options):
     po = plot_options
 
     composite = problem.composites[datatype]
-    event = composite.event
+    # event = composite.event
     try:
         sources = composite.sources
         ref_sources = None
@@ -464,12 +459,12 @@ def geodetic_covariances(problem, stage, plot_options):
 
     tpoint = get_weights_point(composite, bpoint, problem.config)
 
-    bresults_tmp = composite.assemble_results(bpoint)
+    composite.assemble_results(bpoint)
     composite.analyse_noise(tpoint)
 
     covariances = [dataset.covariance for dataset in composite.datasets]
 
-    figs, axs = plot_covariances(composite.datasets, covariances)
+    figs, _ = plot_covariances(composite.datasets, covariances)
 
     return figs
 
@@ -482,8 +477,6 @@ def scene_fits(problem, stage, plot_options):
 
     from kite.scene import Scene, UserIOWarning
     from pyrocko.dataset import gshhg
-
-    from beat.colormap import roma_colormap
 
     try:
         homepath = problem.config.geodetic_config.types["SAR"].datadir
@@ -506,10 +499,15 @@ def scene_fits(problem, stage, plot_options):
 
     composite = problem.composites[datatype]
     event = composite.event
-    try:
-        sources = composite.sources
-        ref_sources = None
-    except AttributeError:
+
+    if po.reference:
+        bpoint = po.reference
+    else:
+        bpoint = get_result_point(stage.mtrace, po.post_llk)
+
+    bresults_tmp = composite.assemble_results(bpoint)
+
+    if mode == ffi_mode_str:
         logger.info("FFI scene fit, using reference source ...")
         ref_sources = composite.config.gf_config.reference_sources
         set_anchor(ref_sources, anchor="top")
@@ -518,16 +516,9 @@ def scene_fits(problem, stage, plot_options):
             datatype=datatype, component=composite.slip_varnames[0]
         )
         set_anchor(sources, anchor="top")
-
-    if po.reference:
-        if mode != ffi_mode_str:
-            composite.point2sources(po.reference)
-            ref_sources = copy.deepcopy(composite.sources)
-        bpoint = po.reference
     else:
-        bpoint = get_result_point(stage.mtrace, po.post_llk)
-
-    bresults_tmp = composite.assemble_results(bpoint)
+        sources = [source.clone() for source in composite.sources]
+        ref_sources = None
 
     tpoint = get_weights_point(composite, bpoint, problem.config)
 
@@ -625,11 +616,10 @@ def scene_fits(problem, stage, plot_options):
         ax_a = num.atleast_2d(ax)
         axes.append(ax_a)
 
-    nfigs = len(figures)
+    # nfigs = len(figures)
 
     def axis_config(axes, source, scene, po):
-
-        latlon_ratio = get_latlon_ratio(source.lat, source.lon)
+        latlon_ratio = 1.0 / num.cos(source.effective_lat * num.pi / 180.0)
         for i, ax in enumerate(axes):
             if po.plot_projection == "latlon":
                 ystr = "Latitude [deg]"
@@ -660,13 +650,16 @@ def scene_fits(problem, stage, plot_options):
             else:
                 raise TypeError("Plot projection %s not available" % po.plot_projection)
 
-            ax.xaxis.set_major_locator(MaxNLocator(nbins=3))
-            ax.yaxis.set_major_locator(MaxNLocator(nbins=3))
+            set_locator_axes(ax.get_xaxis(), MaxNLocator(nbins=3))
+            set_locator_axes(ax.get_yaxis(), MaxNLocator(nbins=3))
 
             if i == 0:
                 ax.set_ylabel(ystr, fontsize=fontsize)
                 ax.set_xlabel(xstr, fontsize=fontsize)
                 ax.set_yticklabels(ax.get_yticklabels(), rotation=90)
+
+            scale_x["precision"] = 2
+            scale_y["precision"] = 2
 
             ax.scale_x = scale_x
             ax.scale_y = scale_y
@@ -706,14 +699,12 @@ def scene_fits(problem, stage, plot_options):
 
         for p in polygons:
             if p.is_land() or p.is_antarctic_grounding_line() or p.is_island_in_lake():
-
                 if scene.frame.isMeter():
                     ys, xs = otd.latlon_to_ne_numpy(
                         event.lat, event.lon, p.lats, p.lons
                     )
 
                 elif scene.frame.isDegree():
-
                     xs = p.lons - event.lon
                     ys = p.lats - event.lat
 
@@ -786,7 +777,6 @@ def scene_fits(problem, stage, plot_options):
         bgcolor = kwargs.pop("color", None)
 
         for i, source in enumerate(sources):
-
             if scene.frame.isMeter():
                 fn, fe = source.outline(cs="xy").T
             elif scene.frame.isDegree():
@@ -805,7 +795,14 @@ def scene_fits(problem, stage, plot_options):
                 ax.fill(
                     fe, fn, edgecolor=color, facecolor=light(color, 0.5), alpha=alpha
                 )
-                ax.plot(fe[0:2], fn[0:2], "-k", alpha=0.7, linewidth=1.0)
+                n_upper_edge_points = round(fn.size / 2.0)
+                ax.plot(
+                    fe[0:n_upper_edge_points],
+                    fn[0:n_upper_edge_points],
+                    "-k",
+                    alpha=0.7,
+                    linewidth=1.0,
+                )
             else:
                 ax.plot(fe, fn, marker="*", markersize=10, color=color, **kwargs)
 
@@ -851,12 +848,12 @@ def scene_fits(problem, stage, plot_options):
         true, turN, tllE, tllN = zip(
             *[
                 (
-                    l.gridE.max() - offset_e,
-                    l.gridN.max() - offset_n,
-                    l.gridE.min() - offset_e,
-                    l.gridN.min() - offset_n,
+                    leaf.gridE.max() - offset_e,
+                    leaf.gridN.max() - offset_n,
+                    leaf.gridE.min() - offset_e,
+                    leaf.gridN.min() - offset_n,
                 )
-                for l in scene.quadtree.leaves
+                for leaf in scene.quadtree.leaves
             ]
         )
 
@@ -928,7 +925,7 @@ def scene_fits(problem, stage, plot_options):
         if stdz_residuals:
             in_ax_res = plot_inset_hist(
                 axs[2],
-                data=make_2d(stdz_residuals[dataset.name]),
+                data=num.atleast_2d(stdz_residuals[dataset.name]),
                 best_data=None,
                 linewidth=1.0,
                 bbox_to_anchor=(0.0, 0.775, 0.25, 0.225),
@@ -943,12 +940,12 @@ def scene_fits(problem, stage, plot_options):
             format_axes(
                 in_ax_res, remove=["right", "bottom"], visible=True, linewidth=0.75
             )
-            in_ax_res.set_xlabel("std. res. [$\sigma$]", fontsize=fontsize - 3)
+            in_ax_res.set_xlabel(r"std. res. [$\sigma$]", fontsize=fontsize - 3)
 
         if po.nensemble > 1:
             in_ax = plot_inset_hist(
                 axs[2],
-                data=make_2d(all_var_reductions[dataset.name]),
+                data=num.atleast_2d(all_var_reductions[dataset.name]),
                 best_data=bvar_reductions[dataset.name] * 100.0,
                 linewidth=1.0,
                 bbox_to_anchor=(0.75, 0.775, 0.25, 0.225),
@@ -1041,7 +1038,7 @@ def scene_fits(problem, stage, plot_options):
                 orientation="horizontal",
             )
             if po.plot_projection == "individual":
-                cblabel = "standard dev [$\sigma$]"
+                cblabel = r"standard dev [$\sigma$]"
 
             cbr.set_label(cblabel, fontsize=fontsize)
 
@@ -1055,7 +1052,6 @@ def scene_fits(problem, stage, plot_options):
 
 
 def draw_geodetic_covariances(problem, plot_options):
-
     if "geodetic" not in list(problem.composites.keys()):
         raise TypeError("No geodetic composite defined in the problem!")
 
@@ -1087,27 +1083,14 @@ def draw_geodetic_covariances(problem, plot_options):
         "geodetic_covs_%s_%s" % (stage.number, llk_str),
     )
 
-    if not os.path.exists(outpath + ".%s" % po.outformat) or po.force:
-        figs = geodetic_covariances(problem, stage, po)
-    else:
-        logger.info("geodetic covariances plots exist. Use force=True for replotting!")
+    if plot_exists(outpath, po.outformat, po.force):
         return
 
-    if po.outformat == "display":
-        plt.show()
-    else:
-        logger.info("saving figures to %s" % outpath)
-        if po.outformat == "pdf":
-            with PdfPages(outpath + ".pdf") as opdf:
-                for fig in figs:
-                    opdf.savefig(fig)
-        else:
-            for i, fig in enumerate(figs):
-                fig.savefig("%s_%i.%s" % (outpath, i, po.outformat), dpi=po.dpi)
+    figs = geodetic_covariances(problem, stage, po)
+    save_figs(figs, outpath, po.outformat, po.dpi)
 
 
 def draw_scene_fits(problem, plot_options):
-
     if "geodetic" not in list(problem.composites.keys()):
         raise TypeError("No geodetic composite defined in the problem!")
 
@@ -1143,27 +1126,14 @@ def draw_scene_fits(problem, plot_options):
         % (stage.number, llk_str, po.plot_projection, po.nensemble),
     )
 
-    if not os.path.exists(outpath + ".%s" % po.outformat) or po.force:
-        figs = scene_fits(problem, stage, po)
-    else:
-        logger.info("scene plots exist. Use force=True for replotting!")
+    if plot_exists(outpath, po.outformat, po.force):
         return
 
-    if po.outformat == "display":
-        plt.show()
-    else:
-        logger.info("saving figures to %s" % outpath)
-        if po.outformat == "pdf":
-            with PdfPages(outpath + ".pdf") as opdf:
-                for fig in figs:
-                    opdf.savefig(fig)
-        else:
-            for i, fig in enumerate(figs):
-                fig.savefig("%s_%i.%s" % (outpath, i, po.outformat), dpi=po.dpi)
+    figs = scene_fits(problem, stage, po)
+    save_figs(figs, outpath, po.outformat, po.dpi)
 
 
 def draw_gnss_fits(problem, plot_options):
-
     if "geodetic" not in list(problem.composites.keys()):
         raise TypeError("No geodetic composite defined in the problem!")
 
@@ -1199,11 +1169,10 @@ def draw_gnss_fits(problem, plot_options):
         "gnss_%s_%s_%i_%s" % (stage.number, llk_str, po.nensemble, po.plot_projection),
     )
 
-    if not os.path.exists(outpath) or po.force:
-        figs = gnss_fits(problem, stage, po)
-    else:
-        logger.info("scene plots exist. Use force=True for replotting!")
+    if plot_exists(outpath, po.outformat, po.force):
         return
+
+    figs = gnss_fits(problem, stage, po)
 
     if po.outformat == "display":
         plt.show()

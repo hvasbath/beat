@@ -1,13 +1,14 @@
 """
 Sequential Monte Carlo Sampler module;
 
-Runs on any pymc3 model.
+Runs on any pymc model.
 """
 
 import logging
 
 import numpy as np
-from pymc3.model import modelcontext
+from pymc.blocking import RaveledVars
+from pymc.model import modelcontext
 
 from beat import backend, utility
 
@@ -39,17 +40,13 @@ class SMC(Metropolis):
     scaling : float
         Factor applied to the proposal distribution i.e. the step size of the
         Markov Chain
-    covariance : :class:`numpy.ndarray`
-        (n_chains x n_chains) for MutlivariateNormal, otherwise (n_chains)
-        Initial Covariance matrix for proposal distribution,
-        if None - identity matrix taken
     likelihood_name : string
-        name of the :class:`pymc3.determinsitic` variable that contains the
+        name of the :class:`pymc.determinsitic` variable that contains the
         model likelihood - defaults to 'like'
     proposal_dist :
-        :class:`pymc3.metropolis.Proposal`
+        :class:`pymc.metropolis.Proposal`
         Type of proposal distribution, see
-        :mod:`pymc3.step_methods.metropolis` for options
+        :mod:`pymc.step_methods.metropolis` for options
     tune : boolean
         Flag for adaptive scaling based on the acceptance rate
     coef_variation : scalar, float
@@ -61,7 +58,7 @@ class SMC(Metropolis):
         Check if current sample lies outside of variable definition
         speeds up computation as the forward model won't be executed
         default: True
-    model : :class:`pymc3.Model`
+    model : :class:`pymc.Model`
         Optional model for sampling step.
         Defaults to None (taken from context).
     backend :  str
@@ -84,7 +81,6 @@ class SMC(Metropolis):
         self,
         vars=None,
         out_vars=None,
-        covariance=None,
         scale=1.0,
         n_chains=100,
         tune=True,
@@ -95,13 +91,11 @@ class SMC(Metropolis):
         proposal_name="MultivariateNormal",
         backend="csv",
         coef_variation=1.0,
-        **kwargs
+        **kwargs,
     ):
-
         super(SMC, self).__init__(
             vars=vars,
             out_vars=out_vars,
-            covariance=covariance,
             scale=scale,
             n_chains=n_chains,
             tune=tune,
@@ -111,7 +105,7 @@ class SMC(Metropolis):
             likelihood_name=likelihood_name,
             backend=backend,
             proposal_name=proposal_name,
-            **kwargs
+            **kwargs,
         )
 
         self.beta = 0
@@ -126,10 +120,9 @@ class SMC(Metropolis):
         bl = [
             "likelihoods",
             "check_bnd",
-            "logp_forw",
+            "logp_forw_func",
             "bij",
             "lij",
-            "ordering",
             "lordering",
             "proposal_samples_array",
             "vars",
@@ -199,42 +192,50 @@ class SMC(Metropolis):
 
         Parameters
         ----------
-        mtrace : :class:`pymc3.backend.base.MultiTrace`
+        mtrace : :class:`pymc.backend.base.MultiTrace`
 
         Returns
         -------
         population : list
-            of :func:`pymc3.Point` dictionaries
+            of :func:`pymc.Point` dictionaries
         array_population : :class:`numpy.ndarray`
             Array of trace end-points
         likelihoods : :class:`numpy.ndarray`
             Array of likelihoods of the trace end-points
         """
+        q = self.bij.map(self.test_point)
 
-        array_population = np.zeros((self.n_chains, self.ordering.size))
-
+        array_population = np.zeros((self.n_chains, q.data.size))
         n_steps = len(mtrace)
 
         # collect end points of each chain and put into array
-        for var, slc, shp, _ in self.ordering.vmap:
+        last_idx = 0
+        for var_name, shp, dtype in q.point_map_info:
             slc_population = mtrace.get_values(
-                varname=var, burn=n_steps - 1, combine=True
+                varname=var_name, burn=n_steps - 1, combine=True
             )
-
+            arr_len = np.prod(shp, dtype=int)
+            slc = slice(last_idx, last_idx + arr_len)
             if len(shp) == 0:
                 array_population[:, slc] = np.atleast_2d(slc_population).T
             else:
                 array_population[:, slc] = slc_population
 
+            last_idx += arr_len
+
         # get likelihoods
         likelihoods = mtrace.get_values(
             varname=self.likelihood_name, burn=n_steps - 1, combine=True
         )
-        population = []
 
         # map end array_endpoints to dict points
+        population = []
         for i in range(self.n_chains):
-            population.append(self.bij.rmap(array_population[i, :]))
+            population.append(
+                self.bij.rmap(
+                    RaveledVars(array_population[i, :], point_map_info=q.point_map_info)
+                )
+            )
 
         return population, array_population, likelihoods
 
@@ -245,7 +246,7 @@ class SMC(Metropolis):
 
         Parameters
         ----------
-        mtrace : :class:`pymc3.backend.base.MultiTrace`
+        mtrace : :class:`pymc.backend.base.MultiTrace`
 
         Returns
         -------
@@ -258,7 +259,6 @@ class SMC(Metropolis):
         n_steps = len(mtrace)
 
         for _, slc, shp, _, var in self.lordering.vmap:
-
             slc_population = mtrace.get_values(
                 varname=var, burn=n_steps - 1, combine=True
             )
@@ -376,7 +376,7 @@ def smc_sample(
         continue after completed stages (stage should be the number of the
         completed stage + 1). If None the start will be at stage = 0.
     n_jobs : int
-        The number of cores to be used in parallel. Be aware that theano has
+        The number of cores to be used in parallel. Be aware that pytensor has
         internal parallelisation. Sometimes this is more efficient especially
         for simple models.
         step.n_chains / n_jobs has to be an integer number!
@@ -390,7 +390,7 @@ def smc_sample(
     buffer_thinning : int
         every nth sample of the buffer is written to disk
         default: 1 (no thinning)
-    model : :class:`pymc3.Model`
+    model : :class:`pymc.Model`
         (optional if in `with` context) has to contain deterministic
         variable name defined under step.likelihood_name' that contains the
         model likelihood
@@ -509,10 +509,7 @@ def smc_sample(
                 step.beta = 1.0
                 save_sampler_state(step, update, stage_handler)
 
-                if stage == -1:
-                    chains = []
-                else:
-                    chains = None
+                chains = stage_handler.clean_directory(-1, chains, rm_flag)
             else:
                 step.covariance = step.calc_covariance()
                 step.proposal_dist = choose_proposal(
@@ -557,7 +554,7 @@ def save_sampler_state(step, update, stage_handler):
         weights = None
 
     outparam_list = [step.get_sampler_state(), weights]
-    stage_handler.dump_atmip_params(step.stage, outparam_list)
+    stage_handler.dump_smc_params(step.stage, outparam_list)
 
 
 def tune(acc_rate):
@@ -577,4 +574,5 @@ def tune(acc_rate):
     # a and b after Muto & Beck 2008 .
     a = 1.0 / 9
     b = 8.0 / 9
+    return np.power((a + (b * acc_rate)), 2)
     return np.power((a + (b * acc_rate)), 2)

@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "beat"
-version = "1.2.5"
-requires-python = ">=3.8"
+version = "2.0.0"
+requires-python = ">=3.9"
 license = {text = "GPLv3"}
 description = "'Bayesian Earthquake Analysis Tool'"
 readme = "README.md"
@@ -19,20 +19,20 @@ keywords = ["Bayesian Inference", "seismology", "geodesy", "earthquake", "volcan
 classifiers = [
     "Intended Audience :: Science/Research",
     "Topic :: Scientific/Engineering :: Physics",
-    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
     "Programming Language :: C",
     "Operating System :: POSIX",
     "Operating System :: MacOS"
 ]
 dependencies = [
-    "numpy==1.22.4",
-    "scipy>=1.8.0",
-    "pymc3==3.4.1",
+    "numpy",
+    "scipy",
+    "pytensor>=2.18.4",
+    "pymc>=5.10.0",
     "tqdm>=4.64.0",
     "matplotlib>=3.1.1",
     "psutil>=5.9.0",
-    "mpi4py>=3.1.3",
-    "pyrocko>=2022.06.10"
+    "pyrocko>=2023.10.11"
 ]
 
 [project.urls]
@@ -41,7 +41,7 @@ GitHub = "https://github.com/hvasbath/beat"
 Issues = "https://github.com/hvasbath/beat/issues"
 
 [project.optional-dependencies]
-formatting = ["flake8", "black"]
+formatting = ["flake8", "ruff"]
 
 [project.scripts]
 beat = "beat.apps.beat:main"

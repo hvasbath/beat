@@ -30,9 +30,9 @@ event: !pf.Event
 project_dir: /home/vasyurhm/BEATS/LaquilaJointPonlyUPDATE_DC_var
 problem_config: !beat.ProblemConfig
   mode: geometry
-  source_type: DCSource
+  source_types: [DCSource]
   stf_type: HalfSinusoid
-  n_sources: 1
+  n_sources: [1]
   datatypes: [seismic]
   hyperparameters:
     h_any_P_0_Z: !beat.heart.Parameter

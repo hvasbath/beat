@@ -9,7 +9,7 @@ To copy the example (including the data) to a directory outside of the package s
 please edit the 'model path' (referred to as $beat_models now on) to your preference path and execute::
 
     cd /path/to/beat/data/examples/
-    beat clone dc_teleseismic /'model path'/Laquila_dc --copy_data --datatypes=seismic --source_type=DCSource --sampler=PT
+    beat clone dc_teleseismic /'model path'/Laquila_dc --copy_data --datatypes=seismic --source_types=DCSource --sampler=PT
 
 This will create a BEAT project directory named 'Laquila_dc' with a configuration file (config_geometry.yaml) and
 real example data (seismic_data.pkl). This directory is going to be referred to as '$project_directory' in the following.

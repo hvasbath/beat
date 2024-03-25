@@ -3,12 +3,12 @@ import os
 from collections import OrderedDict
 from logging import getLogger
 
-from pymc3 import Deterministic
+from pymc import Deterministic
 from pyrocko.gf import LocalEngine
 from pyrocko.guts import dump
 from pyrocko.model import load_stations
-from theano import shared
-from theano.tensor import concatenate
+from pytensor import shared
+from pytensor.tensor import concatenate
 
 from beat import config as bconfig
 from beat.heart import (
@@ -17,11 +17,10 @@ from beat.heart import (
     ResultPoint,
     init_polarity_targets,
     pol_synthetics,
-    results_for_export,
 )
 from beat.models.base import Composite
 from beat.models.distributions import polarity_llk
-from beat.theanof import PolaritySynthesizer
+from beat.pytensorf import PolaritySynthesizer
 from beat.utility import adjust_point_units, split_point, unique_list, update_source
 
 logger = getLogger("polarity")
@@ -31,8 +30,7 @@ __all__ = ["PolarityComposite"]
 
 
 class PolarityComposite(Composite):
-    def __init__(self, polc, project_dir, sources, events, hypers=False):
-
+    def __init__(self, polc, project_dir, sources, mapping, events, hypers=False):
         super(PolarityComposite, self).__init__(events)
 
         logger.debug("Setting up polarity structure ...\n")
@@ -42,6 +40,7 @@ class PolarityComposite(Composite):
         self._targets = None
         self.synthesizers = {}
         self.sources = sources
+        self.mapping = mapping
         self.config = polc
         self.gamma = shared(0.2, name="gamma", borrow=True)
         self.fixed_rvs = {}
@@ -89,6 +88,10 @@ class PolarityComposite(Composite):
             self.wavemaps.append(pmap)
 
     @property
+    def n_sources_total(self):
+        return len(self.sources)
+
+    @property
     def is_location_fixed(self):
         """
         Returns true if the source location random variables are fixed.
@@ -99,7 +102,6 @@ class PolarityComposite(Composite):
             return False
 
     def get_formula(self, input_rvs, fixed_rvs, hyperparams, problem_config):
-
         self.input_rvs = input_rvs
         self.fixed_rvs = fixed_rvs
 
@@ -113,7 +115,6 @@ class PolarityComposite(Composite):
 
         logpts = []
         for i, pmap in enumerate(self.wavemaps):
-
             self.synthesizers[i] = PolaritySynthesizer(
                 self.engine,
                 self.sources[pmap.config.event_idx],
@@ -156,17 +157,6 @@ class PolarityComposite(Composite):
         tpoint.update(self.fixed_rvs)
         tpoint = adjust_point_units(tpoint)
 
-        hps = self.config.get_hypernames()
-        for hyper in hps:
-            if hyper in tpoint:
-                tpoint.pop(hyper)
-
-        source_params = list(self.sources[0].keys())
-
-        for param in list(tpoint.keys()):
-            if param not in source_params:
-                tpoint.pop(param)
-
         if "time" in tpoint:
             if self.nevents == 1:
                 tpoint["time"] += self.event.time  # single event
@@ -174,7 +164,11 @@ class PolarityComposite(Composite):
                 for i, event in enumerate(self.events):  # multi event
                     tpoint["time"][i] += event.time
 
-        source_points = split_point(tpoint)
+        source_points = split_point(
+            tpoint,
+            mapping=self.mapping,
+            weed_params=True,
+        )
 
         for i, source in enumerate(self.sources):
             update_source(source, **source_points[i])
@@ -225,7 +219,6 @@ class PolarityComposite(Composite):
         force=False,
         update=False,
     ):
-
         results = self.assemble_results(point)
         for i, result in enumerate(results):
             # TODO need human readable format like e.g.: .csv
@@ -234,7 +227,6 @@ class PolarityComposite(Composite):
             dump(result, filename=output)
 
     def assemble_results(self, point, order="list"):
-
         if point is None:
             raise ValueError("A point has to be provided!")
 
@@ -267,7 +259,6 @@ class PolarityComposite(Composite):
         return results
 
     def get_synthetics(self, point, **kwargs):
-
         order = kwargs.pop("order", "list")
 
         self.point2sources(point)

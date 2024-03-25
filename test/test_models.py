@@ -5,17 +5,22 @@ from time import time
 import numpy as num
 import scipy
 from numpy.testing import assert_allclose
-from pymc3 import Model
-from pymc3.distributions import MvNormal
 from pyrocko import util
-from theano import function, shared
-from theano import sparse as ts
-from theano import tensor as tt
-from theano.printing import Print
+from pytensor import config as tconfig
+from pytensor import function, shared
+from pytensor import sparse as ts
+from pytensor import tensor as tt
+from pytensor.printing import Print
 
 from beat.heart import Covariance, SeismicDataset
 from beat.info import project_root
-from beat.models import log_2pi, multivariate_normal, multivariate_normal_chol
+from beat.models.distributions import (
+    log_2pi,
+    multivariate_normal,
+    multivariate_normal_chol,
+)
+
+tconfig.compute_test_value = "off"
 
 logger = logging.getLogger("test_models")
 
@@ -43,10 +48,10 @@ def multivariate_normal_nohypers(datasets, weights, hyperparams, residuals):
     datasets : list
         of :class:`heart.SeismicDataset` or :class:`heart.GeodeticDataset`
     weights : list
-        of :class:`theano.shared`
+        of :class:`pytensor.shared`
         Square matrix of the inverse of the covariance matrix as weights
     hyperparams : dict
-        of :class:`theano.`
+        of :class:`pytensor.`
     residual : list or array of model residuals
 
     Returns
@@ -57,12 +62,12 @@ def multivariate_normal_nohypers(datasets, weights, hyperparams, residuals):
 
     logpts = tt.zeros((n_t), "float64")
 
-    for l, data in enumerate(datasets):
+    for idx, data in enumerate(datasets):
         M = tt.cast(shared(data.samples, name="nsamples", borrow=True), "int16")
-        maha = residuals[l].dot(weights[l]).dot(residuals[l].T)
-        slogpdet = Print("theano logpdet")(data.covariance.slog_pdet)
+        maha = residuals[idx].dot(weights[idx]).dot(residuals[idx].T)
+        slogpdet = Print("pytensor logpdet")(data.covariance.slog_pdet)
         logpts = tt.set_subtensor(
-            logpts[l : l + 1], (-0.5) * (M * log_2pi + slogpdet + maha)
+            logpts[idx : idx + 1], (-0.5) * (M * log_2pi + slogpdet + maha)
         )
 
     return logpts
@@ -72,7 +77,7 @@ def generate_toydata(n_datasets, n_samples):
     datasets = []
     synthetics = []
     for d in range(n_datasets):
-        a = num.atleast_2d(num.random.rand(n_samples))
+        # a = num.atleast_2d(num.random.rand(n_samples))
         # C = a * a.T + num.eye(n_samples) * 0.001
         C = num.eye(n_samples) * 0.001
         kwargs = dict(
@@ -91,14 +96,14 @@ def make_weights(datasets, wtype, make_shared=False, sparse=False):
     weights = []
     for ds in datasets:
         if wtype == "ichol":
-            w = num.linalg.inv(ds.covariance.chol)
+            w = num.linalg.inv(ds.covariance.chol())
             # print ds.covariance.chol_inverse
         elif wtype == "icov_chol":
             w = ds.covariance.chol_inverse
             # print w
 
         elif wtype == "icov":
-            w = ds.covariance.inverse
+            w = ds.covariance.inverse()
         else:
             raise NotImplementedError("wtype not implemented!")
 
@@ -112,12 +117,6 @@ def make_weights(datasets, wtype, make_shared=False, sparse=False):
             weights.append(w)
 
     return weights
-
-
-def get_bulk_weights(weights):
-    return tt.concatenate(
-        [C.reshape((1, n_samples, n_samples)) for C in weights], axis=0
-    )
 
 
 class TestModels(unittest.TestCase):
@@ -136,11 +135,11 @@ class TestModels(unittest.TestCase):
         )
 
     def test_scaling(self):
-
-        maha1 = -(1.0 / 2 * self.scaling) * self.residuals[0, :].dot(
-            self.datasets[0].covariance.inverse
-        ).dot(self.residuals[0, :])
-        cov_i_scaled = self.scaling * self.datasets[0].covariance.inverse
+        covi = self.datasets[0].covariance.inverse()
+        maha1 = -(1.0 / 2 * self.scaling) * self.residuals[0, :].dot(covi).dot(
+            self.residuals[0, :]
+        )
+        cov_i_scaled = self.scaling * covi
         maha2 = -(1.0 / 2) * self.residuals[0, :].dot(cov_i_scaled).dot(
             self.residuals[0, :]
         )
@@ -148,7 +147,6 @@ class TestModels(unittest.TestCase):
         assert_allclose(maha1, maha2, rtol=0.0, atol=1e-6)
 
     def test_reference_llk_nohypers(self):
-
         res = tt.matrix("residuals")
 
         icov_weights_numpy = make_weights(self.datasets, "icov", False)
@@ -166,7 +164,7 @@ class TestModels(unittest.TestCase):
             logpdet = data.covariance.log_pdet
 
             assert_allclose(logpdet, psd.log_pdet, rtol=0.0, atol=1e-6)
-            assert_allclose(psd.pinv, data.covariance.inverse, rtol=0.0, atol=1e-6)
+            assert_allclose(psd.pinv, data.covariance.inverse(), rtol=0.0, atol=1e-6)
 
             d[i] = normal_logpdf_cov(
                 data.ydata, self.synthetics[i], data.covariance.data
@@ -224,7 +222,6 @@ class TestModels(unittest.TestCase):
         assert_allclose(d, b, rtol=0.0, atol=1e-6)
 
     def test_sparse(self):
-
         res = tt.matrix("residuals")
 
         ichol_weights = make_weights(self.datasets, "ichol", True, sparse=True)
@@ -261,70 +258,7 @@ class TestModels(unittest.TestCase):
 
         assert_allclose(a, b, rtol=0.0, atol=1e-6)
 
-    def test_bulk(self):
-        def multivariate_normal_bulk_chol(
-            bulk_weights, hps, slog_pdets, residuals, hp_specific=False
-        ):
-
-            M = residuals.shape[1]
-            tmp = tt.batched_dot(bulk_weights, residuals)
-            llk = tt.power(tmp, 2).sum(1)
-            return (-0.5) * (
-                slog_pdets
-                + (M * (2 * hps + num.log(2 * num.pi)))
-                + (1 / tt.exp(hps * 2)) * (llk)
-            )
-
-        res = tt.matrix("residuals")
-        ichol_weights = make_weights(self.datasets, "ichol", True)
-        icov_weights = make_weights(self.datasets, "icov", True)
-        icov_chol_weights = make_weights(self.datasets, "icov_chol", True)
-
-        ichol_bulk_weights = get_bulk_weights(ichol_weights)
-        icov_chol_bulk_weights = get_bulk_weights(icov_chol_weights)
-
-        slog_pdets = tt.concatenate(
-            [data.covariance.slog_pdet.reshape((1,)) for data in self.datasets]
-        )
-
-        ichol_bulk_llk = multivariate_normal_bulk_chol(
-            bulk_weights=ichol_bulk_weights,
-            hps=self.hyperparams["h_any_P_T"],
-            slog_pdets=slog_pdets,
-            residuals=res,
-        )
-
-        icov_chol_bulk_llk = multivariate_normal_bulk_chol(
-            bulk_weights=icov_chol_bulk_weights,
-            hps=self.hyperparams["h_any_P_T"],
-            slog_pdets=slog_pdets,
-            residuals=res,
-        )
-
-        llk_normal = multivariate_normal(
-            self.datasets, icov_weights, self.hyperparams, res
-        )
-
-        fnorm = function([res], llk_normal)
-        f_bulk_ichol = function([res], ichol_bulk_llk)
-        f_bulk_icov_chol = function([res], icov_chol_bulk_llk)
-
-        t0 = time()
-        a = f_bulk_ichol(self.residuals)
-        t1 = time()
-        b = f_bulk_icov_chol(self.residuals)
-        t2 = time()
-        c = fnorm(self.residuals)
-
-        logger.info("Bulk Ichol %f [s]" % (t1 - t0))
-        logger.info("Bulk Icov_chol %f [s]" % (t2 - t1))
-
-        assert_allclose(a, c, rtol=0.0, atol=1e-6)
-        assert_allclose(b, c, rtol=0.0, atol=1e-6)
-        assert_allclose(a, b, rtol=0.0, atol=1e-6)
-
 
 if __name__ == "__main__":
-
     util.setup_logging("test_models", "info")
     unittest.main()

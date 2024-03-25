@@ -73,7 +73,6 @@ class MPIRunner(object):
         logger.info("Done initialising mpi runner")
 
     def run(self, script_path, n_jobs=None, loglevel="info", project_dir=""):
-
         if n_jobs is None:
             raise ValueError("n_jobs has to be defined!")
 
@@ -164,11 +163,11 @@ in the directory %s""".lstrip()
     def __del__(self):
         if self.tempdir:
             if not self.keep_tmp:
-                logger.debug('removing temporary directory under: "%s"' % self.tempdir)
+                logger.info('removing temporary directory under: "%s"' % self.tempdir)
                 shutil.rmtree(self.tempdir)
                 self.tempdir = None
             else:
-                logger.warning("not removing temporary directory: %s" % self.tempdir)
+                logger.info("not removing temporary directory: %s" % self.tempdir)
 
 
 samplers = {"pt": "beat/sampler/pt.py"}
@@ -189,7 +188,7 @@ def run_mpi_sampler(
     ----------
     sampler_name : string
         valid names see distributed.samplers for available options
-    model : :class:`pymc3.model.Model`
+    model : :class:`pymc.model.Model`
         that holds the forward model graph
     sampler_args : list
         of sampler arguments, order is important

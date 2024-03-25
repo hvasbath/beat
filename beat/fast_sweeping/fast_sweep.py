@@ -11,12 +11,12 @@ References
     S 0025-5718(04)01678-3
 """
 
-import numpy as num
-import theano
-import theano.tensor as tt
-from theano.ifelse import ifelse
-
 import fast_sweep_ext
+import numpy as num
+import pytensor
+import pytensor.tensor as tt
+from pytensor.ifelse import ifelse
+from pytensor.scan.utils import until
 
 km = 1000.0
 
@@ -230,10 +230,10 @@ def get_rupture_times_numpy(
     return StartTimes
 
 
-def get_rupture_times_theano(slownesses, patch_size, nuc_x, nuc_y):
+def get_rupture_times_pytensor(slownesses, patch_size, nuc_x, nuc_y):
     """
     Does the same calculation as get_rupture_times_numpy
-    just with symbolic variable input and output for theano graph
+    just with symbolic variable input and output for pytensor graph
     implementation optimization.
     """
     [step_dip_max, step_str_max] = slownesses.shape
@@ -241,8 +241,8 @@ def get_rupture_times_theano(slownesses, patch_size, nuc_x, nuc_y):
     StartTimes = tt.set_subtensor(StartTimes[nuc_y, nuc_x], 0)
 
     # Stopping check var
-    epsilon = theano.shared(0.1)
-    err_val = theano.shared(1e6)
+    epsilon = pytensor.shared(0.1)
+    err_val = pytensor.shared(1e6)
 
     # Iterator matrixes
     dip1 = tt.repeat(tt.arange(step_dip_max), step_str_max)
@@ -263,7 +263,7 @@ def get_rupture_times_theano(slownesses, patch_size, nuc_x, nuc_y):
     ### Upwind scheme ###
     def upwind(dip_ind, str_ind, StartTimes, slownesses, patch_size):
         [n_patch_dip, n_patch_str] = slownesses.shape
-        zero = theano.shared(0)
+        zero = pytensor.shared(0)
         s1 = str_ind - 1
         d1 = dip_ind - 1
         s2 = str_ind + 1
@@ -293,9 +293,7 @@ def get_rupture_times_theano(slownesses, patch_size, nuc_x, nuc_y):
         # xnew =  |
         #         |0.5 * [ a+b+sqrt( 2*f^2*h^2 - (a-b)^2 ) ], |a-b| < f*h
         start_new = ifelse(
-            tt.le(
-                slownesses[dip_ind, str_ind] * patch_size, tt.abs_(ST_xmin - ST_ymin)
-            ),
+            tt.le(slownesses[dip_ind, str_ind] * patch_size, tt.abs(ST_xmin - ST_ymin)),
             tt.min((ST_xmin, ST_ymin)) + slownesses[dip_ind, str_ind] * patch_size,
             (
                 ST_xmin
@@ -319,7 +317,7 @@ def get_rupture_times_theano(slownesses, patch_size, nuc_x, nuc_y):
         )
 
     def loop_upwind(StartTimes, PreviousTimes, err_val, iteration, epsilon):
-        [results, updates] = theano.scan(
+        [results, updates] = pytensor.scan(
             fn=upwind,
             sequences=[DIP, STR],
             outputs_info=[StartTimes],
@@ -332,13 +330,13 @@ def get_rupture_times_theano(slownesses, patch_size, nuc_x, nuc_y):
         PreviousTimes = StartTimes.copy()
         return (
             (StartTimes, PreviousTimes, err_val, iteration + 1),
-            theano.scan_module.until(err_val < epsilon),
+            until(err_val < epsilon),
         )
 
     # while loop until err < epsilon
-    iteration = theano.shared(0)
+    iteration = pytensor.shared(0)
     PreviousTimes = StartTimes.copy()
-    ([result, PreviousTimes, errs, Iteration], updates) = theano.scan(
+    ([result, PreviousTimes, errs, Iteration], updates) = pytensor.scan(
         fn=loop_upwind,
         outputs_info=[StartTimes, PreviousTimes, err_val, iteration],
         non_sequences=[epsilon],

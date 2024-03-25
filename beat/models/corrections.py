@@ -1,17 +1,17 @@
 import logging
 from collections import OrderedDict
 
-from numpy import array, zeros
+from numpy import array
 from pyrocko import orthodrome
-from theano import config as tconfig
-from theano import shared
+from pytensor import config as tconfig
+from pytensor import shared
 
 from beat.heart import (
     get_ramp_displacement,
     velocities_from_pole,
     velocities_from_strain_rate_tensor,
 )
-from beat.theanof import EulerPole, StrainRateTensor
+from beat.pytensorf import EulerPole, StrainRateTensor
 
 logger = logging.getLogger("models.corrections")
 
@@ -50,7 +50,6 @@ class RampCorrection(Correction):
     def setup_correction(
         self, locy, locx, los_vector, data_mask, dataset_name, number=0
     ):
-
         self.east_shifts = locx
         self.north_shifts = locy
 
@@ -95,7 +94,6 @@ class EulerPoleCorrection(Correction):
     def setup_correction(
         self, locy, locx, los_vector, data_mask, dataset_name, number=0
     ):
-
         self.los_vector = los_vector
         self.lats = locy
         self.lons = locx
@@ -117,7 +115,7 @@ class EulerPoleCorrection(Correction):
         if not self.correction_names:
             raise ValueError("Requested correction, but is not setup or configured!")
 
-        if not point:  # theano instance for get_formula
+        if not point:  # pytensor instance for get_formula
             inputs = OrderedDict()
             for corr_name in self.correction_names:
                 inputs[corr_name] = hierarchicals[corr_name]
@@ -149,7 +147,6 @@ class StrainRateCorrection(Correction):
     def setup_correction(
         self, locy, locx, los_vector, data_mask, dataset_name, number=0
     ):
-
         self.los_vector = los_vector
         self.lats = locy
         self.lons = locx
@@ -164,14 +161,11 @@ class StrainRateCorrection(Correction):
             self.los_vector.astype(tconfig.floatX), name="los", borrow=True
         )
 
-    def get_station_indexes(self):
-        return array(self.strain_rate_tensor.station_idxs)
+    def get_station_coordinates(self, mask=None):
+        if mask is None:
+            mask = self.data_mask
 
-    def get_station_coordinates(self, indexes=None):
-        if indexes is None:
-            indexes = self.get_station_indexes()
-
-        return array(self.lats)[indexes], array(self.lons)[indexes]
+        return array(self.lats)[mask], array(self.lons)[mask]
 
     def get_displacements(self, hierarchicals, point=None):
         """
@@ -180,7 +174,7 @@ class StrainRateCorrection(Correction):
         if not self.correction_names:
             raise ValueError("Requested correction, but is not setup or configured!")
 
-        if not point:  # theano instance for get_formula
+        if not point:  # pytensor instance for get_formula
             inputs = OrderedDict()
             for corr_name in self.correction_names:
                 inputs[corr_name] = hierarchicals[corr_name]
@@ -200,15 +194,11 @@ class StrainRateCorrection(Correction):
 
                 kwargs = self.get_point_rvs(hierarchicals)
 
-        valid = self.get_station_indexes()
-        lats, lons = self.get_station_coordinates(valid)
+        v_xyz = velocities_from_strain_rate_tensor(
+            array(self.lats), array(self.lons), **kwargs
+        )
 
-        v_xyz = velocities_from_strain_rate_tensor(lats, lons, **kwargs)
+        if self.data_mask.size > 0:
+            v_xyz[self.data_mask, :] = 0.0
 
-        if valid.size > 0:
-            vels = zeros((self.lats.size, 3))
-            vels[valid, :] = v_xyz
-        else:
-            vels = v_xyz
-
-        return (vels * self.los_vector).sum(axis=1)
+        return (v_xyz * self.los_vector).sum(axis=1)

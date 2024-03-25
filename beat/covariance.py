@@ -2,15 +2,13 @@ import logging
 from time import time
 
 import numpy as num
-from pymc3 import Point
 from pyrocko import gf, trace
+from pytensor import config as tconfig
 from scipy.linalg import toeplitz
 from scipy.spatial import KDTree
-from theano import config as tconfig
 
 from beat import heart
-from beat.utility import ensure_cov_psd, list2string, running_window_rms, distances
-
+from beat.utility import distances, ensure_cov_psd, list2string, running_window_rms
 
 logger = logging.getLogger("covariance")
 
@@ -43,7 +41,7 @@ def exponential_data_covariance(n, dt, tzero):
     Notes
     -----
     Cd(i,j) = (Variance of trace)*exp(-abs(ti-tj)/
-                                     (shortest period T0 of waves))
+                (shortest period T0 of waves))
 
     i,j are samples of the seismic trace
     """
@@ -170,13 +168,12 @@ class GeodeticNoiseAnalyser(object):
         config,
         events=None,
     ):
-
         avail = available_noise_structures_2d()
 
         if config.structure not in avail:
             raise AttributeError(
                 'Selected noise structure "%s" not supported! Implemented'
-                " noise structures: %s" % (structure, list2string(avail))
+                " noise structures: %s" % (config.structure, list2string(avail))
             )
 
         self.events = events
@@ -194,7 +191,6 @@ class GeodeticNoiseAnalyser(object):
             )
 
     def do_non_toeplitz(self, dataset, result):
-
         if dataset.typ == "SAR":
             dataset.update_local_coords(self.events[0])
             coords = num.vstack([dataset.east_shifts, dataset.north_shifts]).T
@@ -265,7 +261,6 @@ class SeismicNoiseAnalyser(object):
         sources=None,
         chop_bounds=["b", "c"],
     ):
-
         avail = available_noise_structures()
         if structure not in avail:
             raise AttributeError(
@@ -281,7 +276,6 @@ class SeismicNoiseAnalyser(object):
         self.chop_bounds = chop_bounds
 
     def get_structure(self, wmap, chop_bounds=None):
-
         if chop_bounds is None:
             chop_bounds = self.chop_bounds
 
@@ -298,7 +292,6 @@ class SeismicNoiseAnalyser(object):
         return NoiseStructureCatalog[self.structure](n, dsample, tzero)
 
     def do_import(self, wmap):
-
         scalings = []
         for tr, target in zip(wmap.datasets, wmap.targets):
             scaling = import_data_covariance(
@@ -312,7 +305,6 @@ class SeismicNoiseAnalyser(object):
         return scalings
 
     def do_non_toeplitz(self, wmap, results):
-
         if results is None:
             ValueError(
                 "Results need(s) to be given for non-toeplitz" " covariance estimates!"
@@ -333,7 +325,6 @@ class SeismicNoiseAnalyser(object):
             return scalings
 
     def do_variance_estimate(self, wmap, chop_bounds=None):
-
         filterer = wmap.config.filterer
         scalings = []
 
@@ -438,6 +429,8 @@ class SeismicNoiseAnalyser(object):
 
 def model_prediction_sensitivity(engine, *args, **kwargs):
     """
+    DEPRECATED!
+
     Calculate the model prediction Covariance Sensitivity Kernel.
     (numerical derivation with respect to the input source parameter(s))
     Following Duputel et al. 2014
@@ -515,36 +508,34 @@ def model_prediction_sensitivity(engine, *args, **kwargs):
                 sources=calc_sources, targets=request.targets, nprocs=nprocs
             )
 
-            for k in range(len(request.targets)):
+            for i_k in range(len(request.targets)):
                 # zero padding if necessary
                 trc_lengths = num.array(
                     [
-                        len(response.results_list[i][k].trace.data)
+                        len(response.results_list[i][i_k].trace.data)
                         for i in range(len(response.results_list))
                     ]
                 )
                 Id = num.where(trc_lengths != trc_lengths.max())
 
-                for l in Id[0]:
-                    response.results_list[l][k].trace.data = num.concatenate(
+                for i_l in Id[0]:
+                    response.results_list[i_l][i_k].trace.data = num.concatenate(
                         (
-                            response.results_list[l][k].trace.data,
-                            num.zeros(trc_lengths.max() - trc_lengths[l]),
+                            response.results_list[i_l][i_k].trace.data,
+                            num.zeros(trc_lengths.max() - trc_lengths[i_l]),
                         )
                     )
 
                 # calculate numerical partial derivative for
                 # each source and target
-                sensitivity_param_list[par_count][k] = sensitivity_param_list[
+                sensitivity_param_list[par_count][i_k] = sensitivity_param_list[
                     par_count
-                ][k] + (
-                    -response.results_list[0][k].trace.data
-                    + 8 * response.results_list[1][k].trace.data
-                    - 8 * response.results_list[2][k].trace.data
-                    + response.results_list[3][k].trace.data
-                ) / (
-                    12 * h[par_count]
-                )
+                ][i_k] + (
+                    -response.results_list[0][i_k].trace.data
+                    + 8 * response.results_list[1][i_k].trace.data
+                    - 8 * response.results_list[2][i_k].trace.data
+                    + response.results_list[3][i_k].trace.data
+                ) / (12 * h[par_count])
 
             par_count = par_count + 1
 
@@ -552,7 +543,7 @@ def model_prediction_sensitivity(engine, *args, **kwargs):
     par_count = 0
     for param in source_params:
         for k in range(len(request.targets)):
-            sensitivity_param_trcs[par_count][k] = trace.Trace(
+            sensitivity_param_trcs[par_count][i_k] = trace.Trace(
                 network=request.targets[k].codes[0],
                 station=request.targets[k].codes[1],
                 ydata=sensitivity_param_list[par_count][k],
@@ -857,15 +848,16 @@ def non_toeplitz_covariance_2d(coords, data, max_dist_perc):
     return toeplitz * stds[:, num.newaxis] * stds[num.newaxis, :]
 
 
-def init_proposal_covariance(bij, vars, model, pop_size=1000):
+def init_proposal_covariance(bij, population):
     """
     Create initial proposal covariance matrix based on random samples
     from the solution space.
     """
-    population_array = num.zeros((pop_size, bij.ordering.size))
-    for i in range(pop_size):
-        point = Point({v.name: v.random() for v in vars}, model=model)
-        population_array[i, :] = bij.map(point)
+    test_point = population[0]
+    q = bij.map(test_point)
+    population_array = num.zeros((len(population), q.data.size))
+    for i, point in enumerate(population):
+        population_array[i, :] = bij.map(point).data
 
     return num.diag(population_array.var(0))
 
@@ -890,15 +882,18 @@ def calc_sample_covariance(buffer, lij, bij, beta):
     """
     n_points = len(buffer)
 
-    population_array = num.zeros((n_points, bij.ordering.size))
-    for i, (lpoint, _) in enumerate(buffer):
-        point = lij.l2d(lpoint)
-        population_array[i, :] = bij.map(point)
+    point = lij.l2d(buffer[0][0])
+    point_array = bij.map(point).data
 
     like_idx = lij.ordering["like"].list_ind
     weights = num.array([lpoint[like_idx] for lpoint, _ in buffer])
     temp_weights = num.exp((weights - weights.max())).ravel()
     norm_weights = temp_weights / num.sum(temp_weights)
+
+    population_array = num.zeros((n_points, point_array.size))
+    for i, (lpoint, _) in enumerate(buffer):
+        point = lij.l2d(lpoint)
+        population_array[i, :] = bij.map(point).data
 
     cov = num.cov(population_array, aweights=norm_weights, bias=False, rowvar=0)
 

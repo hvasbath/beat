@@ -1,13 +1,7 @@
-import os
-
 import numpy as num
-from pyrocko import gf, model
-from pyrocko import moment_tensor as mt
-from pyrocko import orthodrome as otd
-from pyrocko import trace, util
+from pyrocko import gf, trace, util
 
-from beat import config, ffi, heart, inputf, models, utility
-from beat.sources import RectangularSource
+from beat import ffi, heart, models
 from beat.utility import get_random_uniform
 
 km = 1000.0
@@ -246,7 +240,7 @@ if False:
         engine,
         [patches[0]],
         targets,
-        arrival_times=ats,
+        arrival_times=arrival_times,
         wavename="any_P",
         arrival_taper=arrival_taper,
         filterer=filterer,

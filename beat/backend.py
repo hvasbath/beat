@@ -1,8 +1,8 @@
 """
-Text file trace backend modified from pymc3 to work efficiently with
+File trace backends modified from pymc to work efficiently with
 SMC
 
-Store sampling values as CSV files.
+Store sampling values as CSV or binary files.
 
 File format
 -----------
@@ -37,11 +37,17 @@ try:
 except ImportError:
     from pandas.errors import ParserError as CParserError
 
-from pymc3.backends import base, ndarray
-from pymc3.backends import tracetab as ttab
-from pymc3.blocking import ArrayOrdering, DictToArrayBijection
-from pymc3.model import modelcontext
-from pymc3.step_methods.arraystep import BlockedStep
+from typing import (
+    Set,
+)
+
+from arviz import convert_to_inference_data
+
+# from arviz.data.base import dict_to_dataset
+from pymc.backends import base, ndarray
+from pymc.blocking import DictToArrayBijection, RaveledVars
+from pymc.model import modelcontext
+from pymc.step_methods.arraystep import BlockedStep
 from pyrocko import util
 
 from beat.config import sample_p_outname, transd_vars_dist
@@ -50,11 +56,46 @@ from beat.utility import (
     ListArrayOrdering,
     ListToArrayBijection,
     dump_objects,
-    list2string,
     load_objects,
 )
 
 logger = logging.getLogger("backend")
+
+
+def _create_flat_names(varname, shape):
+    """Return flat variable names for `varname` of `shape`.
+
+    Examples
+    --------
+    >>> _create_flat_names('x', (5,))
+    ['x__0', 'x__1', 'x__2', 'x__3', 'x__4']
+
+    >>> _create_flat_names('x', (2, 2))
+    ['x__0_0', 'x__0_1', 'x__1_0', 'x__1_1']
+    """
+    if not shape:
+        return [varname]
+    labels = (num.ravel(xs).tolist() for xs in num.indices(shape))
+    labels = (map(str, xs) for xs in labels)
+    return ["{}__{}".format(varname, "_".join(idxs)) for idxs in zip(*labels)]
+
+
+def _create_flat_names_summary(varname, shape):
+    if not shape or sum(shape) == 1:
+        return [varname]
+
+    labels = (num.ravel(xs).tolist() for xs in num.indices(shape))
+    labels = (map(str, [xs]) for xs in labels)
+    return ["{}{}".format(varname, "".join(idxs)) for idxs in zip(*labels)]
+
+
+def _create_shape(flat_names):
+    """Determine shape from `_create_flat_names` output."""
+    try:
+        _, shape_str = flat_names[-1].rsplit("__", 1)
+    except ValueError:
+        return ()
+    return tuple(int(i) + 1 for i in shape_str.split("_"))
 
 
 def thin_buffer(buffer, buffer_thinning, ensure_last=True):
@@ -86,30 +127,25 @@ class ArrayStepSharedLLK(BlockedStep):
 
     Parameters
     ----------
-
-    vars : list
+    value_vars : list
         variables to be sampled
     out_vars : list
         variables to be stored in the traces
     shared : dict
-        theano variable -> shared variables
-    blocked : boolean
-        (default True)
+        pytensor variable -> shared variables
     """
 
-    def __init__(self, vars, out_vars, shared, blocked=True):
-        self.vars = vars
-        self.ordering = ArrayOrdering(vars)
+    def __init__(self, value_vars, out_vars, shared):
+        self.value_vars = value_vars
         self.lordering = ListArrayOrdering(out_vars, intype="tensor")
         lpoint = [var.tag.test_value for var in out_vars]
         self.shared = {var.name: shared for var, shared in shared.items()}
-        self.blocked = blocked
-        self.bij = DictToArrayBijection(self.ordering, self.population[0])
+        self.blocked = True
 
         blacklist = list(
-            set(self.lordering.variables) - set([var.name for var in vars])
+            set(self.lordering.variables) - set([var.name for var in value_vars])
         )
-
+        self.bij = DictToArrayBijection()
         self.lij = ListToArrayBijection(self.lordering, lpoint, blacklist=blacklist)
 
     def __getstate__(self):
@@ -119,12 +155,23 @@ class ArrayStepSharedLLK(BlockedStep):
         self.__dict__.update(state)
 
     def step(self, point):
-        for var, share in self.shared.items():
-            share.container.storage[0] = point[var]
+        for name, shared_var in self.shared.items():
+            shared_var.set_value(point[name])
 
-        apoint, alist = self.astep(self.bij.map(point))
+        # print("point", point)
 
-        return self.bij.rmap(apoint), alist
+        # assure order and content of RVs consistent to value_vars
+        point = {val_var.name: point[val_var.name] for val_var in self.value_vars}
+
+        q = self.bij.map(point)
+        # print("before", q.data)
+        apoint, alist = self.astep(q.data)
+        # print("after", apoint, alist)
+        if not isinstance(apoint, RaveledVars):
+            # We assume that the mapping has stayed the same
+            apoint = RaveledVars(apoint, q.point_map_info)
+
+        return self.bij.rmap(apoint, start_point=point), alist
 
 
 class BaseChain(object):
@@ -133,18 +180,16 @@ class BaseChain(object):
 
     Parameters
     ----------
-
     model : Model
         If None, the model is taken from the `with` context.
-    vars : list of variables
+    value_vars : list of variables
         Sampling values will be stored for these variables. If None,
         `model.unobserved_RVs` is used.
     """
 
-    def __init__(self, model=None, vars=None, buffer_size=5000, buffer_thinning=1):
-
-        self.model = None
-        self.vars = None
+    def __init__(
+        self, model=None, value_vars=None, buffer_size=5000, buffer_thinning=1
+    ):
         self.var_shapes = None
         self.chain = None
 
@@ -155,21 +200,18 @@ class BaseChain(object):
         self.cov_counter = 0
 
         if model is not None:
-            self.model = modelcontext(model)
+            model = modelcontext(model)
 
-        if vars is None and self.model is not None:
-            vars = self.model.unobserved_RVs
+        if value_vars is None and model is not None:
+            value_vars = model.unobserved_RVs
 
-        if vars is not None:
-            self.vars = vars
-
-        if self.vars is not None:
+        if value_vars is not None:
             # Get variable shapes. Most backends will need this
             # information.
             self.var_shapes = OrderedDict()
             self.var_dtypes = OrderedDict()
             self.varnames = []
-            for var in self.vars:
+            for var in value_vars:
                 self.var_shapes[var.name] = var.tag.test_value.shape
                 self.var_dtypes[var.name] = var.tag.test_value.dtype
                 self.varnames.append(var.name)
@@ -238,16 +280,15 @@ class FileChain(BaseChain):
         self,
         dir_path="",
         model=None,
-        vars=None,
+        value_vars=None,
         buffer_size=5000,
         buffer_thinning=1,
         progressbar=False,
         k=None,
     ):
-
         super(FileChain, self).__init__(
             model=model,
-            vars=vars,
+            value_vars=value_vars,
             buffer_size=buffer_size,
             buffer_thinning=buffer_thinning,
         )
@@ -264,10 +305,10 @@ class FileChain(BaseChain):
                     if var in transd_vars_dist:
                         shape = (k,)
 
-                    self.flat_names[var] = ttab.create_flat_names(var, shape)
+                    self.flat_names[var] = _create_flat_names(var, shape)
             else:
                 for var, shape in self.var_shapes.items():
-                    self.flat_names[var] = ttab.create_flat_names(var, shape)
+                    self.flat_names[var] = _create_flat_names(var, shape)
 
         self.k = k
 
@@ -278,6 +319,7 @@ class FileChain(BaseChain):
         self.draws = 0
         self._df = None
         self.filename = None
+        self.derived_mapping = None
 
     def __len__(self):
         if self.filename is None:
@@ -298,8 +340,17 @@ class FileChain(BaseChain):
                 "Inconsistent number of variables %i and shapes %i!" % (nvars, nshapes)
             )
 
+        self.derived_mapping = {}
         for varname, shape in zip(varnames, shapes):
-            self.flat_names[varname] = ttab.create_flat_names(varname, shape)
+            if varname in self.varnames:
+                exist_idx = self.varnames.index(varname)
+                self.varnames.pop(exist_idx)
+                exist_shape = self.var_shapes[varname]
+                shape = tuple(map(sum, zip(exist_shape, shape)))
+                concat_idx = len(self.varnames)
+                self.derived_mapping[exist_idx] = concat_idx
+
+            self.flat_names[varname] = _create_flat_names(varname, shape)
             self.var_shapes[varname] = shape
             self.var_dtypes[varname] = "float64"
             self.varnames.append(varname)
@@ -314,7 +365,6 @@ class FileChain(BaseChain):
         return self._df
 
     def record_buffer(self):
-
         if self.chain is None:
             raise ValueError("Chain has not been setup. Saving samples not possible!")
 
@@ -344,6 +394,11 @@ class FileChain(BaseChain):
         If buffer is full write samples to file.
         """
         self.count += 1
+        if self.derived_mapping:
+            for exist_idx, concat_idx in self.derived_mapping.items():
+                value = lpoint.pop(exist_idx)
+                lpoint[concat_idx] = num.hstack((value, lpoint[concat_idx]))
+
         self.buffer.append((lpoint, draw))
         if self.count == self.buffer_size:
             self.record_buffer()
@@ -353,6 +408,20 @@ class FileChain(BaseChain):
         Clear the data loaded from file.
         """
         self._df = None
+
+    def _get_sampler_stats(
+        self, stat_name: str, sampler_idx: int, burn: int, thin: int
+    ) -> num.ndarray:
+        """Get sampler statistics."""
+        raise NotImplementedError()
+
+    @property
+    def stat_names(self) -> Set[str]:
+        names: Set[str] = set()
+        for vars in self.sampler_vars or []:
+            names.update(vars.keys())
+
+        return names
 
 
 class MemoryChain(BaseChain):
@@ -368,7 +437,6 @@ class MemoryChain(BaseChain):
     """
 
     def __init__(self, buffer_size=5000):
-
         super(MemoryChain, self).__init__(buffer_size=buffer_size)
 
     def setup(self, draws, chain, overwrite=False):
@@ -417,17 +485,16 @@ class TextChain(FileChain):
         self,
         dir_path,
         model=None,
-        vars=None,
+        value_vars=None,
         buffer_size=5000,
         buffer_thinning=1,
         progressbar=False,
         k=None,
     ):
-
         super(TextChain, self).__init__(
             dir_path,
             model,
-            vars,
+            value_vars,
             buffer_size=buffer_size,
             progressbar=progressbar,
             k=k,
@@ -477,6 +544,7 @@ class TextChain(FileChain):
             columns = itertools.chain.from_iterable(
                 map(str, value.ravel()) for value in lpoint
             )
+            # print("backend write", columns)
             filehandle.write(",".join(columns) + "\n")
 
         # Write binary
@@ -545,7 +613,7 @@ class TextChain(FileChain):
             shape = (self._df.shape[0],) + self.var_shapes[varname]
             vals = var_df.values.ravel().reshape(shape)
             return vals[burn::thin]
-        except (KeyError):
+        except KeyError:
             raise ValueError(
                 'Did not find varname "%s" in sampling ' "results! Fixed?" % varname
             )
@@ -616,17 +684,16 @@ class NumpyChain(FileChain):
         self,
         dir_path,
         model=None,
-        vars=None,
+        value_vars=None,
         buffer_size=5000,
         progressbar=False,
         k=None,
         buffer_thinning=1,
     ):
-
         super(NumpyChain, self).__init__(
             dir_path,
             model,
-            vars,
+            value_vars,
             progressbar=progressbar,
             buffer_size=buffer_size,
             buffer_thinning=buffer_thinning,
@@ -639,7 +706,7 @@ class NumpyChain(FileChain):
         return "NumpyChain({},{},{},{},{},{})".format(
             self.dir_path,
             self.model,
-            self.vars,
+            self.value_vars,
             self.buffer_size,
             self.progressbar,
             self.k,
@@ -772,7 +839,6 @@ class NumpyChain(FileChain):
             print("Error on write file: ", e)
 
     def _load_df(self):
-
         if not self.__data_structure:
             try:
                 self.__data_structure = self.construct_data_structure()
@@ -800,7 +866,7 @@ class NumpyChain(FileChain):
             shape = (self._df.shape[0],) + self.var_shapes[varname]
             vals = data.ravel().reshape(shape)
             return vals[burn::thin]
-        except (ValueError):
+        except ValueError:
             raise ValueError(
                 'Did not find varname "%s" in sampling ' "results! Fixed?" % varname
             )
@@ -838,15 +904,14 @@ class TransDTextChain(object):
     """
 
     def __init__(
-        self, name, model=None, vars=None, buffer_size=5000, progressbar=False
+        self, name, model=None, value_vars=None, buffer_size=5000, progressbar=False
     ):
-
         self._straces = {}
         self.buffer_size = buffer_size
         self.progressbar = progressbar
 
-        if vars is None:
-            vars = model.unobserved_RVs
+        if value_vars is None:
+            value_vars = model.unobserved_RVs
 
         transd, dims_idx = istransd(model)
         if transd:
@@ -868,7 +933,7 @@ class TransDTextChain(object):
         # init indexing chain
         self._index = TextChain(
             dir_path=name,
-            vars=[],
+            value_vars=[],
             buffer_size=self.buffer_size,
             progressbar=self.progressbar,
         )
@@ -968,16 +1033,16 @@ class SampleStage(object):
         else:
             stage_number = self.highest_sampled_stage()
 
-        if os.path.exists(self.atmip_path(-1)):
+        if os.path.exists(self.smc_path(-1)):
             list_indexes = [i for i in range(-1, stage_number + 1)]
         else:
             list_indexes = [i for i in range(stage_number)]
 
         return list_indexes
 
-    def atmip_path(self, stage_number):
+    def smc_path(self, stage_number):
         """
-        Consistent naming for atmip params.
+        Consistent naming for smc params.
         """
         return os.path.join(self.stage_path(stage_number), sample_p_outname)
 
@@ -991,7 +1056,7 @@ class SampleStage(object):
             of stage number or -1 for last stage
         """
         if stage_number == -1:
-            if not os.path.exists(self.atmip_path(stage_number)):
+            if not os.path.exists(self.smc_path(stage_number)):
                 prev = self.highest_sampled_stage()
             else:
                 prev = stage_number
@@ -1001,15 +1066,15 @@ class SampleStage(object):
             prev = stage_number - 1
 
         logger.info("Loading parameters from completed stage {}".format(prev))
-        sampler_state, updates = load_objects(self.atmip_path(prev))
+        sampler_state, updates = load_objects(self.smc_path(prev))
         sampler_state["stage"] = stage_number
         return sampler_state, updates
 
-    def dump_atmip_params(self, stage_number, outlist):
+    def dump_smc_params(self, stage_number, outlist):
         """
-        Save atmip params to file.
+        Save smc params to file.
         """
-        dump_objects(self.atmip_path(stage_number), outlist)
+        dump_objects(self.smc_path(stage_number), outlist)
 
     def clean_directory(self, stage, chains, rm_flag):
         """
@@ -1041,7 +1106,7 @@ class SampleStage(object):
 
         Returns
         -------
-        A :class:`pymc3.backend.base.MultiTrace` instance
+        A :class:`pymc.backend.base.MultiTrace` instance
         """
         dirname = self.stage_path(stage)
         return load_multitrace(
@@ -1051,7 +1116,6 @@ class SampleStage(object):
     def recover_existing_results(
         self, stage, draws, step, buffer_thinning=1, varnames=None, update=None
     ):
-
         if stage > 0:
             prev = stage - 1
             if update is not None:
@@ -1116,7 +1180,7 @@ def load_multitrace(dirname, varnames=[], chains=None, backend="csv"):
 
     Returns
     -------
-    A :class:`pymc3.backend.base.MultiTrace` instance
+    A :class:`pymc.backend.base.MultiTrace` instance
     """
 
     if not istransd(varnames)[0]:
@@ -1164,7 +1228,7 @@ def check_multitrace(mtrace, draws, n_chains, buffer_thinning=1):
 
     Parameters
     ----------
-    mtrace : :class:`pymc3.backend.base.MultiTrace`
+    mtrace : :class:`pymc.backend.base.MultiTrace`
         Multitrace object containing the sampling traces
     draws : int
         Number of steps (i.e. chain length for each Markov Chain)
@@ -1225,7 +1289,7 @@ def get_highest_sampled_stage(homedir, return_final=False):
 
 def load_sampler_params(project_dir, stage_number, mode):
     """
-    Load saved parameters from given ATMIP stage.
+    Load saved parameters from given smc stage.
 
     Parameters
     ----------
@@ -1268,7 +1332,7 @@ def concatenate_traces(mtraces):
 
 def extract_variables_from_df(dataframe):
     """
-    Extract random variables and their shapes from the pymc3-pandas data-frame
+    Extract random variables and their shapes from the pymc-pandas data-frame
 
     Parameters
     ----------
@@ -1293,7 +1357,7 @@ def extract_variables_from_df(dataframe):
                 indexes.append(index)
 
         flat_names[varname] = indexes
-        var_shapes[varname] = ttab._create_shape(indexes)
+        var_shapes[varname] = _create_shape(indexes)
 
     return flat_names, var_shapes
 
@@ -1310,9 +1374,9 @@ def extract_bounds_from_summary(summary, varname, shape, roundto=None, alpha=0.0
     def do_nothing(value):
         return value
 
-    indexes = ttab.create_flat_names(varname, shape)
-    lower_quant = "hpd_{0:g}".format(100 * alpha / 2)
-    upper_quant = "hpd_{0:g}".format(100 * (1 - alpha / 2))
+    indexes = _create_flat_names_summary(varname, shape)
+    lower_quant = "hdi_{0:g}%".format(100 * alpha / 2)
+    upper_quant = "hdi_{0:g}%".format(100 * (1 - alpha / 2))
 
     bounds = []
     for quant in [lower_quant, upper_quant]:
@@ -1332,3 +1396,20 @@ def extract_bounds_from_summary(summary, varname, shape, roundto=None, alpha=0.0
         bounds.append(values)
 
     return bounds
+
+
+def multitrace_to_inference_data(mtrace):
+    idata_posterior_dict = {}
+    for varname in mtrace.varnames:
+        vals = num.atleast_2d(mtrace.get_values(varname).T)
+        if num.isnan(vals).any():
+            logger.warning("Variable '%s' contains NaN values." % varname)
+
+        size, draws = vals.shape
+        if size > 1:
+            vals = num.atleast_3d(vals).T
+
+        idata_posterior_dict[varname] = vals
+
+    idata = convert_to_inference_data(idata_posterior_dict)
+    return idata

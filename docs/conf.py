@@ -24,7 +24,7 @@ import sphinx_sleekcat_theme
 sys.path.insert(0, os.path.abspath("../beat"))
 sys.setrecursionlimit(1500)
 
-import beat
+import beat  # noqa
 
 # -- General configuration ------------------------------------------------
 
@@ -43,7 +43,7 @@ extensions = [
     # 'sphinx.ext.mathjax',
     "sphinx.ext.viewcode",
     "sphinx.ext.doctest",
-    "sphinx.ext.napoleon"
+    "sphinx.ext.napoleon",
     # 'numpydoc'
 ]
 
@@ -367,9 +367,9 @@ texinfo_documents = [
 intersphinx_mapping = {
     "python": ("https://docs.python.org/", None),
     "numpy": ("http://docs.scipy.org/doc/numpy/", None),
-    "pymc3": ("https://docs.pymc.io/", None),
+    "pymc": ("https://www.pymc.io/", None),
     "pyrocko": ("https://pyrocko.org/", None),
-    "theano": ("https://theano-pymc.readthedocs.io/", None),
+    "pytensor": ("https://pytensor.readthedocs.io/", None),
 }
 
 
@@ -387,8 +387,6 @@ def process_signature(app, what, name, obj, options, signature, return_annotatio
 
 
 def skip_member(app, what, name, obj, skip, options):
-    from pyrocko import guts
-
     if what == "class" and name == "dummy_for":
         return True
     if what == "class" and name == "T":

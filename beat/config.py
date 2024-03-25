@@ -6,15 +6,18 @@ So far there are configuration files for the three main optimization problems
 implemented. Solving the fault geometry, the static distributed slip and the
 kinematic distributed slip.
 """
+
 import logging
 import os
 from collections import OrderedDict
+from typing import Dict as TDict
+from typing import List as TList
 
 import numpy as num
 from pyrocko import gf, model, trace, util
 from pyrocko.cake import load_model
 from pyrocko.gf import RectangularSource as PyrockoRS
-from pyrocko.gf.seismosizer import Cloneable, LocalEngine, stf_classes
+from pyrocko.gf.seismosizer import Cloneable
 from pyrocko.guts import (
     ArgumentError,
     Bool,
@@ -29,10 +32,11 @@ from pyrocko.guts import (
     dump,
     load,
 )
-from theano import config as tconfig
+from pytensor import config as tconfig
 
 from beat import utility
 from beat.covariance import available_noise_structures, available_noise_structures_2d
+from beat.defaults import default_decimation_factors, defaults
 from beat.heart import (
     ArrivalTaper,
     Filter,
@@ -41,67 +45,40 @@ from beat.heart import (
     ReferenceLocation,
     _domain_choices,
 )
-from beat.sources import MTQTSource, MTSourceWithMagnitude, RectangularSource
+from beat.sources import RectangularSource, stf_catalog
+from beat.sources import source_catalog as geometry_source_catalog
 from beat.utility import check_point_keys, list2string
+
+logger = logging.getLogger("config")
+
+
+try:
+    from beat.bem import source_catalog as bem_source_catalog
+
+    bem_catalog = {"geodetic": bem_source_catalog}
+except ImportError:
+    logger.warning(
+        "To enable 'bem' mode packages 'pygmsh' and 'cutde' need to be installed."
+    )
+    bem_catalog = {}
+    bem_source_catalog = {}
+
+
+source_catalog = {}
+for catalog in [geometry_source_catalog, bem_source_catalog]:
+    source_catalog.update(catalog)
 
 
 guts_prefix = "beat"
 
-logger = logging.getLogger("config")
+stf_names = stf_catalog.keys()
+all_source_names = list(source_catalog.keys()) + list(bem_source_catalog.keys())
 
 ffi_mode_str = "ffi"
 geometry_mode_str = "geometry"
+bem_mode_str = "bem"
 
-
-block_vars = ["bl_azimuth", "bl_amplitude"]
 seis_vars = ["time", "duration"]
-
-source_names = """
-    ExplosionSource
-    RectangularExplosionSource
-    SFSource
-    DCSource
-    CLVDSource
-    MTSource
-    MTQTSource
-    RectangularSource
-    DoubleDCSource
-    RingfaultSource
-    """.split()
-
-source_classes = [
-    gf.ExplosionSource,
-    gf.RectangularExplosionSource,
-    gf.SFSource,
-    gf.DCSource,
-    gf.CLVDSource,
-    MTSourceWithMagnitude,
-    MTQTSource,
-    PyrockoRS,
-    gf.DoubleDCSource,
-    gf.RingfaultSource,
-]
-
-stf_names = """
-    Boxcar
-    Triangular
-    HalfSinusoid
-    """.split()
-
-source_catalog = {
-    name: source_class for name, source_class in zip(source_names, source_classes)
-}
-
-stf_catalog = {name: stf_class for name, stf_class in zip(stf_names, stf_classes[1:4])}
-
-interseismic_vars = [
-    "east_shift",
-    "north_shift",
-    "strike",
-    "dip",
-    "length",
-    "locking_depth",
-] + block_vars
 
 static_dist_vars = ["uparr", "uperp", "utens"]
 derived_dist_vars = ["coupling"]
@@ -118,8 +95,6 @@ kinematic_dist_vars = static_dist_vars + partial_kinematic_vars + hypo_vars
 transd_vars_dist = partial_kinematic_vars + static_dist_vars + voronoi_locations
 dist_vars = static_dist_vars + partial_kinematic_vars + derived_dist_vars
 
-interseismic_catalog = {"geodetic": interseismic_vars}
-
 geometry_catalog = {
     "polarity": source_catalog,
     "geodetic": source_catalog,
@@ -132,7 +107,7 @@ modes_catalog = OrderedDict(
     [
         [geometry_mode_str, geometry_catalog],
         [ffi_mode_str, ffi_catalog],
-        ["interseismic", interseismic_catalog],
+        [bem_mode_str, bem_catalog],
     ]
 )
 
@@ -143,86 +118,12 @@ derived_variables_mapping = {
     "RectangularSourcePole": ["magnitude", "coupling"],
 }
 
-
-hyper_name_laplacian = "h_laplacian"
-
-sf_force = (0, 1e10)
-moffdiag = (-1.0, 1.0)
-mdiag = (-num.sqrt(2), num.sqrt(2))
-
-default_bounds = dict(
-    east_shift=(-10.0, 10.0),
-    north_shift=(-10.0, 10.0),
-    depth=(0.0, 5.0),
-    strike=(0, 180.0),
-    strike1=(0, 180.0),
-    strike2=(0, 180.0),
-    dip=(45.0, 90.0),
-    dip1=(45.0, 90.0),
-    dip2=(45.0, 90.0),
-    rake=(-90.0, 90.0),
-    rake1=(-90.0, 90.0),
-    rake2=(-90.0, 90.0),
-    length=(5.0, 30.0),
-    width=(5.0, 20.0),
-    slip=(0.1, 8.0),
-    nucleation_x=(-1.0, 1.0),
-    nucleation_y=(-1.0, 1.0),
-    opening_fraction=(0.0, 0.0),
-    magnitude=(4.0, 7.0),
-    mnn=mdiag,
-    mee=mdiag,
-    mdd=mdiag,
-    mne=moffdiag,
-    mnd=moffdiag,
-    med=moffdiag,
-    fn=sf_force,
-    fe=sf_force,
-    fd=sf_force,
-    exx=(-200.0, 200.0),
-    eyy=(-200.0, 200.0),
-    exy=(-200.0, 200.0),
-    rotation=(-200.0, 200.0),
-    w=(-3.0 / 8.0 * num.pi, 3.0 / 8.0 * num.pi),
-    v=(-1.0 / 3, 1.0 / 3.0),
-    kappa=(0.0, 2 * num.pi),
-    sigma=(-num.pi / 2.0, num.pi / 2.0),
-    h=(0.0, 1.0),
-    volume_change=(1e8, 1e10),
-    diameter=(5.0, 10.0),
-    sign=(-1.0, 1.0),
-    mix=(0, 1),
-    time=(-5.0, 5.0),
-    time_shift=(-5.0, 5.0),
-    delta_time=(0.0, 10.0),
-    delta_depth=(0.0, 10.0),
-    distance=(0.0, 10.0),
-    duration=(1.0, 30.0),
-    peak_ratio=(0.0, 1.0),
-    durations=(0.5, 29.5),
-    uparr=(-0.05, 6.0),
-    uperp=(-0.3, 4.0),
-    utens=(0.0, 0.0),
-    nucleation_strike=(0.0, 10.0),
-    nucleation_dip=(0.0, 7.0),
-    velocities=(0.5, 4.2),
-    azimuth=(0, 180),
-    amplitude=(1e10, 1e20),
-    bl_azimuth=(0, 180),
-    bl_amplitude=(0.0, 0.1),
-    locking_depth=(1.0, 10.0),
-    hypers=(-2.0, 6.0),
-    ramp=(-0.005, 0.005),
-    offset=(-0.05, 0.05),
-    lat=(30.0, 30.5),
-    lon=(30.0, 30.5),
-    omega=(0.5, 0.6),
+derived_variables_mapping.update(
+    {source_name: ["magnitude"] for source_name in bem_source_catalog.keys()}
 )
 
-default_seis_std = 1.0e-6
-default_geo_std = 1.0e-3
 
-default_decimation_factors = {"polarity": 1, "geodetic": 4, "seismic": 2}
+hyper_name_laplacian = "h_laplacian"
 
 response_file_name = "responses.pkl"
 geodetic_data_name = "geodetic_data.pkl"
@@ -234,14 +135,11 @@ def multi_event_seismic_data_name(nevent=0):
     if nevent == 0:
         return seismic_data_name
     else:
-        return "seismic_data_subevent_{}.pkl".format(nevent)
+        return f"seismic_data_subevent_{nevent}.pkl"
 
 
 def multi_event_stations_name(nevent=0):
-    if nevent == 0:
-        return stations_name
-    else:
-        return "stations_subevent_{}.txt".format(nevent)
+    return stations_name if nevent == 0 else f"stations_subevent_{nevent}.txt"
 
 
 linear_gf_dir_name = "linear_gfs"
@@ -262,7 +160,7 @@ _quantity_choices = ["displacement", "velocity", "acceleration"]
 _interpolation_choices = ["nearest_neighbor", "multilinear"]
 _structure_choices = available_noise_structures()
 _structure_choices_2d = available_noise_structures_2d()
-_mode_choices = [geometry_mode_str, ffi_mode_str]
+_mode_choices = [geometry_mode_str, ffi_mode_str, bem_mode_str]
 _regularization_choices = ["laplacian", "none"]
 _correlation_function_choices = ["nearest_neighbor", "gaussian", "exponential"]
 _discretization_choices = ["uniform", "resolution"]
@@ -270,6 +168,7 @@ _initialization_choices = ["random", "lsq"]
 _backend_choices = ["csv", "bin"]
 _datatype_choices = ["geodetic", "seismic", "polarity"]
 _sampler_choices = ["PT", "SMC", "Metropolis"]
+_slip_component_choices = ("strike", "dip", "normal")
 
 
 class InconsistentParameterNaming(Exception):
@@ -300,21 +199,17 @@ class ConfigNeedsUpdatingError(Exception):
         return "\n%s\n%s" % (self.errmess, self.context)
 
 
-class GFConfig(Object):
+class MediumConfig(Object):
     """
-    Base config for GreensFunction calculation parameters.
+    Base class for subsurface medium configuration
     """
 
-    store_superdir = String.T(
-        default="./",
-        help="Absolute path to the directory where Greens Function"
-        " stores are located",
-    )
     reference_model_idx = Int.T(
         default=0,
         help="Index to velocity model to use for the optimization."
         " 0 - reference, 1..n - model of variations",
     )
+    sample_rate = Float.T(default=0, optional=True)
     n_variations = Tuple.T(
         2,
         Int.T(),
@@ -322,6 +217,18 @@ class GFConfig(Object):
         help="Start and end index to vary input velocity model. "
         "Important for the calculation of the model prediction covariance"
         " matrix with respect to uncertainties in the velocity model.",
+    )
+
+
+class GFConfig(MediumConfig):
+    """
+    Base config for layered GreensFunction calculation parameters.
+    """
+
+    store_superdir = String.T(
+        default="./",
+        help="Absolute path to the directory where Greens Function"
+        " stores are located",
     )
     earth_model_name = String.T(
         default="ak135-f-continental.f",
@@ -467,7 +374,6 @@ class DiscretizationConfig(Object):
 
 
 class UniformDiscretizationConfig(DiscretizationConfig):
-
     patch_widths = List.T(
         Float.T(),
         default=[5.0],
@@ -585,7 +491,6 @@ class LinearGFConfig(GFConfig):
     )
 
     def __init__(self, **kwargs):
-
         kwargs = _init_kwargs(
             method_config_name="discretization_config",
             method_name="discretization",
@@ -620,7 +525,6 @@ class SeismicLinearGFConfig(LinearGFConfig):
     )
 
     def __init__(self, **kwargs):
-
         Object.__init__(self, **kwargs)
 
         if self.discretization == "resolution":
@@ -667,8 +571,7 @@ class WaveformFitConfig(Object):
     interpolation = StringChoice.T(
         choices=_interpolation_choices,
         default="multilinear",
-        help="GF interpolation scheme. Choices: %s"
-        % utility.list2string(_interpolation_choices),
+        help=f"GF interpolation scheme. Choices: {utility.list2string(_interpolation_choices)}",
     )
     arrival_taper = trace.Taper.T(
         default=ArrivalTaper.D(),
@@ -686,7 +589,6 @@ class WaveformFitConfig(Object):
 
 
 class SeismicNoiseAnalyserConfig(Object):
-
     structure = StringChoice.T(
         choices=_structure_choices,
         default="variance",
@@ -700,7 +602,6 @@ class SeismicNoiseAnalyserConfig(Object):
 
 
 class GeodeticNoiseAnalyserConfig(Object):
-
     structure = StringChoice.T(
         choices=_structure_choices_2d,
         default="import",
@@ -743,14 +644,11 @@ class SeismicConfig(Object):
     gf_config = GFConfig.T(default=SeismicGFConfig.D())
 
     def __init__(self, **kwargs):
-
         waveforms = "waveforms"
         wavenames = kwargs.pop("wavenames", ["any_P"])
         wavemaps = []
         if waveforms not in kwargs:
-            for wavename in wavenames:
-                wavemaps.append(WaveformFitConfig(name=wavename))
-
+            wavemaps.extend(WaveformFitConfig(name=wavename) for wavename in wavenames)
             kwargs[waveforms] = wavemaps
 
         mode = kwargs.pop("mode", geometry_mode_str)
@@ -779,10 +677,7 @@ class SeismicConfig(Object):
         hids = []
         for i, wc in enumerate(self.waveforms):
             if wc.include:
-                for c in wc.channels:
-                    hypername = "_".join(("h", wc.name, str(i), c))
-                    hids.append(hypername)
-
+                hids.extend("_".join(("h", wc.name, str(i), c)) for c in wc.channels)
         return hids
 
     def get_station_blacklist(self):
@@ -793,10 +688,7 @@ class SeismicConfig(Object):
         return list(set(blacklist))
 
     def get_hierarchical_names(self):
-        if self.station_corrections:
-            return ["time_shift"]
-        else:
-            return []
+        return ["time_shift"] if self.station_corrections else []
 
     def init_waveforms(self, wavenames=["any_P"]):
         """
@@ -807,7 +699,6 @@ class SeismicConfig(Object):
 
 
 class PolarityGFConfig(NonlinearGFConfig):
-
     code = String.T(
         default="cake", help="Raytracing code to use for takeoff-angle computations."
     )
@@ -827,7 +718,6 @@ class PolarityGFConfig(NonlinearGFConfig):
 
 
 class PolarityFitConfig(Object):
-
     name = String.T(default="any_P", help="Seismic phase name for picked polarities")
     include = Bool.T(
         default=True, help="Whether to include this FitConfig to the estimation."
@@ -851,7 +741,6 @@ class PolarityFitConfig(Object):
 
 
 class PolarityConfig(Object):
-
     datadir = String.T(default="./")
     waveforms = List.T(
         PolarityFitConfig.T(default=PolarityFitConfig.D()),
@@ -860,7 +749,6 @@ class PolarityConfig(Object):
     gf_config = GFConfig.T(default=PolarityGFConfig.D())
 
     def __init__(self, **kwargs):
-
         waveforms = "waveforms"
         wavenames = kwargs.pop("wavenames", ["any_P"])
         wavemaps = []
@@ -912,7 +800,6 @@ class PolarityConfig(Object):
 
 
 class CorrectionConfig(Object):
-
     dataset_names = List.T(
         String.T(), default=[], help="Datasets to include in the correction."
     )
@@ -939,7 +826,6 @@ class CorrectionConfig(Object):
 
 
 class GNSSCorrectionConfig(CorrectionConfig):
-
     station_blacklist = List.T(
         String.T(), default=[], help="GNSS station names to apply no correction."
     )
@@ -948,7 +834,7 @@ class GNSSCorrectionConfig(CorrectionConfig):
     )
 
     def get_hierarchical_names(self, name=None, number=0):
-        return ["{}_{}".format(number, suffix) for suffix in self.get_suffixes()]
+        return [f"{number}_{suffix}" for suffix in self.get_suffixes()]
 
 
 class EulerPoleConfig(GNSSCorrectionConfig):
@@ -994,7 +880,7 @@ class RampConfig(CorrectionConfig):
 
     def get_hierarchical_names(self, name, number=0):
         return [
-            "{}_{}".format(name, suffix)
+            f"{name}_{suffix}"
             for suffix in self.get_suffixes()
             if name in self.dataset_names
         ]
@@ -1018,17 +904,13 @@ class GeodeticCorrectionsConfig(Object):
     def iter_corrections(self):
         out_corr = [self.ramp]
 
-        for euler_pole_conf in self.euler_poles:
-            out_corr.append(euler_pole_conf)
-
-        for strain_conf in self.strain_rates:
-            out_corr.append(strain_conf)
-
+        out_corr.extend(iter(self.euler_poles))
+        out_corr.extend(iter(self.strain_rates))
         return out_corr
 
     @property
     def has_enabled_corrections(self):
-        return any([corr.enabled for corr in self.iter_corrections()])
+        return any(corr.enabled for corr in self.iter_corrections())
 
 
 class DatasetConfig(Object):
@@ -1051,7 +933,6 @@ class SARDatasetConfig(DatasetConfig):
 
 
 class GNSSDatasetConfig(DatasetConfig):
-
     components = List.T(String.T(), default=["north", "east", "up"])
     blacklist = List.T(
         String.T(),
@@ -1064,7 +945,7 @@ class GNSSDatasetConfig(DatasetConfig):
 
         all_targets = []
         for filename in self.names:
-            logger.info("Loading file %s ..." % filename)
+            logger.info(f"Loading file {filename} ...")
             try:
                 targets = load_and_blacklist_gnss(
                     self.datadir,
@@ -1074,14 +955,14 @@ class GNSSDatasetConfig(DatasetConfig):
                     components=self.components,
                 )
                 if targets:
-                    logger.info("Successfully loaded GNSS data from file %s" % filename)
+                    logger.info(f"Successfully loaded GNSS data from file {filename}")
                     if campaign:
                         all_targets.append(targets)
                     else:
                         all_targets.extend(targets)
             except OSError:
                 logger.warning(
-                    "GNSS of file %s not conform with ascii format!" % filename
+                    f"GNSS of file {filename} not conform with ascii format!"
                 )
 
             return all_targets
@@ -1120,10 +1001,9 @@ class GeodeticConfig(Object):
         "If false one hyperparameter for each DATATYPE and "
         "displacement COMPONENT.",
     )
-    gf_config = GFConfig.T(default=GeodeticGFConfig.D())
+    gf_config = MediumConfig.T(default=GeodeticGFConfig.D())
 
     def __init__(self, **kwargs):
-
         mode = kwargs.pop("mode", geometry_mode_str)
 
         if mode == geometry_mode_str:
@@ -1140,7 +1020,6 @@ class GeodeticConfig(Object):
         return ["_".join(("h", typ)) for typ in self.types]
 
     def get_hierarchical_names(self, datasets=None):
-
         out_names = []
         for number, corr_conf in enumerate(self.corrections_config.iter_corrections()):
             if corr_conf.enabled:
@@ -1213,12 +1092,10 @@ def _init_kwargs(method_config_name, method_name, method_catalog, kwargs):
 
     if method and not method_config:
         kwargs[method_config_name] = method_catalog[method]()
-    elif method and method_config:
+    elif method:
         wanted_config = method_catalog[method]
         if not isinstance(method_config, wanted_config):
-            logger.info(
-                "%s method changed!" " Initializing new config..." % method_name
-            )
+            logger.info(f"{method_name} method changed! Initializing new config...")
             kwargs[method_config_name] = wanted_config()
         else:
             kwargs[method_config_name] = method_config
@@ -1230,7 +1107,6 @@ def _init_kwargs(method_config_name, method_name, method_catalog, kwargs):
 
 
 class FFIConfig(ModeConfig):
-
     regularization = StringChoice.T(
         default="none",
         choices=_regularization_choices,
@@ -1266,7 +1142,6 @@ class FFIConfig(ModeConfig):
     )
 
     def __init__(self, **kwargs):
-
         kwargs = _init_kwargs(
             method_config_name="regularization_config",
             method_name="regularization",
@@ -1275,6 +1150,70 @@ class FFIConfig(ModeConfig):
         )
 
         Object.__init__(self, **kwargs)
+
+
+class BoundaryCondition(Object):
+    slip_component = StringChoice.T(
+        choices=_slip_component_choices,
+        default="normal",
+        help=f"Slip-component for Green's Function calculation, maybe {list2string(_slip_component_choices)} ",
+    )
+    source_idxs = List.T(
+        Int.T(),
+        default=[0],
+        help="Indices for the sources that are causing the stress.",
+    )
+    receiver_idxs = List.T(
+        Int.T(), default=[0], help="Indices for the sources that receive the stress."
+    )
+
+
+class BoundaryConditions(Object):
+    conditions = Dict.T(
+        String.T(),
+        BoundaryCondition.T(),
+        default={
+            "strike": BoundaryCondition.D(slip_component="strike"),
+            "dip": BoundaryCondition.D(slip_component="dip"),
+            "normal": BoundaryCondition.D(slip_component="normal"),
+        },
+    )
+
+    def iter_conditions(self):
+        yield from self.conditions.values()
+
+    def get_traction_field(self, discretized_sources):
+        if len(self.conditions) != 3:
+            raise ValueError(
+                "One boundary condition for each slip component needs to be defined."
+            )
+
+        traction_vecs = []
+        for slip_comp in _slip_component_choices:
+            bcond = self.conditions[slip_comp]
+            for receiver_idx in bcond.receiver_idxs:
+                receiver_mesh = discretized_sources[receiver_idx]
+                t_vec = receiver_mesh.get_traction_vector(slip_comp)
+                traction_vecs.append(t_vec)
+
+        return num.hstack(traction_vecs)
+
+
+class BEMConfig(MediumConfig):
+    poissons_ratio = Float.T(default=0.25, help="Poisson's ratio")
+    shear_modulus = Float.T(default=33e9, help="Shear modulus [Pa]")
+    earth_model_name = String.T(default="homogeneous-elastic-halfspace")
+    mesh_size = Float.T(
+        default=0.5,
+        help="Determines the size of triangles [km], the smaller the finer the discretization.",
+    )
+    check_mesh_intersection = Bool.T(
+        default=True, help="If meshes intersect reject sample."
+    )
+    boundary_conditions = BoundaryConditions.T(
+        default=BoundaryConditions.D(),
+        help="Boundary conditions for the interaction matrix and imposed traction field.",
+    )
 
 
 def get_parameter(variable, nvars=1, lower=1, upper=2):
@@ -1286,6 +1225,115 @@ def get_parameter(variable, nvars=1, lower=1, upper=2):
             shape=(nvars,), fill_value=(lower + (upper / 5.0)), dtype=tconfig.floatX
         ),
     )
+
+
+class DatatypeParameterMapping(Object):
+    sources_variables = List.T(Dict.T(String.T(), Int.T()))
+    n_sources = Int.T()
+
+    def __init__(self, **kwargs):
+        Object.__init__(self, **kwargs)
+
+        self._mapping = None
+        self.point_to_sources_mapping()
+
+    def __getitem__(self, k):
+        if self._mapping is None:
+            self.point_to_sources_mapping()
+
+        if k not in self._mapping.keys():
+            raise KeyError("Parameters mapping does not contain parameters:", k)
+
+        return self._mapping[k]
+
+    def point_to_sources_mapping(self) -> TDict[str, TList[int]]:
+        """
+        Mapping for mixed source setups. Mapping source parameter name to source indexes.
+        Is used by utilit.split_point to split the full point into subsource_points.
+        """
+        if self._mapping is None:
+            start_idx = 0
+            total_variables = {}
+            for source_variables in self.sources_variables:
+                for variable, size in source_variables.items():
+                    end_idx = size + start_idx
+                    source_idxs = list(range(start_idx, end_idx))
+                    if variable in total_variables:
+                        total_variables[variable].extend(source_idxs)
+                    else:
+                        total_variables[variable] = source_idxs
+
+                start_idx += size
+
+            self._mapping = total_variables
+
+        return self._mapping
+
+    def point_variable_names(self) -> TList[int]:
+        return self.point_to_sources_mapping().keys()
+
+    def total_variables_sizes(self) -> TDict[str, int]:
+        mapping = self.point_to_sources_mapping()
+        variables_sizes = {}
+        for variable, idxs in mapping.items():
+            variables_sizes[variable] = len(idxs)
+
+        return variables_sizes
+
+
+class SourcesParameterMapping(Object):
+    """
+    Mapping for source parameters to point of variables.
+    """
+
+    source_types = List.T(String.T(), default=[])
+    n_sources = List.T(Int.T(), default=[])
+    datatypes = List.T(StringChoice.T(choices=_datatype_choices), default=[])
+    mappings = Dict.T(String.T(), DatatypeParameterMapping.T())
+
+    def __init__(self, **kwargs):
+        Object.__init__(self, **kwargs)
+
+        for datatype in self.datatypes:
+            self.mappings[datatype] = None
+
+    def add(self, sources_variables: TDict = {}, datatype: str = "geodetic"):
+        if datatype in self.mappings:
+            self.mappings[datatype] = DatatypeParameterMapping(
+                sources_variables=sources_variables, n_sources=sum(self.n_sources)
+            )
+        else:
+            raise ValueError(
+                "Datatype for the source mapping has not been initialized!"
+            )
+
+    def __getitem__(self, k):
+        if k not in self.mappings.keys():
+            raise KeyError(k)
+
+        return self.mappings[k]
+
+    def unique_variables_sizes(self) -> TDict[str, int]:
+        """
+        Combine source specific variable dicts into a common setup dict
+
+        Raises:
+            ValueError: if no source specific dicts exist
+
+        Returns:
+            Dict: of variable names and their combined sizes
+        """
+
+        if len(self.mappings) == 0:
+            raise ValueError(
+                "Mode and datatype combination not implemented"
+                " or not resolvable with given datatypes."
+            )
+        unique_variables = {}
+        for datatype_parameter_mapping in self.mappings.values():
+            unique_variables.update(datatype_parameter_mapping.total_variables_sizes())
+
+        return unique_variables
 
 
 class ProblemConfig(Object):
@@ -1301,11 +1349,13 @@ class ProblemConfig(Object):
     mode_config = ModeConfig.T(
         optional=True, help="Global optimization mode specific parameters."
     )
-    source_type = StringChoice.T(
-        default="RectangularSource",
-        choices=source_names,
-        help="Source type to optimize for. Choices: %s"
-        % (", ".join(name for name in source_names)),
+    source_types = List.T(
+        StringChoice.T(
+            default="RectangularSource",
+            choices=all_source_names,
+            help="Source types to optimize for. BEMSources and Sources cannot be mixed. Choices: %s"
+            % (", ".join(name for name in all_source_names)),
+        ),
     )
     stf_type = StringChoice.T(
         default="HalfSinusoid",
@@ -1318,7 +1368,9 @@ class ProblemConfig(Object):
         optional=True,
         help="Determines the reduction of discretization of an extended" " source.",
     )
-    n_sources = Int.T(default=1, help="Number of Sub-sources to solve for")
+    n_sources = List.T(
+        Int.T(), default=[1], help="List of number of sub-sources for each source-type"
+    )
     datatypes = List.T(default=["geodetic"])
     hyperparameters = Dict.T(
         default=OrderedDict(),
@@ -1335,19 +1387,18 @@ class ProblemConfig(Object):
     )
 
     def __init__(self, **kwargs):
-
         mode = "mode"
-        mode_config = "mode_config"
         if mode in kwargs:
             omode = kwargs[mode]
 
             if omode == ffi_mode_str:
+                mode_config = "mode_config"
                 if mode_config not in kwargs:
                     kwargs[mode_config] = FFIConfig()
 
         Object.__init__(self, **kwargs)
 
-    def init_vars(self, variables=None, nvars=None):
+    def init_vars(self, variables=None, sizes=None):
         """
         Initiate priors based on the problem mode and datatypes.
 
@@ -1357,21 +1408,12 @@ class ProblemConfig(Object):
             of str of variable names to initialise
         """
         if variables is None:
-            variables = self.select_variables()
+            mapping = self.get_variables_mapping()
 
         self.priors = OrderedDict()
-
-        for variable in variables:
-
-            if nvars is None:
-                if variable in block_vars:
-                    nvars = 1
-                else:
-                    nvars = self.n_sources
-
-            lower = default_bounds[variable][0]
-            upper = default_bounds[variable][1]
-            self.priors[variable] = get_parameter(variable, nvars, lower, upper)
+        for variable, size in mapping.unique_variables_sizes().items():
+            lower, upper = defaults[variable].default_bounds
+            self.priors[variable] = get_parameter(variable, size, lower, upper)
 
     def set_vars(self, bounds_dict, attribute="priors", init=False):
         """
@@ -1381,9 +1423,7 @@ class ProblemConfig(Object):
             upd_dict = getattr(self, attribute)
             if variable in list(upd_dict.keys()) or init:
                 if init:
-                    logger.info(
-                        'Initialising new variable "%s" in %s' % (variable, attribute)
-                    )
+                    logger.info(f"Initialising new variable {variable} in {attribute}")
                     param = get_parameter(variable, nvars=len(bounds[0]))
                     upd_dict[variable] = param
                 else:
@@ -1403,58 +1443,65 @@ class ProblemConfig(Object):
 
         setattr(self, attribute, upd_dict)
 
-    def select_variables(self):
+    def get_variables_mapping(self):
         """
         Return model variables depending on problem config.
         """
 
         if self.mode not in modes_catalog.keys():
-            raise ValueError("Problem mode %s not implemented" % self.mode)
+            raise ValueError(f"Problem mode {self.mode} not implemented")
 
         vars_catalog = modes_catalog[self.mode]
-
-        variables = []
         for datatype in self.datatypes:
-            if datatype in vars_catalog.keys():
-                if self.mode == geometry_mode_str:
-                    if self.source_type in vars_catalog[datatype].keys():
-                        source = vars_catalog[datatype][self.source_type]
-                        svars = set(source.keys())
-
-                        if isinstance(source(), (PyrockoRS, gf.ExplosionSource)):
-                            svars.discard("magnitude")
-
-                        variables += utility.weed_input_rvs(svars, self.mode, datatype)
-                    else:
-                        raise ValueError(
-                            "Source Type not supported for type"
-                            " of problem, and datatype!"
-                        )
-
-                    if datatype == "seismic":
-                        if self.stf_type in stf_catalog.keys():
-                            stf = stf_catalog[self.stf_type]
-                            variables += utility.weed_input_rvs(
-                                set(stf.keys()), self.mode, datatype
-                            )
-                else:
-                    variables += vars_catalog[datatype]
-            else:
+            if datatype not in vars_catalog.keys():
                 raise ValueError(
-                    "Datatype %s not supported for type of"
-                    " problem! Supported datatype are: %s"
-                    % (datatype, ", ".join('"%s"' % d for d in vars_catalog.keys()))
+                    f"""Datatype {datatype} not supported for type of problem!
+                    Supported datatype are: {list2string(vars_catalog.keys())}"""
                 )
 
-        unique_variables = utility.unique_list(variables)
+        mapping = SourcesParameterMapping(
+            source_types=self.source_types,
+            datatypes=self.datatypes,
+            n_sources=self.n_sources,
+        )
+        for datatype in self.datatypes:
+            if self.mode in [geometry_mode_str, bem_mode_str]:
+                list_variables = []
+                for source_type, n_source in zip(self.source_types, self.n_sources):
+                    variables = {}
+                    supported_sources = vars_catalog[datatype].keys()
+                    if source_type not in supported_sources:
+                        raise ValueError(
+                            f"Source Type {source_type} not supported for type"
+                            f" of problem, and datatype '{datatype}'!"
+                            f" Supported sources: {list2string(supported_sources)}"
+                        )
 
-        if len(unique_variables) == 0:
-            raise Exception(
-                "Mode and datatype combination not implemented"
-                " or not resolvable with given datatypes."
-            )
+                    source = vars_catalog[datatype][source_type]
+                    if datatype == "seismic" and self.stf_type in stf_catalog.keys():
+                        stf = stf_catalog[self.stf_type]
+                    else:
+                        stf = {}
 
-        return unique_variables
+                    source_varnames = set(list(source.keys()) + list(stf.keys()))
+                    if isinstance(source(), (PyrockoRS, gf.ExplosionSource)):
+                        source_varnames.discard("magnitude")
+
+                    for varname in source_varnames:
+                        variables[varname] = n_source
+
+                    variables = utility.weed_input_rvs(variables, self.mode, datatype)
+                    list_variables.append(variables)
+
+                mapping.add(list_variables, datatype=datatype)
+            else:
+                variables = {}
+                for varname in vars_catalog[datatype]:
+                    variables[varname] = self.n_sources[0]
+
+                mapping.add([variables], datatype=datatype)
+
+        return mapping
 
     def get_random_variables(self):
         """
@@ -1463,41 +1510,32 @@ class ProblemConfig(Object):
         Returns
         -------
         rvs : dict
-            variable random variables
+            random variable names and their kwargs
         fixed_params : dict
             fixed random parameters
         """
-        from pymc3 import Uniform
 
-        logger.debug("Optimization for %i sources", self.n_sources)
+        logger.debug("Optimization for %s sources", list2string(self.n_sources))
 
-        rvs = dict()
-        fixed_params = dict()
+        rvs = {}
+        fixed_params = {}
         for param in self.priors.values():
             if not num.array_equal(param.lower, param.upper):
-
-                shape = self.get_parameter_shape(param)
+                size = self.get_parameter_size(param)
 
                 kwargs = dict(
                     name=param.name,
-                    shape=num.sum(shape),
-                    lower=param.get_lower(shape),
-                    upper=param.get_upper(shape),
-                    testval=param.get_testvalue(shape),
+                    shape=(num.sum(size),),
+                    lower=param.get_lower(size),
+                    upper=param.get_upper(size),
+                    initval=param.get_testvalue(size),
                     transform=None,
                     dtype=tconfig.floatX,
                 )
-                try:
-                    rvs[param.name] = Uniform(**kwargs)
-
-                except TypeError:
-                    kwargs.pop("name")
-                    rvs[param.name] = Uniform.dist(**kwargs)
-
+                rvs[param.name] = kwargs
             else:
                 logger.info(
-                    "not solving for %s, got fixed at %s"
-                    % (param.name, utility.list2string(param.lower.flatten()))
+                    f"not solving for {param.name}, got fixed at {utility.list2string(param.lower.flatten())}"
                 )
                 fixed_params[param.name] = param.lower
 
@@ -1519,10 +1557,11 @@ class ProblemConfig(Object):
         Determines the reduction of discretization of an extended source.
         Influences yet only the RectangularSource.
         """
-        if self.source_type == "RectangularSource":
-            self.decimation_factors = {}
-            for datatype in self.datatypes:
-                self.decimation_factors[datatype] = default_decimation_factors[datatype]
+        if "RectangularSource" in self.source_types:
+            self.decimation_factors = {
+                datatype: default_decimation_factors[datatype]
+                for datatype in self.datatypes
+            }
         else:
             self.decimation_factors = None
 
@@ -1537,8 +1576,8 @@ class ProblemConfig(Object):
         """
 
         d = getattr(self, dict_name)
-        double_check = []
         if d is not None:
+            double_check = []
             for name, param in d.items():
                 param.validate_bounds()
                 if name not in double_check:
@@ -1546,13 +1585,11 @@ class ProblemConfig(Object):
                         raise InconsistentParameterNaming(name, param.name, self.mode)
                     double_check.append(name)
                 else:
-                    raise ValueError(
-                        "Parameter %s not unique in %s!".format(name, dict_name)
-                    )
+                    raise ValueError("Parameter %s not unique in %s!".format())
 
-            logger.info("All {} ok!".format(dict_name))
+            logger.info(f"All {dict_name} ok!")
         else:
-            logger.info("No {} defined!".format(dict_name))
+            logger.info(f"No {dict_name} defined!")
 
     def validate_all(self):
         """
@@ -1586,8 +1623,8 @@ class ProblemConfig(Object):
         """
         test_point = {}
         for varname, var in self.priors.items():
-            shape = self.get_parameter_shape(var)
-            test_point[varname] = var.get_testvalue(shape)
+            size = self.get_parameter_size(var)
+            test_point[varname] = var.get_testvalue(size)
 
         for varname, var in self.hyperparameters.items():
             test_point[varname] = var.get_testvalue()
@@ -1597,62 +1634,68 @@ class ProblemConfig(Object):
 
         return test_point
 
-    def get_parameter_shape(self, param):
-        if self.mode == ffi_mode_str:
-            if param.name in hypo_vars:
-                shape = self.n_sources
-            elif param.name not in hypo_vars and self.mode_config.npatches:
-                shape = self.mode_config.subfault_npatches
-                if len(shape) == 0:
-                    shape = self.mode_config.npatches
-            else:
-                shape = param.dimension
+    def get_parameter_size(self, param):
+        if self.mode == ffi_mode_str and param.name in hypo_vars:
+            size = self.n_sources[0]
+        elif self.mode == ffi_mode_str and self.mode_config.npatches:
+            size = self.mode_config.subfault_npatches
+            if len(size) == 0:
+                size = self.mode_config.npatches
+        elif self.mode in [ffi_mode_str, geometry_mode_str, bem_mode_str]:
+            size = param.dimension
 
-        elif self.mode == geometry_mode_str:
-            shape = param.dimension
         else:
-            raise TypeError("Mode not implemented: %s" % self.mode)
+            raise TypeError(f"Mode not implemented: {self.mode}")
 
-        return shape
+        return size
 
     def get_derived_variables_shapes(self):
+        """
+        Get variable names and shapes of derived variables of the problem.
 
-        source_type = self.source_type
+        Returns:
+            list: varnames
+            list: of tuples of ints (shapes)
+        """
 
         tpoint = self.get_test_point()
         has_pole, _ = check_point_keys(tpoint, phrase="*_pole_lat")
 
-        if has_pole:
-            source_type += "Pole"
+        derived = {}
+        for source_type, n_source in zip(self.source_types, self.n_sources):
+            if has_pole:
+                source_type += "Pole"
 
-        try:
-            varnames = derived_variables_mapping[source_type]
-            shapes = []
-            for varname in varnames:
-                if self.mode == geometry_mode_str:
-                    shape = (self.n_sources,)
-                elif self.mode == ffi_mode_str:
-                    if varname == "magnitude":
-                        shape = (1,)
+            try:
+                shapes = []
+                source_varnames = derived_variables_mapping[source_type]
+                for varname in source_varnames:
+                    if self.mode in [geometry_mode_str, bem_mode_str]:
+                        shape = n_source
+                    elif self.mode == ffi_mode_str:
+                        shape = (
+                            1 if varname == "magnitude" else self.mode_config.npatches
+                        )
                     else:
-                        shape = (self.mode_config.npatches,)
+                        raise ValueError("Mode '%s' is not supported!" % self.mode)
 
-                shapes.append(shape)
+                    if varname in derived:
+                        derived[varname] += shape
+                    else:
+                        derived[varname] = shape
 
-            logger.info(
-                "Adding derived variables %s with shapes %s to "
-                "trace." % (list2string(varnames), list2string(shapes))
-            )
-        except KeyError:
-            logger.info("No derived variables for %s" % source_type)
-            varnames = []
-            shapes = []
+            except KeyError:
+                logger.info(f"No derived variables for {source_type}")
 
+        shapes = [(shape,) for shape in derived.values()]
+        varnames = list(derived.keys())
+        logger.info(
+            f"Adding derived variables {list2string(varnames)} with shapes {list2string(shapes)} to trace."
+        )
         return varnames, shapes
 
 
 class SamplerParameters(Object):
-
     tune_interval = Int.T(
         default=50, help="Tune interval for adaptive tuning of Metropolis step size."
     )
@@ -1670,7 +1713,6 @@ class SamplerParameters(Object):
 
 
 class ParallelTemperingConfig(SamplerParameters):
-
     n_samples = Int.T(
         default=int(1e5),
         help="Number of samples of the posterior distribution."
@@ -1823,7 +1865,6 @@ class SamplerConfig(Object):
     )
 
     def __init__(self, **kwargs):
-
         kwargs = _init_kwargs(
             method_config_name="parameters",
             method_name="name",
@@ -1872,11 +1913,10 @@ class SeismicGFLibraryConfig(GFLibaryConfig):
 
     @property
     def _mapid(self):
-        if hasattr(self, "mapnumber"):
-            if self.mapnumber is not None:
-                return "_".join((self.wave_config.name, str(self.mapnumber)))
-        else:
+        if not hasattr(self, "mapnumber"):
             return self.wave_config.name
+        if self.mapnumber is not None:
+            return "_".join((self.wave_config.name, str(self.mapnumber)))
 
 
 datatype_catalog = {
@@ -1919,27 +1959,26 @@ class BEATconfig(Object, Cloneable):
 
         hypernames = []
         for datatype in _datatype_choices:
-            datatype_conf = getattr(self, "%s_config" % datatype)
+            datatype_conf = getattr(self, f"{datatype}_config")
             if datatype_conf is not None:
                 hypernames.extend(datatype_conf.get_hypernames())
 
-        if self.problem_config.mode == ffi_mode_str:
-            if self.problem_config.mode_config.regularization == "laplacian":
-                hypernames.append(hyper_name_laplacian)
+        if (
+            self.problem_config.mode == ffi_mode_str
+            and self.problem_config.mode_config.regularization == "laplacian"
+        ):
+            hypernames.append(hyper_name_laplacian)
 
         hypers = OrderedDict()
+        defaultb_name = "hypers"
         for name in hypernames:
-            logger.info("Added hyperparameter %s to config and " "model setup!" % name)
-
-            defaultb_name = "hypers"
+            logger.info(f"Added hyperparameter {name} to config and model setup!")
+            lower, upper = defaults[defaultb_name].default_bounds
             hypers[name] = Parameter(
                 name=name,
-                lower=num.ones(1, dtype=tconfig.floatX)
-                * default_bounds[defaultb_name][0],
-                upper=num.ones(1, dtype=tconfig.floatX)
-                * default_bounds[defaultb_name][1],
-                testvalue=num.ones(1, dtype=tconfig.floatX)
-                * num.mean(default_bounds[defaultb_name]),
+                lower=num.ones(1, dtype=tconfig.floatX) * lower,
+                upper=num.ones(1, dtype=tconfig.floatX) * upper,
+                testvalue=num.ones(1, dtype=tconfig.floatX) * num.mean([lower, upper]),
             )
 
         self.problem_config.hyperparameters = hypers
@@ -1978,7 +2017,7 @@ class BEATconfig(Object, Cloneable):
         shp = 1
         for name in hierarnames:
             logger.info(
-                "Added hierarchical parameter %s to config and " "model setup!" % name
+                f"Added hierarchical parameter {name} to config and model setup!"
             )
 
             if name == "time_shift":
@@ -1987,14 +2026,13 @@ class BEATconfig(Object, Cloneable):
                 correction_name = name.split("_")[-1]
                 defaultb_name = correction_name
 
+            lower, upper = defaults[defaultb_name].default_bounds
             hierarchicals[name] = Parameter(
                 name=name,
-                lower=num.ones(shp, dtype=tconfig.floatX)
-                * default_bounds[defaultb_name][0],
-                upper=num.ones(shp, dtype=tconfig.floatX)
-                * default_bounds[defaultb_name][1],
+                lower=num.ones(shp, dtype=tconfig.floatX) * lower,
+                upper=num.ones(shp, dtype=tconfig.floatX) * upper,
                 testvalue=num.ones(shp, dtype=tconfig.floatX)
-                * num.mean(default_bounds[defaultb_name]),
+                * num.mean([lower, upper]),
             )
 
         self.problem_config.hierarchicals = hierarchicals
@@ -2024,8 +2062,7 @@ def init_reference_sources(source_points, n_sources, source_type, stf_type, even
             rf = RectangularSource(stf=stf, anchor="top")
             utility.update_source(rf, **source_points[i])
         else:
-            kwargs = {}
-            kwargs["stf"] = stf
+            kwargs = {"stf": stf}
             rf = RectangularSource.from_kite_source(source_points[i], kwargs=kwargs)
 
         rf.nucleation_x = None
@@ -2050,8 +2087,8 @@ def init_config(
     main_path="./",
     datatypes=["geodetic"],
     mode="geometry",
-    source_type="RectangularSource",
-    n_sources=1,
+    source_types=["RectangularSource"],
+    n_sources=[1],
     waveforms=["any_P"],
     sampler="SMC",
     hyper_sampler="Metropolis",
@@ -2096,46 +2133,43 @@ def init_config(
     :class:`BEATconfig`
     """
 
-    def init_dataset_config(config, datatype):
-
+    def init_dataset_config(config, datatype, mode):
         dconfig = datatype_catalog[datatype]()
 
-        if hasattr(dconfig.gf_config, "reference_location"):
-            if not individual_gfs:
-                dconfig.gf_config.reference_location = ReferenceLocation(
-                    lat=10.0, lon=10.0
+        if mode == bem_mode_str:
+            dconfig.gf_config = BEMConfig()
+        else:
+            if hasattr(dconfig.gf_config, "reference_location"):
+                if not individual_gfs:
+                    dconfig.gf_config.reference_location = ReferenceLocation(
+                        lat=10.0, lon=10.0
+                    )
+                else:
+                    dconfig.gf_config.reference_location = None
+
+            if use_custom:
+                logger.info(
+                    "use_custom flag set! The velocity model in the"
+                    " %s GF configuration has to be updated!" % datatype
                 )
-            else:
-                dconfig.gf_config.reference_location = None
+                dconfig.gf_config.custom_velocity_model = load_model().extract(
+                    depth_max=100.0 * km
+                )
+                dconfig.gf_config.use_crust2 = False
+                dconfig.gf_config.replace_water = False
 
-        if use_custom:
-            logger.info(
-                "use_custom flag set! The velocity model in the"
-                " %s GF configuration has to be updated!" % datatype
-            )
-            dconfig.gf_config.custom_velocity_model = load_model().extract(
-                depth_max=100.0 * km
-            )
-            dconfig.gf_config.use_crust2 = False
-            dconfig.gf_config.replace_water = False
-
-        config["%s_config" % datatype] = dconfig
+        config[f"{datatype}_config"] = dconfig
         return config
 
     c = BEATconfig(name=name, date=date)
     c.project_dir = os.path.join(os.path.abspath(main_path), name)
 
-    if mode == geometry_mode_str or mode == "interseismic":
-        if date is not None and not mode == "interseismic":
-            c.event = utility.search_catalog(date=date, min_magnitude=min_magnitude)
+    if mode in [geometry_mode_str, bem_mode_str]:
+        for datatype in datatypes:
+            init_dataset_config(c, datatype=datatype, mode=mode)
 
-        elif mode == "interseismic":
-            c.event = model.Event(lat=10.0, lon=10.0, depth=0.0)
-            c.date = "dummy"
-            logger.info(
-                "Interseismic mode! Using event as reference for the"
-                " stable block! Please update coordinates!"
-            )
+        if date is not None and mode != bem_mode_str:
+            c.event = utility.search_catalog(date=date, min_magnitude=min_magnitude)
         else:
             logger.warn(
                 "No given date! Using dummy event!"
@@ -2145,12 +2179,11 @@ def init_config(
             c.event = model.Event(duration=1.0)
             c.date = "dummy"
 
-        for datatype in datatypes:
-            init_dataset_config(c, datatype=datatype)
-
     elif mode == ffi_mode_str:
+        if len(source_types) > 1:
+            raise TypeError("FFI is not supported with mixed source types, yet.")
 
-        if source_type != "RectangularSource":
+        if "RectangularSource" not in source_types:
             raise TypeError(
                 "Distributed slip is so far only supported" " for RectangularSource(s)"
             )
@@ -2165,24 +2198,24 @@ def init_config(
                 " stores for the non-linear problem." % geometry_mode_str
             )
 
+        geometry_source_type = gmc.problem_config.source_types[0]
         logger.info("Taking information from geometry_config ...")
-        if source_type != gmc.problem_config.source_type:
+        if source_types[0] != geometry_source_type:
             raise ValueError(
                 'Specified reference source: "%s" differs from the'
                 " source that has been used previously in"
-                ' "geometry" mode: "%s"!'
-                % (source_type, gmc.problem_config.source_type)
+                ' "geometry" mode: "%s"!' % (source_types[0], geometry_source_type)
             )
 
         n_sources = gmc.problem_config.n_sources
         point = {k: v.testvalue for k, v in gmc.problem_config.priors.items()}
         point = utility.adjust_point_units(point)
-        source_points = utility.split_point(point)
+        source_points = utility.split_point(point, n_sources_total=n_sources[0])
 
         reference_sources = init_reference_sources(
             source_points,
-            n_sources,
-            gmc.problem_config.source_type,
+            n_sources[0],
+            geometry_source_type,
             gmc.problem_config.stf_type,
             event=gmc.event,
         )
@@ -2237,7 +2270,7 @@ def init_config(
             c.seismic_config.gf_config = lgf_config
 
     c.problem_config = ProblemConfig(
-        n_sources=n_sources, datatypes=datatypes, mode=mode, source_type=source_type
+        n_sources=n_sources, datatypes=datatypes, mode=mode, source_types=source_types
     )
     c.problem_config.init_vars()
     c.problem_config.set_decimation_factor()
@@ -2266,7 +2299,7 @@ def dump_config(config):
     ----------
     config : :class:`BEATConfig`
     """
-    config_file_name = "config_" + config.problem_config.mode + ".yaml"
+    config_file_name = f"config_{config.problem_config.mode}.yaml"
     conf_out = os.path.join(config.project_dir, config_file_name)
     dump(config, filename=conf_out)
 
@@ -2289,14 +2322,14 @@ def load_config(project_dir, mode):
     -------
     :class:`BEATconfig`
     """
-    config_file_name = "config_" + mode + ".yaml"
+    config_file_name = f"config_{mode}.yaml"
 
     config_fn = os.path.join(project_dir, config_file_name)
 
     try:
         config = load(filename=config_fn)
     except IOError:
-        raise IOError("Cannot load config, file %s" " does not exist!" % config_fn)
+        raise IOError(f"Cannot load config, file {config_fn} does not exist!")
     except (ArgumentError, TypeError):
         raise ConfigNeedsUpdatingError()
 

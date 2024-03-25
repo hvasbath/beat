@@ -12,11 +12,9 @@ from numpy.random import (
     standard_cauchy,
     standard_exponential,
 )
-from pymc3 import CompoundStep
-from pymc3.model import Point, modelcontext
-from pymc3.sampling import stop_tuning
-from pymc3.theanof import join_nonshared_inputs
-from theano import function
+from pymc import CompoundStep
+from pymc.model import Point
+from pymc.pytensorf import compile_pymc, join_nonshared_inputs
 from tqdm import tqdm
 
 from beat import parallel
@@ -75,7 +73,7 @@ def multivariate_t_rvs(mean, cov, df=np.inf, size=1):
 
 class Proposal(object):
     """
-    Proposal distributions modified from pymc3 to initially create all the
+    Proposal distributions modified from pymc to initially create all the
     Proposal steps without repeated execution of the RNG- significant speedup!
 
     Parameters
@@ -220,9 +218,10 @@ def choose_proposal(proposal_name, **kwargs):
 
     Returns
     -------
-    class:`pymc3.Proposal` Object
+    class:`pymc.Proposal` Object
     """
-    return proposal_distributions[proposal_name](**kwargs)
+    proposal = proposal_distributions[proposal_name](**kwargs)
+    return proposal
 
 
 def setup_chain_counter(n_chains, n_jobs):
@@ -232,7 +231,6 @@ def setup_chain_counter(n_chains, n_jobs):
 
 class ChainCounter(object):
     def __init__(self, n, n_jobs, perc_disp=0.2, subject="chains"):
-
         n_chains_worker = n // n_jobs
         frac_disp = int(np.ceil(n_chains_worker * perc_disp))
 
@@ -261,19 +259,21 @@ class ChainCounter(object):
 
 def _sample(
     draws,
-    step=None,
     start=None,
     trace=None,
     chain=0,
     tune=None,
     progressbar=True,
-    model=None,
     random_seed=-1,
 ):
+    n = parallel.get_process_id()
+    logger.debug("Worker %i deserialises step", n)
+    # step = cloudpickle.loads(step_method_pickled)
+    step = step_method_global
 
     shared_params = [
         sparam
-        for sparam in step.logp_forw.get_shared()
+        for sparam in step.logp_forw_func.get_shared()
         if sparam.name in parallel._tobememshared
     ]
 
@@ -281,9 +281,7 @@ def _sample(
         logger.debug("Accessing shared memory")
         parallel.borrow_all_memories(shared_params, parallel._shared_memory)
 
-    sampling = _iter_sample(draws, step, start, trace, chain, tune, model, random_seed)
-
-    n = parallel.get_process_id()
+    sampling = _iter_sample(draws, step, start, trace, chain, tune, random_seed)
 
     if progressbar:
         sampling = tqdm(
@@ -322,7 +320,6 @@ def _iter_sample(
     trace=None,
     chain=0,
     tune=None,
-    model=None,
     random_seed=-1,
     overwrite=True,
     update_proposal=False,
@@ -334,8 +331,6 @@ def _iter_sample(
     tune: int
         adaptiv step-size scaling is stopped after this chain sample
     """
-
-    model = modelcontext(model)
 
     draws = int(draws)
 
@@ -353,18 +348,18 @@ def _iter_sample(
     except TypeError:
         pass
 
-    point = Point(start, model=model)
+    point = Point(start)
 
     step.chain_index = chain
 
     trace.setup(draws, chain, overwrite=overwrite)
     for i in range(draws):
-        if i == tune:
-            step = stop_tuning(step)
+        if i == tune:  # stop tuning
+            step.tune = False
 
         logger.debug("Step: Chain_%i step_%i" % (chain, i))
         point, out_list = step.step(point)
-
+        # print("before buffer", out_list, point)
         try:
             trace.buffer_write(out_list, step.cumulative_samples)
         except BufferError:  # buffer full
@@ -423,6 +418,13 @@ def init_chain_hypers(problem):
     problem.update_llks(point)
 
 
+def set_global_step_method(step):
+    global step_method_global
+    logger.debug("Setting global step method")
+    # step_method_pickled = cloudpickle.dumps(step, protocol=-1)
+    step_method_global = step
+
+
 def iter_parallel_chains(
     draws,
     step,
@@ -454,7 +456,7 @@ def iter_parallel_chains(
         with absolute path to the directory where to store the sampling results
     progressbar : boolean
         flag for displaying a progressbar
-    model : :class:`pymc3.model.Model` instance
+    model : :class:`pymc.model.Model` instance
         holds definition of the forward problem
     n_jobs : int
         number of jobs to run in parallel, must not be higher than the
@@ -516,13 +518,11 @@ def iter_parallel_chains(
         work = [
             (
                 draws,
-                step,
                 step.population[step.resampling_indexes[chain]],
                 trace,
                 chain,
                 None,
                 progressbar,
-                model,
                 rseed,
             )
             for chain, rseed, trace in zip(chains, random_seeds, trace_list)
@@ -541,7 +541,7 @@ def iter_parallel_chains(
         if n_jobs > 1 and True:
             shared_params = [
                 sparam
-                for sparam in step.logp_forw.get_shared()
+                for sparam in step.logp_forw_func.get_shared()
                 if sparam.name in parallel._tobememshared
             ]
 
@@ -566,8 +566,8 @@ def iter_parallel_chains(
             chunksize=chunksize,
             timeout=timeout,
             nprocs=n_jobs,
-            initializer=initializer,
-            initargs=initargs,
+            initializer=set_global_step_method,
+            initargs=[step],
         )
 
         logger.info("Sampling ...")
@@ -595,21 +595,22 @@ def iter_parallel_chains(
     return mtrace
 
 
-def logp_forw(out_vars, vars, shared):
+def logp_forw(point, out_vars, in_vars, shared):
     """
-    Compile Theano function of the model and the input and output variables.
+    Compile Pytensor function of the model and the input and output variables.
 
     Parameters
     ----------
     out_vars : List
-        containing :class:`pymc3.Distribution` for the output variables
-    vars : List
-        containing :class:`pymc3.Distribution` for the input variables
+        containing :class:`pymc.Distribution` for the output variables
+    in_vars : List
+        containing :class:`pymc.Distribution` for the input variables
     shared : List
-        containing :class:`theano.tensor.Tensor` for dependent shared data
+        containing :class:`pytensor.tensor.Tensor` for dependent shared data
     """
-    out_list, inarray0 = join_nonshared_inputs(out_vars, vars, shared)
-    f = function([inarray0], out_list)
+    logger.debug("Compiling PyTensor function")
+    out_list, inarray0 = join_nonshared_inputs(point, out_vars, in_vars, shared)
+    f = compile_pymc([inarray0], out_list)  # , on_unused_input="ignore")
     f.trust_input = True
     return f
 

@@ -188,7 +188,6 @@ def load_ascii_gnss_globk(filedir, filename, components=["east", "north", "up"])
 
 
 def load_repsonses_from_file(projectpath):
-
     network = ""
     location = ""
 
@@ -426,7 +425,7 @@ def rotate_traces_and_stations(datatraces, stations, event):
 
         try:
             traces = station2traces[station.station]
-        except (KeyError):
+        except KeyError:
             logger.warning(
                 'Did not find data traces for station "%s"' % stations.station
             )

@@ -4,7 +4,8 @@
 Short Installation instructions
 *******************************
 
-BEAT can be installed on any Unix based system with python==3.8 that supports its prerequisites.
+Starting BEAT v2.0.0 can be installed on any Unix based system with python>=3.9 that supports its prerequisites.
+Earlier versions must be installed on python3.8!
 
 Please consider to use `virtual environments <https://docs.python.org/3/tutorial/venv.html>`__ to lower the risk of package conflicts.
 
@@ -21,9 +22,9 @@ Create a directory *virtualenvs* where you want to keep your virtual environment
     mkdir virtualenvs
     cd virtualenvs
 
-Create new environment e.g. *beat_env* and activate it::
+Create new environment e.g. *beat_env* using python3.11 (for other version just change the number e.g.: python3.9) and activate it::
 
-    python3 -m venv beat_env
+    python3.11 -m venv beat_env
     source ~/virtualenvs/beat_env/bin/activate
 
 The environment can be (later) deactivated NOT NOW!, with::
@@ -64,6 +65,49 @@ Get the development version through the github repository::
 Once the development headers are installed. Only switching between gitbranches- is enough.::
 
     git checkout $branch_name
+
+
+Optional Dependencies
+---------------------
+For using the BEM module
+""""""""""""""""""""""""
+The new Boundary Element Modeling (BEM) module requires extra dependencies (and dependencies within)::
+
+    pygmsh
+    cutde
+
+To install *pygmsh*::
+
+    [sudo] apt install python3-gmsh   # this will be a system wide installation of gmsh
+    pip install pygmsh                # this will install the python abstraction library around gmsh
+
+To install *cutde*::
+
+    pip install cutde
+
+This will be sufficient to run *cutde* on the CPU using its C++ backend. However, that will render sampling slow
+to the point that it is not useful. In order to use the BEM module of BEAT for sampling a GPU is required.
+Install instructions for installing the GPU depending on your system architecture for *cutde* are `here <https://github.com/tbenthompson/cutde?tab=readme-ov-file#gpu-installation>`__.
+
+For using the PT sampler
+""""""""""""""""""""""""
+For the Parallel Tempering (PT) algorithm OpenMPI and the python
+bindings are required. If you do not have any MPI library installed, this needs to be installed first.::
+
+    [sudo] apt install openmpi-bin libopenmpi-dev
+
+Finally, the python wrapper::
+
+    pip3 install mpi4py
+
+
+If a particular mpi version is required, they can be listed with the command::
+
+    apt-cache madison libopenmpi-dev
+
+To install openmpi for a specific version for example version 2.1.1-8::
+
+    [sudo] apt install openmpi-bin=2.1.1-8 libopenmpi-dev=2.1.1-8 -V
 
 
 Greens Function calculations

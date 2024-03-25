@@ -3,102 +3,19 @@ import os
 
 import numpy as num
 from matplotlib import pyplot as plt
-from matplotlib.ticker import MaxNLocator
+from matplotlib.backends.backend_pdf import PdfPages
+from matplotlib.ticker import FixedLocator, MaxNLocator
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
-from pymc3 import quantiles
-from pyrocko import orthodrome as otd
-from pyrocko.guts import Bool, Dict, Int, List, Object, String, StringChoice, load
+from pyrocko.guts import Bool, Dict, Int, List, Object, String, StringChoice
 from pyrocko.plot import mpl_graph_color, mpl_papersize
+from pytensor import config as tconfig
 from scipy.stats import kde
-from theano import config as tconfig
 
 from beat import utility
 
 logger = logging.getLogger("plotting.common")
 
 km = 1000.0
-
-u_n = "$[N]$"
-u_nm = "$[Nm]$"
-u_km = "$[km]$"
-u_km_s = "$[km/s]$"
-u_deg = "$[^{\circ}]$"
-u_deg_myr = "$[^{\circ} / myr]$"
-u_m = "$[m]$"
-u_v = "$[m^3]$"
-u_s = "$[s]$"
-u_rad = "$[rad]$"
-u_hyp = ""
-u_percent = "[$\%$]"
-u_nanostrain = "nstrain"
-
-plot_units = {
-    "east_shift": u_km,
-    "north_shift": u_km,
-    "depth": u_km,
-    "width": u_km,
-    "length": u_km,
-    "dip": u_deg,
-    "dip1": u_deg,
-    "dip2": u_deg,
-    "strike": u_deg,
-    "strike1": u_deg,
-    "strike2": u_deg,
-    "rake": u_deg,
-    "rake1": u_deg,
-    "rake2": u_deg,
-    "mix": u_hyp,
-    "volume_change": u_v,
-    "diameter": u_km,
-    "slip": u_m,
-    "opening_fraction": u_hyp,
-    "azimuth": u_deg,
-    "bl_azimuth": u_deg,
-    "amplitude": u_nm,
-    "bl_amplitude": u_m,
-    "locking_depth": u_km,
-    "nucleation_dip": u_km,
-    "nucleation_strike": u_km,
-    "nucleation_x": u_hyp,
-    "nucleation_y": u_hyp,
-    "time_shift": u_s,
-    "coupling": u_percent,
-    "uperp": u_m,
-    "uparr": u_m,
-    "utens": u_m,
-    "durations": u_s,
-    "velocities": u_km_s,
-    "fn": u_n,
-    "fe": u_n,
-    "fd": u_n,
-    "mnn": u_nm,
-    "mee": u_nm,
-    "mdd": u_nm,
-    "mne": u_nm,
-    "mnd": u_nm,
-    "med": u_nm,
-    "magnitude": u_hyp,
-    "eps_xx": u_nanostrain,
-    "eps_yy": u_nanostrain,
-    "eps_xy": u_nanostrain,
-    "rotation": u_nanostrain,
-    "pole_lat": u_deg,
-    "pole_lon": u_deg,
-    "omega": u_deg_myr,
-    "w": u_rad,
-    "v": u_rad,
-    "kappa": u_deg,
-    "sigma": u_deg,
-    "h": u_deg,
-    "distance": u_km,
-    "delta_depth": u_km,
-    "delta_time": u_s,
-    "time": u_s,
-    "duration": u_s,
-    "peak_ratio": u_hyp,
-    "h_": u_hyp,
-    "like": u_hyp,
-}
 
 
 def arccosdeg(x):
@@ -113,11 +30,13 @@ transforms = {
 
 
 def get_transform(varname):
+    def do_nothing(x):
+        return x
 
     try:
         new_varname, transform = transforms[varname]
     except KeyError:
-        transform = lambda x: x
+        transform = do_nothing
         new_varname = varname
 
     return new_varname, transform
@@ -138,7 +57,6 @@ def cbtick(x):
 
 
 def plot_cov(target, point_size=20):
-
     ax = plt.axes()
     im = ax.scatter(
         target.lons,
@@ -172,7 +90,6 @@ def plot_log_cov(cov_mat):
 
 
 def get_gmt_config(gmtpy, fontsize=14, h=20.0, w=20.0):
-
     if gmtpy.is_gmt5(version="newest"):
         gmtconfig = {
             "MAP_GRID_PEN_PRIMARY": "0.1p",
@@ -197,13 +114,6 @@ def get_gmt_config(gmtpy, fontsize=14, h=20.0, w=20.0):
             "PS_MEDIA": "Custom_%ix%i" % (w * gmtpy.cm, h * gmtpy.cm),
         }
     return gmtconfig
-
-
-def hypername(varname):
-    if varname in list(plot_units.keys()):
-        return varname
-    else:
-        return "h_"
 
 
 class PlotOptions(Object):
@@ -293,6 +203,22 @@ def str_duration(t):
         return s + "%.1f d" % (t / (24.0 * 3600.0))
 
 
+def get_llk_idx_to_trace(mtrace, point_llk="max"):
+    """
+    Return Point idx to multitrace
+
+    Parameters
+    ----------
+    mtrace: pm.MultiTrace
+        sampled result trace containing the posterior ensemble
+    point_llk: str
+        returning according point with 'max', 'min', 'mean' likelihood
+    """
+    llk = mtrace.get_values(varname="like", combine=True)
+    posterior_idxs = utility.get_fit_indexes(llk)
+    return posterior_idxs[point_llk]
+
+
 def get_result_point(mtrace, point_llk="max"):
     """
     Return Point dict from multitrace
@@ -311,12 +237,8 @@ def get_result_point(mtrace, point_llk="max"):
     """
 
     if point_llk != "None":
-        llk = mtrace.get_values(varname="like", combine=True)
-
-        posterior_idxs = utility.get_fit_indexes(llk)
-
-        point = mtrace.point(idx=posterior_idxs[point_llk])
-
+        idx = get_llk_idx_to_trace(mtrace, point_llk="max")
+        point = mtrace.point(idx=idx)
     else:
         point = None
 
@@ -324,7 +246,6 @@ def get_result_point(mtrace, point_llk="max"):
 
 
 def hist_binning(mind, maxd, nbins=40):
-
     step = ((maxd - mind) / nbins).astype(tconfig.floatX)
 
     if step == 0:
@@ -352,6 +273,10 @@ def histplot_op(
 ):
     """
     Modified from pymc3. Additional color argument.
+
+    data: array_like
+        samples of one group for the histogram are expected row-wise ordering.
+
     """
 
     cumulative = kwargs.pop("cumulative", False)
@@ -374,16 +299,15 @@ def histplot_op(
         else:
             histtype = "step"
 
-    for i in range(data.shape[1]):
-        d = data[:, i]
-        quants = quantiles(d, qlist=qlist)
+    for d in data:
+        quants = num.percentile(d, q=qlist)
 
-        mind = quants[qlist[0]]
-        maxd = quants[qlist[-1]]
+        mind = quants[0]
+        maxd = quants[-1]
 
         if reference is not None:
-            mind = num.minimum(mind, reference)
-            maxd = num.maximum(maxd, reference)
+            mind = num.minimum(mind, reference).min()
+            maxd = num.maximum(maxd, reference).max()
 
         if tstd is None:
             tstd = num.std(d)
@@ -433,9 +357,10 @@ def histplot_op(
         ax.set_xlim(leftb, rightb)
         if cumulative:
             # need left plot bound, leftb
-            sigma_quants = quantiles(d, [5, 68, 95])
+            quants = [5, 68, 95]
+            sigma_quants = num.percentile(d, q=quants)
 
-            for quantile, value in sigma_quants.items():
+            for quantile, value in zip(quants, sigma_quants):
                 quantile /= 100.0
                 if nsources == 1:
                     x = [leftb, value, value]
@@ -473,7 +398,6 @@ def histplot_op(
 
 
 def hist2d_plot_op(ax, data_x, data_y, bins=(None, None), cmap=None):
-
     if cmap is None:
         cmap = plt.get_cmap("afmhot_r")
 
@@ -492,7 +416,6 @@ def hist2d_plot_op(ax, data_x, data_y, bins=(None, None), cmap=None):
 
 
 def variance_reductions_hist_plot(axs, variance_reductions, labels):
-
     n_vrs = len(variance_reductions)
 
     if n_vrs != len(labels):
@@ -548,7 +471,6 @@ def kde2plot(x, y, grid=200, ax=None, **kwargs):
 def spherical_kde_op(
     lats0, lons0, lats=None, lons=None, grid_size=(200, 200), sigma=None
 ):
-
     from beat.models.distributions import vonmises_fisher, vonmises_std
 
     if sigma is None:
@@ -627,15 +549,21 @@ def hide_ticks(ax, axis="yaxis"):
         tick.tick2line.set_visible(False)
 
 
-def scale_axes(axis, scale, offset=0.0):
+def scale_axes(axis, scale, offset=0.0, precision=1):
     from matplotlib.ticker import ScalarFormatter
 
     class FormatScaled(ScalarFormatter):
         @staticmethod
         def __call__(value, pos):
-            return "{:,.1f}".format(offset + value * scale).replace(",", " ")
+            return f"{offset + value * scale:.{precision}f}"
 
     axis.set_major_formatter(FormatScaled())
+
+
+def set_locator_axes(axis, locator):
+    axis.set_major_locator(locator)
+    ticks_loc = axis.get_majorticklocs().tolist()
+    axis.set_major_locator(FixedLocator(ticks_loc))
 
 
 def set_anchor(sources, anchor):
@@ -646,15 +574,6 @@ def set_anchor(sources, anchor):
 def get_gmt_colorstring_from_mpl(i):
     color = (num.array(mpl_graph_color(i)) * 255).tolist()
     return utility.list2string(color, "/")
-
-
-def get_latlon_ratio(lat, lon):
-    """
-    Get latlon ratio at given location
-    """
-    dlat_meters = otd.distance_accurate50m(lat, lon, lat - 1.0, lon)
-    dlon_meters = otd.distance_accurate50m(lat, lon, lat, lon - 1.0)
-    return dlat_meters / dlon_meters
 
 
 def plot_inset_hist(
@@ -670,7 +589,6 @@ def plot_inset_hist(
     alpha=0.4,
     background_alpha=1.0,
 ):
-
     in_ax = inset_axes(
         axes,
         width="100%",
@@ -895,7 +813,6 @@ def get_nice_plot_bounds(dmin, dmax, override_mode="min-max"):
 
 
 def plot_covariances(datasets, covariances):
-
     cmap = plt.get_cmap("seismic")
 
     ndata = len(covariances)
@@ -933,7 +850,6 @@ def plot_covariances(datasets, covariances):
     cbw = 0.15
 
     for kidx, (cov, dataset) in enumerate(zip(covariances, datasets)):
-
         figidx, rowidx = utility.mod_i(kidx, ndmax)
         axs = axes[figidx][rowidx, :]
 
@@ -946,11 +862,10 @@ def plot_covariances(datasets, covariances):
             cbb = 0.06
 
         vmin, vmax = cov.get_min_max_components()
-        for l, attr in enumerate(["data", "pred_v"]):
+        for i_l, attr in enumerate(["data", "pred_v"]):
             cmat = getattr(cov, attr)
-            ax = axs[l]
+            ax = axs[i_l]
             if cmat is not None and cmat.sum() != 0.0:
-
                 im = ax.imshow(
                     cmat,
                     cmap=cmap,
@@ -963,7 +878,7 @@ def plot_covariances(datasets, covariances):
                 yticker = MaxNLocator(nbins=2)
                 ax.xaxis.set_major_locator(xticker)
                 ax.yaxis.set_major_locator(yticker)
-                if l == 0:
+                if i_l == 0:
                     ax.set_ylabel("Sample idx")
                     ax.set_xlabel("Sample idx")
                     ax.set_title(dataset.name)
@@ -988,8 +903,36 @@ def plot_covariances(datasets, covariances):
     return figures, axes
 
 
-def get_weights_point(composite, best_point, config):
+def set_axes_equal_3d(ax, axes="xyz"):
+    """
+    Make axes of 3D plot have equal scale so that spheres appear as
+    spheres, cubes as cubes, etc..
+    This is one possible solution to Matplotlib's
+    ax.set_aspect('equal') and ax.axis('equal') not working for 3D.
 
+    Parameters
+    ----------
+    ax: a matplotlib axis, e.g., as output from plt.gca().
+    """
+
+    def set_axes_radius(ax, origin, radius, axes=["xyz"]):
+        if "x" in axes:
+            ax.set_xlim3d([origin[0] - radius, origin[0] + radius])
+
+        if "y" in axes:
+            ax.set_ylim3d([origin[1] - radius, origin[1] + radius])
+
+        if "z" in axes:
+            ax.set_zlim3d([origin[2] - radius, origin[2] + radius])
+
+    limits = num.array([ax.get_xlim3d(), ax.get_ylim3d(), ax.get_zlim3d()])
+
+    origin = num.mean(limits, axis=1)
+    radius = 0.5 * num.max(num.abs(limits[:, 1] - limits[:, 0]))
+    set_axes_radius(ax, origin, radius, axes=axes)
+
+
+def get_weights_point(composite, best_point, config):
     if composite.config.noise_estimator.structure == "non-toeplitz":
         # nT run is done with test point covariances!
         if config.sampler_config.parameters.update_covariances:
@@ -1002,3 +945,29 @@ def get_weights_point(composite, best_point, config):
         tpoint = best_point
 
     return tpoint
+
+
+def plot_exists(outpath, outformat, force):
+    outpath_tmp = f"{outpath}.{outformat}"
+    if os.path.exists(outpath_tmp) and not force and outformat != "display":
+        logger.warning("Plot exists! Use --force to overwrite!")
+        return True
+    else:
+        return False
+
+
+def save_figs(figs, outpath, outformat, dpi):
+    if outformat == "display":
+        plt.show()
+
+    elif outformat == "pdf":
+        filepath = f"{outpath}.pdf"
+        logger.info("saving figures to %s" % filepath)
+        with PdfPages(filepath) as opdf:
+            for fig in figs:
+                opdf.savefig(fig)
+    else:
+        for i, fig in enumerate(figs):
+            filepath = f"{outpath}_{i}.{outformat}"
+            logger.info("saving figure to %s" % filepath)
+            fig.savefig(filepath, dpi=dpi)

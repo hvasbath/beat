@@ -10,14 +10,14 @@ Optimizing for the rupture nucleation point makes the problem non-linear.
 
 The finite fault inference in beat is considered to be a follow-up step of the geometry estimation for a RectangularSource. Which is why first, a new project directory to solve for the geometry of a RectangularSource has to be created. If the reader has setup such a problem already and finished the sampling for a the geometry the next command can be skipped.::
 
-    beat init FFIproject <date> --datatypes='seismic' --source_type='RectangularSource' --n_sources=1
+    beat init FFIproject <date> --datatypes='seismic' --source_types='RectangularSource' --n_sources=1
 
 If an estimation for the geometry of another source has been done or setup (e.g. MTSource), one can clone this project folder and replace the source object. This saves
 time for specification of the inputs. How to setup the configurations for a "geometry" estimation is discussed
 `here <https://hvasbath.github.io/beat/examples.html#regional-full-moment-tensor>`__ exemplary on a MomentTensor for regional seismic data.
-The "source_type" argument will replace any existing source with the specified source for the new project. With the next project we replace the old source with a RectangularSource.::
+The "source_types" argument will replace any existing source with the specified sources for the new project. With the next project we replace the old source with a RectangularSource.::
 
-    beat clone MTproject FFIproject --datatypes='seismic' --source_type='RectangularSource' --copy_data
+    beat clone MTproject FFIproject --datatypes='seismic' --source_types='RectangularSource' --copy_data
 
 Now the Green's Functions store(s) have to be calculated for the "geometry" problem if not done so yet. Instructions on this and what to keep in mind are given `here <https://hvasbath.github.io/beat/examples.html#calculate-greens-functions>`__. For illustration, the user might have done a MomentTensor estimation already on teleseismic data using Green's Functions depth and distance sampling of 1km with 1Hz sampling. This may be accurate enough for this type of problem, however for a finite fault inference the aim is to resolve details of the rupture propagation and the slip distribution. So the setup parameters of the "geometry" Green's Functions would need to be changed to higher resolution. A depth and distance sampling of 250m and 4Hz sample rate might be precise enough, if waveforms up to 1Hz are to be used in the sampling. Of course, these parameters depend on the problem setup and have to be adjusted individually for each problem!
 

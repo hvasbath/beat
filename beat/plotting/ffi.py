@@ -4,9 +4,8 @@ import os
 import numpy as num
 import pyrocko.moment_tensor as mt
 from matplotlib import pyplot as plt
-from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.collections import PatchCollection
-from matplotlib.patches import FancyArrow, Rectangle
+from matplotlib.patches import Rectangle
 from matplotlib.ticker import FormatStrFormatter, MaxNLocator
 from pyrocko import gmtpy
 from pyrocko import orthodrome as otd
@@ -20,8 +19,8 @@ from pyrocko.plot import (
 )
 
 from beat import utility
-from beat.config import ffi_mode_str
-from beat.models import Stage, load_stage
+from beat.config import bem_mode_str, ffi_mode_str
+from beat.models import load_stage
 
 from .common import (
     draw_line_on_array,
@@ -29,7 +28,10 @@ from .common import (
     get_gmt_config,
     get_result_point,
     km,
+    plot_exists,
+    save_figs,
     scale_axes,
+    set_axes_equal_3d,
 )
 
 logger = logging.getLogger("plotting.ffi")
@@ -133,8 +135,7 @@ def draw_moment_rate(problem, po):
         outpath = os.path.join(
             problem.outfolder,
             po.figure_dir,
-            "moment_rate_%i_%s_%s_%i.%s"
-            % (stage.number, ns_str, llk_str, po.nensemble, po.outformat),
+            "moment_rate_%i_%s_%s_%i" % (stage.number, ns_str, llk_str, po.nensemble),
         )
 
         ref_mrf_rates, ref_mrf_times = fault.get_moment_rate_function(
@@ -144,44 +145,39 @@ def draw_moment_rate(problem, po):
             store=sc.engine.get_store(target.store_id),
         )
 
-        if not os.path.exists(outpath) or po.force:
-            fig, ax = plt.subplots(
-                nrows=1, ncols=1, figsize=mpl_papersize("a7", "landscape")
-            )
-            labelpos = mpl_margins(
-                fig, left=5, bottom=4, top=1.5, right=0.5, units=fontsize
-            )
-            labelpos(ax, 2.0, 1.5)
-            if mtrace is not None:
-                nchains = len(mtrace)
-                csteps = float(nchains) / po.nensemble
-                idxs = num.floor(num.arange(0, nchains, csteps)).astype("int32")
-                mrfs_rate = []
-                mrfs_time = []
-                for idx in idxs:
-                    point = mtrace.point(idx=idx)
-                    mrf_rate, mrf_time = fault.get_moment_rate_function(
-                        index=ns,
-                        point=point,
-                        target=target,
-                        store=sc.engine.get_store(target.store_id),
-                    )
-                    mrfs_rate.append(mrf_rate)
-                    mrfs_time.append(mrf_time)
+        if plot_exists(outpath, po.force):
+            return
 
-                fuzzy_moment_rate(ax, mrfs_rate, mrfs_time)
+        fig, ax = plt.subplots(
+            nrows=1, ncols=1, figsize=mpl_papersize("a7", "landscape")
+        )
+        labelpos = mpl_margins(
+            fig, left=5, bottom=4, top=1.5, right=0.5, units=fontsize
+        )
+        labelpos(ax, 2.0, 1.5)
+        if mtrace is not None:
+            nchains = len(mtrace)
+            csteps = float(nchains) / po.nensemble
+            idxs = num.floor(num.arange(0, nchains, csteps)).astype("int32")
+            mrfs_rate = []
+            mrfs_time = []
+            for idx in idxs:
+                point = mtrace.point(idx=idx)
+                mrf_rate, mrf_time = fault.get_moment_rate_function(
+                    index=ns,
+                    point=point,
+                    target=target,
+                    store=sc.engine.get_store(target.store_id),
+                )
+                mrfs_rate.append(mrf_rate)
+                mrfs_time.append(mrf_time)
 
-            ax.plot(ref_mrf_times, ref_mrf_rates, "-k", alpha=0.8, linewidth=1.0)
-            format_axes(ax, remove=["top", "right"])
+            fuzzy_moment_rate(ax, mrfs_rate, mrfs_time)
 
-            if po.outformat == "display":
-                plt.show()
-            else:
-                logger.info("saving figure to %s" % outpath)
-                fig.savefig(outpath, format=po.outformat, dpi=po.dpi)
+        ax.plot(ref_mrf_times, ref_mrf_rates, "-k", alpha=0.8, linewidth=1.0)
+        format_axes(ax, remove=["top", "right"])
 
-        else:
-            logger.info("Plot exists! Use --force to overwrite!")
+        save_figs([fig], outpath, po.outformat, po.dpi)
 
 
 def source_geometry(
@@ -206,7 +202,6 @@ def source_geometry(
         of :class:'beat.sources.RectangularSource'
     """
 
-    from mpl_toolkits.mplot3d import Axes3D
     from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
     alpha = 0.7
@@ -247,41 +242,12 @@ def source_geometry(
             alpha=alpha,
         )
 
-    def set_axes_radius(ax, origin, radius, axes=["xyz"]):
-        if "x" in axes:
-            ax.set_xlim3d([origin[0] - radius, origin[0] + radius])
-
-        if "y" in axes:
-            ax.set_ylim3d([origin[1] - radius, origin[1] + radius])
-
-        if "z" in axes:
-            ax.set_zlim3d([origin[2] - radius, origin[2] + radius])
-
-    def set_axes_equal(ax, axes="xyz"):
-        """
-        Make axes of 3D plot have equal scale so that spheres appear as
-        spheres, cubes as cubes, etc..
-        This is one possible solution to Matplotlib's
-        ax.set_aspect('equal') and ax.axis('equal') not working for 3D.
-
-        Parameters
-        ----------
-        ax: a matplotlib axis, e.g., as output from plt.gca().
-        """
-
-        limits = num.array([ax.get_xlim3d(), ax.get_ylim3d(), ax.get_zlim3d()])
-
-        origin = num.mean(limits, axis=1)
-        radius = 0.5 * num.max(num.abs(limits[:, 1] - limits[:, 0]))
-        set_axes_radius(ax, origin, radius, axes=axes)
-
     fig = plt.figure(figsize=mpl_papersize("a5", "landscape"))
     ax = fig.add_subplot(111, projection="3d")
     extfs = fault.get_all_subfaults()
 
     arr_coords = []
     for idx, (refs, exts) in enumerate(zip(ref_sources, extfs)):
-
         plot_subfault(ax, exts, color=mpl_graph_color(idx), refloc=event)
         plot_subfault(ax, refs, color=scolor("aluminium4"), refloc=event)
         for i, patch in enumerate(fault.get_subfault_patches(idx)):
@@ -310,9 +276,8 @@ def source_geometry(
             )
 
     if values is not None:
-
         if cmap is None:
-            cmap = plt.cm.get_cmap("RdYlBu_r")
+            cmap = plt.get_cmap("RdYlBu_r")
 
         poly_patches = Poly3DCollection(verts=arr_coords, zorder=1, cmap=cmap)
         poly_patches.set_array(values)
@@ -350,13 +315,13 @@ def source_geometry(
     ax.set_zlabel("Depth [km]")
     ax.set_ylabel("North_shift [km]")
     ax.set_xlabel("East_shift [km]")
-    set_axes_equal(ax, axes="xy")
+    set_axes_equal_3d(ax, axes="xy")
 
     strikes = num.array([extf.strike for extf in extfs])
-    dips = num.array([extf.strike for extf in extfs])
-
     azim = strikes.mean() - 270
-    elev = dips.mean()
+
+    # dips = num.array([extf.strike for extf in extfs])
+    # elev = dips.mean()
     logger.debug("Viewing azimuth %s and elevation angles %s", azim, ax.elev)
     ax.view_init(ax.elev, azim)
 
@@ -459,15 +424,12 @@ def fault_slip_distribution(
         normalisation=None,
         zorder=0,
     ):
-
         # positive uperp is always dip-normal- have to multiply -1
         angles = num.arctan2(-uperp, uparr) * mt.r2d + rake
         slips = num.sqrt((uperp**2 + uparr**2)).ravel()
 
         if normalisation is None:
-            from beat.models.laplacian import distances
-
-            centers = num.vstack((xgr, ygr)).T
+            # centers = num.vstack((xgr, ygr)).T
             # interpatch_dists = distances(centers, centers)
             normalisation = slips.max()
 
@@ -496,17 +458,20 @@ def fault_slip_distribution(
                 num.ceil(num.max(slips * normalisation) * 10.0) / 10.0
             )
 
-            # ax.quiverkey(
-            #    quivers, 0.9, 0.8, quiver_legend_length,
-            #    '{} [m]'.format(quiver_legend_length), labelpos='E',
-            #    coordinates='figure')
-
+            ax.quiverkey(
+                quivers,
+                0.9,
+                0.8,
+                quiver_legend_length,
+                "{} [m]".format(quiver_legend_length),
+                labelpos="E",
+                coordinates="figure",
+            )
         return quivers, normalisation
 
     def draw_patches(
         ax, fault, subfault_idx, patch_values, cmap, alpha, cbounds=None, xlim=None
     ):
-
         lls = fault.get_subfault_patch_attributes(
             subfault_idx, attributes=["bottom_left"]
         )
@@ -647,10 +612,10 @@ def fault_slip_distribution(
 
             # rupture durations
             if False:
-                durations = transform(
-                    mtrace.get_values("durations", combine=True, squeeze=True)
-                )
-                std_durations = durations.std(axis=0)
+                # durations = transform(
+                #     mtrace.get_values("durations", combine=True, squeeze=True)
+                # )
+                # std_durations = durations.std(axis=0)
                 # alphas = std_durations.min() / std_durations
 
                 fig2, ax2 = plt.subplots(
@@ -778,7 +743,7 @@ def fault_slip_distribution(
                 ygr,
                 ext_source.rake,
                 color="black",
-                draw_legend=True,
+                draw_legend=False,
                 normalisation=normalisation,
                 zorder=3,
             )
@@ -798,7 +763,6 @@ class ModeError(Exception):
 
 
 def draw_slip_dist(problem, po):
-
     mode = problem.config.problem_config.mode
 
     if mode != ffi_mode_str:
@@ -827,31 +791,23 @@ def draw_slip_dist(problem, po):
         mtrace = None
         stage_number = -1
 
+    outpath = os.path.join(
+        problem.outfolder,
+        po.figure_dir,
+        "slip_dist_%i_%s_%i" % (stage_number, llk_str, po.nensemble),
+    )
+
+    if plot_exists(outpath, po.outformat, po.force):
+        return
+
     figs, axs = fault_slip_distribution(
         fault, mtrace, reference=reference, nensemble=po.nensemble
     )
 
-    if po.outformat == "display":
-        plt.show()
-    else:
-        outpath = os.path.join(
-            problem.outfolder,
-            po.figure_dir,
-            "slip_dist_%i_%s_%i" % (stage_number, llk_str, po.nensemble),
-        )
-
-        logger.info("Storing slip-distribution to: %s" % outpath)
-        if po.outformat == "pdf":
-            with PdfPages(outpath + ".pdf") as opdf:
-                for fig in figs:
-                    opdf.savefig(fig, dpi=po.dpi)
-        else:
-            for i, fig in enumerate(figs):
-                fig.savefig(outpath + "_%i.%s" % (i, po.outformat), dpi=po.dpi)
+    save_figs(figs, outpath, po.outformat, po.dpi)
 
 
 def draw_3d_slip_distribution(problem, po):
-
     varname_choices = ["coupling", "euler_slip", "slip_variation"]
 
     if po.outformat == "svg":
@@ -859,7 +815,7 @@ def draw_3d_slip_distribution(problem, po):
 
     mode = problem.config.problem_config.mode
 
-    if mode != ffi_mode_str:
+    if mode not in [ffi_mode_str, bem_mode_str]:
         raise ModeError(
             "Wrong optimization mode: %s! This plot "
             'variant is only valid for "%s" mode' % (mode, ffi_mode_str)
@@ -868,9 +824,10 @@ def draw_3d_slip_distribution(problem, po):
     if po.load_stage is None:
         po.load_stage = -1
 
-    stage = load_stage(problem, stage_number=po.load_stage, load="trace", chains=[-1])
-
     if not po.reference:
+        stage = load_stage(
+            problem, stage_number=po.load_stage, load="trace", chains=[-1]
+        )
         reference = problem.config.problem_config.get_test_point()
         res_point = get_result_point(stage.mtrace, po.post_llk)
         reference.update(res_point)
@@ -882,7 +839,6 @@ def draw_3d_slip_distribution(problem, po):
         mtrace = None
 
     datatype, cconf = list(problem.composites.items())[0]
-
     fault = cconf.load_fault_geometry()
 
     if po.plot_projection in ["local", "latlon"]:
@@ -919,20 +875,6 @@ def draw_3d_slip_distribution(problem, po):
                 )
                 slip_units = "m"
 
-        if po.varnames[0] == "slip_variation":
-            from pandas import read_csv
-
-            from beat.backend import extract_bounds_from_summary
-
-            summarydf = read_csv(
-                os.path.join(problem.outfolder, "summary.txt"), sep="\s+"
-            )
-            bounds = extract_bounds_from_summary(
-                summarydf, varname="uparr", shape=(fault.npatches,)
-            )
-            reference["slip_variation"] = bounds[1] - bounds[0]
-            slip_units = "m"
-
     if len(po.varnames) == 0:
         varnames = None
     else:
@@ -940,23 +882,41 @@ def draw_3d_slip_distribution(problem, po):
 
     if len(po.varnames) == 1:
         slip_label = po.varnames[0]
+        if po.varnames[0] == "slip_variation":
+            from pandas import read_csv
+
+            from beat.backend import extract_bounds_from_summary
+
+            summarydf = read_csv(
+                os.path.join(problem.outfolder, "summary.txt"), sep=r"\s+"
+            )
+            bounds = extract_bounds_from_summary(
+                summarydf,
+                varname="uparr",
+                shape=(fault.npatches,),
+                alpha=0.06,
+            )
+            reference["slip_variation"] = bounds[1] - bounds[0]
+            slip_units = "m"
     else:
         slip_label = "slip"
 
-    if po.source_idxs is None:
-        source_idxs = [0, fault.nsubfaults]
-    else:
-        source_idxs = po.source_idxs
-
-    outpath = os.path.join(
+    perspective_outstr = perspective.replace("/", "_")
+    basepath = os.path.join(
         problem.outfolder,
         po.figure_dir,
-        "3d_%s_distribution_%i_%s_%i.%s"
-        % (slip_label, po.load_stage, llk_str, po.nensemble, po.outformat),
+        "3d_%s_distribution_%i_%s_%i_%s"
+        % (slip_label, po.load_stage, llk_str, po.nensemble, perspective_outstr),
     )
 
-    if not os.path.exists(outpath) or po.force or po.outformat == "display":
-        logger.info("Drawing 3d slip-distribution plot ...")
+    if plot_exists(basepath, po.outformat, po.force):
+        return
+
+    if mode == ffi_mode_str:
+        if po.source_idxs is None:
+            source_idxs = [0, fault.nsubfaults]
+        else:
+            source_idxs = po.source_idxs
 
         gmt = slip_distribution_3d_gmt(
             fault,
@@ -969,10 +929,25 @@ def draw_3d_slip_distribution(problem, po):
             source_idxs=source_idxs,
         )
 
+        outpath = f"{basepath}.{po.outformat}"
         logger.info("saving figure to %s" % outpath)
         gmt.save(outpath, resolution=300, size=10)
-    else:
-        logger.info("Plot exists! Use --force to overwrite!")
+    elif mode == bem_mode_str:
+        from .bem import slip_distribution_3d
+
+        composite = problem.composites["geodetic"]
+        composite.point2sources(reference)
+        response = composite.engine.process(
+            sources=composite.sources, targets=composite.targets
+        )
+
+        fig, _ = slip_distribution_3d(
+            response.discretized_sources,
+            response.source_slips(),
+            perspective=perspective,
+            debug=False,
+        )
+        save_figs([fig], basepath, po.outformat, po.dpi)
 
 
 def slip_distribution_3d_gmt(
@@ -989,7 +964,6 @@ def slip_distribution_3d_gmt(
     transparency=0,
     source_idxs=None,
 ):
-
     if len(gmtpy.detect_gmt_installations()) < 1:
         raise gmtpy.GmtPyError("GMT needs to be installed for station_map plot!")
 
@@ -997,8 +971,8 @@ def slip_distribution_3d_gmt(
     # bin_width = 1  # major grid and tick increment in [deg]
 
     if gmt is None:
-        font_size = 12
-        font = "1"
+        #  font_size = 12
+        #  font = "1"
         h = 15  # outsize in cm
         w = 22
 
@@ -1107,7 +1081,7 @@ def slip_distribution_3d_gmt(
                 t=transparency,
                 W="0.1p",
                 p=p,
-                *J
+                *J,
             )
 
     # add a colorbar

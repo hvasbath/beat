@@ -24,14 +24,17 @@ Will display::
                             seismic".
       --mode=MODE           Inversion problem to solve; "geometry", "ffi",
                             "interseismic" Default: "geometry"
-      --source_type=SOURCE_TYPE
-                            Source type to solve for; ExplosionSource",
-                            "RectangularExplosionSource", "DCSource",
-                            "CLVDSource", "MTSource", "RectangularSource",
-                            "DoubleDCSource", "RingfaultSource. Default:
-                            "RectangularSource"
+      --source_types=SOURCE_TYPES
+                            List of source types to solve for. Can be any combination of
+                            the following for mode: geometry - ExplosionSource,
+                            RectangularExplosionSource, SFSource, DCSource,
+                            CLVDSource, MTSource, MTQTSource, RectangularSource,
+                            DoubleDCSource, RingfaultSource; bem - DiskBEMSource,
+                            RingfaultBEMSource; Default: 'RectangularSource'
       --n_sources=N_SOURCES
-                            Integer Number of sources to invert for. Default: 1
+                            List of integer numbers of sources per source type to
+                            invert for. Default: [1]
+
       --waveforms=WAVEFORMS
                             Waveforms to include in the setup; "any_P, any_S,
                             slowest".

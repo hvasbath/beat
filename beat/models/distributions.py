@@ -1,10 +1,9 @@
 from logging import getLogger
 
 import numpy as num
-import theano.tensor as tt
-from theano import config as tconfig
-from theano import shared
-from theano.printing import Print
+import pytensor.tensor as tt
+from pytensor import config as tconfig
+from pytensor import shared
 
 from beat.utility import Counter
 
@@ -38,10 +37,10 @@ def multivariate_normal(datasets, weights, hyperparams, residuals):
     datasets : list
         of :class:`heart.SeismicDataset` or :class:`heart.GeodeticDataset`
     weights : list
-        of :class:`theano.shared`
+        of :class:`pytensor.shared`
         Square matrix of the inverse of the covariance matrix as weights
     hyperparams : dict
-        of :class:`theano.`
+        of :class:`pytensor.`
     residual : list or array of model residuals
 
     Returns
@@ -52,18 +51,18 @@ def multivariate_normal(datasets, weights, hyperparams, residuals):
 
     logpts = tt.zeros((n_t), tconfig.floatX)
 
-    for l, data in enumerate(datasets):
+    for i_l, data in enumerate(datasets):
         M = tt.cast(shared(data.samples, name="nsamples", borrow=True), "int16")
         hp_name = get_hyper_name(data)
         norm = M * (2 * hyperparams[hp_name] + log_2pi)
         logpts = tt.set_subtensor(
-            logpts[l : l + 1],
+            logpts[i_l : i_l + 1],
             (-0.5)
             * (
                 data.covariance.slog_pdet
                 + norm
                 + (1 / tt.exp(hyperparams[hp_name] * 2))
-                * (residuals[l].dot(weights[l]).dot(residuals[l].T))
+                * (residuals[i_l].dot(weights[i_l]).dot(residuals[i_l].T))
             ),
         )
 
@@ -84,11 +83,11 @@ def multivariate_normal_chol(
     datasets : list
         of :class:`heart.SeismicDataset` or :class:`heart.GeodeticDataset`
     weights : list
-        of :class:`theano.shared`
+        of :class:`pytensor.shared`
         Square matrix of the inverse of the lower triangular matrix of a
         cholesky decomposed covariance matrix
     hyperparams : dict
-        of :class:`theano.`
+        of :class:`pytensor.`
     residual : list or array of model residuals
     hp_specific : boolean
         if true, the hyperparameters have to be arrays size equal to
@@ -107,7 +106,7 @@ def multivariate_normal_chol(
     adapted from https://www.quora.com/What-is-the-role-of-the-Cholesky-decomposition-in-finding-multivariate-normal-PDF
     """
     if sparse:
-        import theano.sparse as ts
+        import pytensor.sparse as ts
 
         dot = ts.dot
     else:
@@ -117,7 +116,7 @@ def multivariate_normal_chol(
     logpts = tt.zeros((n_t), tconfig.floatX)
     count = Counter()
 
-    for l, data in enumerate(datasets):
+    for i_l, data in enumerate(datasets):
         M = tt.cast(shared(data.samples, name="nsamples", borrow=True), "int16")
         hp_name = get_hyper_name(data)
 
@@ -126,10 +125,10 @@ def multivariate_normal_chol(
         else:
             hp = hyperparams[hp_name]
 
-        tmp = dot(weights[l], (residuals[l]))
+        tmp = dot(weights[i_l], (residuals[i_l]))
         norm = M * (2 * hp + log_2pi)
         logpts = tt.set_subtensor(
-            logpts[l : l + 1],
+            logpts[i_l : i_l + 1],
             (-0.5)
             * (
                 data.covariance.slog_pdet
@@ -183,7 +182,7 @@ def hyper_normal(datasets, hyperparams, llks, hp_specific=False):
     datasets : list
         of :class:`heart.SeismicDatset` or :class:`heart.GeodeticDataset`
     hyperparams : dict
-        of :class:`theano.`
+        of :class:`pytensor.`
     llks : posterior likelihoods
     hp_specific : boolean
         if true, the hyperparameters have to be arrays size equal to

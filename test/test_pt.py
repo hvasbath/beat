@@ -5,17 +5,20 @@ import unittest
 from tempfile import mkdtemp
 
 import numpy as num
-import pymc3 as pm
-import theano.tensor as tt
+import pymc as pm
+import pytensor.tensor as tt
+from arviz import plot_trace
+from matplotlib import pyplot as plt
 from pyrocko import util
 from pyrocko.plot import mpl_papersize
+from pytensor import config as tconfig
 
-from beat.backend import SampleStage
+from beat.backend import SampleStage, multitrace_to_inference_data
 from beat.config import sample_p_outname
 from beat.sampler import metropolis, pt
-from beat.sampler.pt import SamplingHistory
 from beat.utility import load_objects, mod_i
 
+tconfig.compute_test_value = "pdb"
 logger = logging.getLogger("test_pt")
 
 
@@ -27,13 +30,13 @@ class TestPT(unittest.TestCase):
 
         logger.info("Test result in: \n %s" % self.test_folder_multi)
 
-        self.n_chains = 8
-        self.n_workers_posterior = 2
-        self.n_samples = int(3e4)
+        self.n_chains = 4
+        self.n_workers_posterior = 1
+        self.n_samples = int(3e3)
         self.tune_interval = 50
-        self.beta_tune_interval = 3000
+        self.beta_tune_interval = 300
         self.swap_interval = (10, 15)
-        self.buffer_size = self.n_samples / 10.0
+        self.buffer_size = int(self.n_samples / 10)
         self.burn = 0.5
         self.thin = 1
 
@@ -72,11 +75,11 @@ class TestPT(unittest.TestCase):
                 shape=n,
                 lower=-2.0 * num.ones_like(mu1),
                 upper=2.0 * num.ones_like(mu1),
-                testval=-1.0 * num.ones_like(mu1),
+                initval=-1.0 * num.ones_like(mu1),
                 transform=None,
             )
             like = pm.Deterministic("tmp", two_gaussians(X))
-            llk = pm.Potential("like", like)
+            llk = pm.Potential("like", like)  # noqa: F841
 
         with PT_test:
             step = metropolis.Metropolis(
@@ -101,12 +104,15 @@ class TestPT(unittest.TestCase):
             keep_tmp=False,
         )
 
+        print("Result folder:", test_folder)
         stage_handler = SampleStage(test_folder)
 
-        mtrace = stage_handler.load_multitrace(-1, varnames=PT_test.vars)
+        mtrace = stage_handler.load_multitrace(-1, varnames=PT_test.value_vars)
         history = load_objects(
             os.path.join(stage_handler.stage_path(-1), sample_p_outname)
         )
+        print(mtrace)
+        idata = multitrace_to_inference_data(mtrace)
 
         n_steps = self.n_samples
         burn = self.burn
@@ -125,11 +131,8 @@ class TestPT(unittest.TestCase):
 
                 return num.vstack(xout)
 
-        from matplotlib import pyplot as plt
-        from pymc3 import traceplot
-
         with PT_test:
-            traceplot(mtrace, transform=burn_sample)
+            plot_trace(idata, transform=None)
 
         fig, axes = plt.subplots(
             nrows=1, ncols=2, figsize=mpl_papersize("a5", "portrait")

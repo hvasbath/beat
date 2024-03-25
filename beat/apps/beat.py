@@ -5,37 +5,42 @@ from os.path import basename
 from os.path import join as pjoin
 
 # disable internal blas parallelisation as we parallelise over chains
-nthreads = "1"
+nthreads = os.environ.get("NUM_THREADS", "1")
 os.environ["OMP_NUM_THREADS"] = nthreads
 os.environ["NUMEXPR_NUM_THREADS"] = nthreads
 os.environ["OPENBLAS_NUM_THREADS"] = nthreads
 os.environ["MKL_NUM_THREADS"] = nthreads
 os.environ["VECLIB_MAXIMUM_THREADS"] = nthreads
 
-import copy
-import logging
-import shutil
-import sys
-from collections import OrderedDict
-from optparse import OptionParser
+if True:  # noqa: E402
+    import copy
+    import logging
+    import shutil
+    import sys
+    from collections import OrderedDict
+    from optparse import OptionParser
 
-from numpy import array, atleast_2d, floor, zeros, cumsum
-from pyrocko import model, util
-from pyrocko.gf import LocalEngine
-from pyrocko.guts import Dict, dump, load
-from pyrocko.trace import snuffle
-from tqdm import tqdm
+    from numpy import array, floor, zeros
+    from pyrocko import model, util
+    from pyrocko.gf import LocalEngine
+    from pyrocko.guts import dump, load
+    from pyrocko.trace import snuffle
+    from tqdm import tqdm
 
-from beat import config as bconfig
-from beat import heart, inputf, plotting, utility
-from beat.backend import backend_catalog, extract_bounds_from_summary, thin_buffer
-from beat.config import dist_vars, ffi_mode_str, geometry_mode_str
-from beat.info import version
-from beat.models import Stage, estimate_hypers, load_model, sample
-from beat.sampler.pt import SamplingHistory
-from beat.sampler.smc import sample_factor_final_stage
-from beat.sources import MTQTSource, MTSourceWithMagnitude
-from beat.utility import list2string, string2slice
+    from beat import config as bconfig
+    from beat import heart, inputf, plotting, utility
+    from beat.backend import (
+        backend_catalog,
+        extract_bounds_from_summary,
+        multitrace_to_inference_data,
+        thin_buffer,
+    )
+    from beat.config import bem_mode_str, dist_vars, ffi_mode_str, geometry_mode_str
+    from beat.info import version
+    from beat.models import Stage, estimate_hypers, load_model, sample
+    from beat.sampler.smc import sample_factor_final_stage
+    from beat.sources import MTSourceWithMagnitude
+    from beat.utility import list2string, string2slice
 
 logger = logging.getLogger("beat")
 
@@ -44,7 +49,7 @@ km = 1000.0
 
 
 def d2u(d):
-    return dict((k.replace("-", "_"), v) for (k, v) in d.items())
+    return {k.replace("-", "_"): v for (k, v) in d.items()}
 
 
 subcommand_descriptions = {
@@ -123,7 +128,7 @@ nargs_dict = {
     "export": 1,
 }
 
-mode_choices = [geometry_mode_str, ffi_mode_str]
+mode_choices = [geometry_mode_str, ffi_mode_str, bem_mode_str]
 
 supported_geodetic_formats = ["matlab", "ascii", "kite"]
 supported_geodetic_types = ["SAR", "GNSS"]
@@ -145,21 +150,12 @@ def add_common_options(parser):
 
 
 def get_project_directory(args, options, nargs=1, popflag=False):
-
     largs = len(args)
 
-    if largs == nargs - 1:
-        project_dir = os.getcwd()
-    elif largs == nargs:
-        if popflag:
-            name = args.pop(0)
-        else:
-            name = args[0]
-        project_dir = pjoin(os.path.abspath(options.main_path), name)
-    else:
-        project_dir = os.getcwd()
-
-    return project_dir
+    if largs == nargs - 1 or largs != nargs:
+        return os.getcwd()
+    name = args.pop(0) if popflag else args[0]
+    return pjoin(os.path.abspath(options.main_path), name)
 
 
 def process_common_options(options, project_dir):
@@ -177,14 +173,14 @@ def cl_parse(command, args, setup=None, details=None):
     if isinstance(usage, str):
         usage = [usage]
 
-    susage = "%s %s" % (program_name, usage[0])
+    susage = f"{program_name} {usage[0]}"
     for s in usage[1:]:
         susage += "\n%s%s %s" % (" " * 7, program_name, s)
 
     description = descr[0].upper() + descr[1:] + "."
 
     if details:
-        description = description + " %s" % details
+        description = f"{description} {details}"
 
     parser = OptionParser(usage=susage, description=description)
 
@@ -207,20 +203,23 @@ def list_callback(option, opt, value, parser):
     setattr(parser.values, option.dest, out)
 
 
+def list_callback_int(option, opt, value, parser):
+    out = [int(ival.lstrip()) for ival in value.split(",")]
+    setattr(parser.values, option.dest, out)
+
+
 def get_sampled_slip_variables(config):
     slip_varnames = config.problem_config.get_slip_variables()
-    rvs, fixed_rvs = config.problem_config.get_random_variables()
+    rvs, _ = config.problem_config.get_random_variables()
 
     varnames = list(set(slip_varnames).intersection(set(list(rvs.keys()))))
     return varnames
 
 
 def command_init(args):
-
     command_str = "init"
 
     def setup(parser):
-
         parser.add_option(
             "--min_mag",
             dest="min_mag",
@@ -257,21 +256,29 @@ def command_init(args):
         )
 
         parser.add_option(
-            "--source_type",
-            dest="source_type",
-            choices=bconfig.source_names,
-            default="RectangularSource",
-            help="Source type to solve for; %s"
-            '. Default: "RectangularSource"'
-            % ('", "'.join(name for name in bconfig.source_names)),
+            "--source_types",
+            dest="source_types",
+            type="string",
+            action="callback",
+            callback=list_callback,
+            default=["RectangularSource"],
+            help="List of source types to solve for. Can be any combination of the "
+            "following for mode: geometry - %s; bem - %s; "
+            "Default: 'RectangularSource'"
+            % (
+                list2string(bconfig.source_catalog.keys()),
+                list2string(bconfig.bem_source_catalog.keys()),
+            ),
         )
 
         parser.add_option(
             "--n_sources",
             dest="n_sources",
-            type="int",
-            default=1,
-            help="Integer Number of sources to invert for. Default: 1",
+            type="string",
+            default=[1],
+            action="callback",
+            callback=list_callback_int,
+            help="List of integer numbers of sources per source type to invert for. Default: [1]",
         )
 
         parser.add_option(
@@ -319,7 +326,7 @@ def command_init(args):
             " for each station!",
         )
 
-    parser, options, args = cl_parse("init", args, setup=setup)
+    parser, options, args = cl_parse(command_str, args, setup=setup)
 
     la = len(args)
 
@@ -346,7 +353,7 @@ def command_init(args):
         min_magnitude=options.min_mag,
         datatypes=options.datatypes,
         mode=options.mode,
-        source_type=options.source_type,
+        source_types=options.source_types,
         n_sources=options.n_sources,
         waveforms=options.waveforms,
         sampler=options.sampler,
@@ -357,7 +364,6 @@ def command_init(args):
 
 
 def command_import(args):
-
     from pyrocko import io
 
     command_str = "import"
@@ -365,7 +371,6 @@ def command_import(args):
     data_formats = io.allowed_formats("load")[2::]
 
     def setup(parser):
-
         parser.add_option(
             "--main_path",
             dest="main_path",
@@ -455,7 +460,6 @@ def command_import(args):
                 stations = model.load_stations(pjoin(sc.datadir, "stations.txt"))
 
                 if options.seismic_format == "autokiwi":
-
                     data_traces = inputf.load_data_traces(
                         datadir=sc.datadir, stations=stations, divider="-"
                     )
@@ -491,7 +495,6 @@ def command_import(args):
 
             geodetic_outpath = pjoin(c.project_dir, bconfig.geodetic_data_name)
             if not os.path.exists(geodetic_outpath) or options.force:
-
                 gtargets = []
                 for typ, config in gc.types.items():
                     logger.info(
@@ -578,7 +581,6 @@ def command_import(args):
 
         else:
             # load kite model
-            from kite import sandbox_scene
 
             kite_model = load(filename=options.results)
             n_sources = len(kite_model.sources)
@@ -586,7 +588,7 @@ def command_import(args):
             reference_sources = bconfig.init_reference_sources(
                 kite_model.sources,
                 n_sources,
-                c.problem_config.source_type,
+                c.problem_config.source_types[0],
                 c.problem_config.stf_type,
                 event=c.event,
             )
@@ -610,7 +612,6 @@ def command_import(args):
             logger.info("Geodetic datatype listed-importing ...")
             gc = problem.composites["geodetic"]
             if c.geodetic_config.corrections_config.has_enabled_corrections:
-
                 logger.info("Importing correction parameters ...")
                 new_bounds = OrderedDict()
 
@@ -644,7 +645,11 @@ def command_import(args):
                     param = wmap.time_shifts_id
 
                     new_bounds[param] = extract_bounds_from_summary(
-                        summarydf, varname=param, shape=(wmap.hypersize,), roundto=0
+                        summarydf,
+                        varname=param,
+                        shape=(wmap.hypersize,),
+                        roundto=0,
+                        alpha=0.06,
                     )
                     new_bounds[param].append(point[param])
 
@@ -659,6 +664,11 @@ def command_import(args):
 
         if options.mode == ffi_mode_str:
             n_sources = problem.config.problem_config.n_sources
+            if len(n_sources) != 1:
+                raise TypeError(
+                    "FFI with more than one source type is not implemented!"
+                )
+
             if options.import_from_mode == geometry_mode_str:
                 logger.info("Importing non-linear source geometry results!")
 
@@ -667,12 +677,12 @@ def command_import(args):
                         point.pop(param)
 
                 point = utility.adjust_point_units(point)
-                source_points = utility.split_point(point)
+                source_points = utility.split_point(point, n_sources_total=n_sources[0])
 
                 reference_sources = bconfig.init_reference_sources(
                     source_points,
-                    n_sources,
-                    c.problem_config.source_type,
+                    n_sources[0],
+                    c.problem_config.source_types[0],
                     c.problem_config.stf_type,
                     event=c.event,
                 )
@@ -683,11 +693,14 @@ def command_import(args):
                     c.seismic_config.gf_config.reference_sources = reference_sources
 
                 if "seismic" in problem.config.problem_config.datatypes:
-
                     new_bounds = {}
                     for param in ["time"]:
                         new_bounds[param] = extract_bounds_from_summary(
-                            summarydf, varname=param, shape=(n_sources,), roundto=0
+                            summarydf,
+                            varname=param,
+                            shape=(n_sources[0],),
+                            roundto=0,
+                            alpha=0.06,
                         )
                         new_bounds[param].append(point[param])
 
@@ -705,7 +718,11 @@ def command_import(args):
                         shape = (n_sources,)
 
                     new_bounds[param] = extract_bounds_from_summary(
-                        summarydf, varname=param, shape=shape, roundto=1
+                        summarydf,
+                        varname=param,
+                        shape=shape,
+                        roundto=1,
+                        alpha=0.06,
                     )
                     new_bounds[param].append(point[param])
 
@@ -713,6 +730,7 @@ def command_import(args):
 
         elif options.mode == geometry_mode_str:
             if options.import_from_mode == geometry_mode_str:
+                # TODO update for n_sources refactoring
                 n_sources = problem.config.problem_config.n_sources
                 logger.info("Importing non-linear source geometry results!")
 
@@ -727,7 +745,11 @@ def command_import(args):
                 for param in common_source_params:
                     try:
                         new_bounds[param] = extract_bounds_from_summary(
-                            summarydf, varname=param, shape=(n_sources,), roundto=0
+                            summarydf,
+                            varname=param,
+                            shape=(n_sources,),
+                            roundto=0,
+                            alpha=0.06,
                         )
                         new_bounds[param].append(point[param])
                     except KeyError:
@@ -750,11 +772,9 @@ def command_import(args):
 
 
 def command_update(args):
-
     command_str = "update"
 
     def setup(parser):
-
         parser.add_option(
             "--main_path",
             dest="main_path",
@@ -805,13 +825,11 @@ def command_update(args):
 
 
 def command_clone(args):
-
     command_str = "clone"
 
     from beat.config import _datatype_choices as datatype_choices
 
     def setup(parser):
-
         parser.add_option(
             "--main_path",
             dest="main_path",
@@ -832,13 +850,29 @@ def command_clone(args):
         )
 
         parser.add_option(
-            "--source_type",
-            dest="source_type",
-            choices=bconfig.source_names,
-            default=None,
-            help="Source type to replace in config; %s"
-            '. Default: "dont change"'
-            % ('", "'.join(name for name in bconfig.source_names)),
+            "--source_types",
+            dest="source_types",
+            type="string",
+            action="callback",
+            callback=list_callback,
+            default=[],
+            help="Source types to replace sources with. Can be any combination of the "
+            "following for mode: geometry - %s; bem - %s; "
+            "Default: No replacement!"
+            % (
+                list2string(bconfig.source_catalog.keys()),
+                list2string(bconfig.bem_source_catalog.keys()),
+            ),
+        )
+
+        parser.add_option(
+            "--n_sources",
+            dest="n_sources",
+            type="string",
+            default=[1],
+            action="callback",
+            callback=list_callback_int,
+            help="List of integer numbers of sources per source type to invert for. Default: [1]",
         )
 
         parser.add_option(
@@ -870,7 +904,7 @@ def command_clone(args):
 
     parser, options, args = cl_parse(command_str, args, setup=setup)
 
-    if not len(args) == 2:
+    if len(args) != 2:
         parser.print_help()
         sys.exit(1)
 
@@ -950,24 +984,26 @@ def command_clone(args):
                 shutil.copytree(linear_gf_dir_name, cloned_linear_gf_dir_name)
                 logger.info("Successfully cloned linear GF libraries.")
 
-        if options.source_type is None:
+        if len(options.source_types) == 0 and sum(options.n_sources) == 1:
             old_priors = copy.deepcopy(c.problem_config.priors)
 
-            new_priors = c.problem_config.select_variables()
-            for prior in new_priors:
+            new_prior_names = (
+                c.problem_config.get_variables_mapping().unique_variables_sizes().keys()
+            )
+            for prior in new_prior_names:
                 if prior in list(old_priors.keys()):
                     c.problem_config.priors[prior] = old_priors[prior]
 
         else:
-            logger.info('Replacing source with "%s"' % options.source_type)
-            c.problem_config.source_type = options.source_type
-            c.problem_config.init_vars()
+            logger.info('Replacing sources with "%s"' % options.source_types)
+            c.problem_config.n_sources = options.n_sources
+            c.problem_config.source_types = options.source_types
             c.problem_config.set_decimation_factor()
-            re_init = False
+            re_init = True
 
         if re_init:
             logger.info(
-                "Re-initialized priors because of new datatype!"
+                "Re-initialized priors because of new source/datatype!"
                 " Please check prior bounds!"
             )
             c.problem_config.init_vars()
@@ -990,7 +1026,6 @@ def command_clone(args):
 
 
 def command_sample(args):
-
     command_str = "sample"
 
     def setup(parser):
@@ -1040,16 +1075,13 @@ def result_check(mtrace, min_length):
 
 
 def command_summarize(args):
-
+    from arviz import summary
     from numpy import hstack, ravel, split, vstack
-    from pymc3 import summary
     from pyrocko.gf import RectangularSource
-    from pyrocko.moment_tensor import MomentTensor
 
     command_str = "summarize"
 
     def setup(parser):
-
         parser.add_option(
             "--main_path",
             dest="main_path",
@@ -1087,9 +1119,9 @@ def command_summarize(args):
             "--stage_number",
             dest="stage_number",
             type="int",
-            default=None,
+            default=-1,
             help='Int of the stage number "n" of the stage to be summarized.'
-            " Default: all stages up to last complete stage",
+            " Default: -1, i.e. posterior probability density",
         )
 
     parser, options, args = cl_parse(command_str, args, setup=setup)
@@ -1122,7 +1154,6 @@ def command_summarize(args):
         rm_flag = False
 
     for stage_number in stage_numbers:
-
         stage_path = stage.handler.stage_path(stage_number)
         logger.info("Summarizing stage under: %s" % stage_path)
 
@@ -1236,8 +1267,10 @@ def command_summarize(args):
                 )
                 store = engine.get_store(target.store_id)
 
+            logger.debug("n_chains %i", len(chains))
             for chain in tqdm(chains):
                 for idx in idxs:
+                    logger.debug("chain %i idx %i", chain, idx)
                     point = stage.mtrace.point(idx=idx, chain=chain)
                     reference.update(point)
                     # normalize MT source, TODO put into get_derived_params
@@ -1255,23 +1288,34 @@ def command_summarize(args):
                     # BEAT sources calculate derived params
                     if options.calc_derived:
                         composite.point2sources(point)
-                        if hasattr(source, "get_derived_parameters"):
+                        if options.mode == geometry_mode_str:
                             for source in sources:
-                                deri = source.get_derived_parameters(
-                                    point=reference,  # need to pass correction params
-                                    store=store,
-                                    target=target,
-                                    event=problem.config.event,
-                                )
-                                derived.append(deri)
+                                if hasattr(source, "get_derived_parameters"):
+                                    deri = source.get_derived_parameters(
+                                        point=reference,  # need to pass correction params
+                                        store=store,
+                                        target=target,
+                                        event=problem.config.event,
+                                    )
+                                    derived.append(deri)
 
-                        # pyrocko Rectangular source, TODO use BEAT RS ...
-                        elif isinstance(source, RectangularSource):
-                            for source in sources:
-                                source.magnitude = None
-                                derived.append(
-                                    source.get_magnitude(store=store, target=target)
-                                )
+                                # pyrocko Rectangular source, TODO use BEAT RS ...
+                                elif isinstance(source, RectangularSource):
+                                    source.magnitude = None
+                                    derived.append(
+                                        source.get_magnitude(store=store, target=target)
+                                    )
+
+                            if len(pc.source_types) > 1:
+                                derived = [hstack(derived)]
+
+                        elif options.mode == bem_mode_str:
+                            response = composite.engine.process(
+                                sources=composite.sources, targets=composite.targets
+                            )
+                            derived = response.get_source_magnitudes(
+                                composite.engine.config.shear_modulus
+                            )
 
                     lpoint = problem.model.lijection.d2l(point)
 
@@ -1311,7 +1355,10 @@ def command_summarize(args):
 
         if not os.path.exists(summary_file) or options.force:
             logger.info("Writing summary to %s" % summary_file)
-            df = summary(rtrace, alpha=0.01)
+
+            idata = multitrace_to_inference_data(rtrace)
+            df = summary(idata, round_to=4, skipna=True)
+            logger.info(df.__str__())
             with open(summary_file, "w") as outfile:
                 df.to_string(outfile)
         else:
@@ -1319,11 +1366,9 @@ def command_summarize(args):
 
 
 def command_build_gfs(args):
-
     command_str = "build_gfs"
 
     def setup(parser):
-
         parser.add_option(
             "--main_path",
             dest="main_path",
@@ -1527,7 +1572,7 @@ def command_build_gfs(args):
                 logger.info("Fault discretization done! Updating problem_config...")
                 logger.info("%s" % fault.__str__())
 
-                c.problem_config.n_sources = fault.nsubfaults
+                c.problem_config.n_sources = [fault.nsubfaults]
                 mode_c.npatches = fault.npatches
                 mode_c.subfault_npatches = fault.subfault_npatches
 
@@ -1586,6 +1631,7 @@ def command_build_gfs(args):
 
                         targets = heart.init_geodetic_targets(
                             datasets,
+                            event=c.event,
                             earth_model_name=gf.earth_model_name,
                             interpolation=c.geodetic_config.interpolation,
                             crust_inds=[crust_ind],
@@ -1593,7 +1639,6 @@ def command_build_gfs(args):
                         )
 
                         if not fault.is_discretized and fault.needs_optimization:
-
                             ffidir = os.path.join(c.project_dir, options.mode)
 
                             if options.plot:
@@ -1645,7 +1690,6 @@ def command_build_gfs(args):
                         )
 
                 elif datatype == "seismic":
-
                     sc = c.seismic_config
                     gf = sc.gf_config
                     pc = c.problem_config
@@ -1697,11 +1741,9 @@ def command_build_gfs(args):
 
 
 def command_plot(args):
-
     command_str = "plot"
 
     def setup(parser):
-
         parser.add_option(
             "--main_path",
             dest="main_path",
@@ -1734,9 +1776,9 @@ def command_plot(args):
             "--stage_number",
             dest="stage_number",
             type="int",
-            default=None,
+            default=-1,
             help='Int of the stage number "n" of the stage to be plotted.'
-            " Default: all stages up to last complete stage",
+            " Default: -1, i.e. the posterior probability density",
         )
 
         parser.add_option(
@@ -1753,7 +1795,7 @@ def command_plot(args):
             "--nensemble",
             dest="nensemble",
             type="int",
-            default=1,
+            default=0,
             help="Int of the number of solutions that" " are used for fuzzy plots",
         )
 
@@ -1826,9 +1868,7 @@ def command_plot(args):
     plots_avail = plotting.available_plots()
 
     details = """Available <plot types> are: %s or "all". Multiple plots can be
-selected giving a comma separated list.""" % list2string(
-        plots_avail
-    )
+selected giving a comma separated list.""" % list2string(plots_avail)
 
     parser, options, args = cl_parse(command_str, args, setup, details)
 
@@ -1900,9 +1940,9 @@ selected giving a comma separated list.""" % list2string(
                 )
         else:
             try:
-                po.reference = problem.model.test_point
+                po.reference = problem.model.initial_point()
                 step = problem.init_sampler()
-                po.reference["like"] = step.step(problem.model.test_point)[1][-1]
+                po.reference["like"] = step.step(po.reference)[1][-1]
             except AttributeError:
                 po.reference = problem.config.problem_config.get_test_point()
     else:
@@ -1919,7 +1959,6 @@ selected giving a comma separated list.""" % list2string(
         # except Exception as err:
         #    pass
         except (TypeError, plotting.ModeError, NotImplementedError) as err:
-
             logger.warning(
                 "Could not plot %s got Error: %s \n %s"
                 % (plot, err, traceback.format_exc())
@@ -1927,7 +1966,6 @@ selected giving a comma separated list.""" % list2string(
 
 
 def command_check(args):
-
     command_str = "check"
     what_choices = ["stores", "traces", "library", "geometry", "discretization"]
 
@@ -2027,7 +2065,6 @@ def command_check(args):
 
             for datatype in options.datatypes:
                 for var in get_sampled_slip_variables(problem.config):
-
                     outdir = pjoin(
                         problem.config.project_dir,
                         options.mode,
@@ -2111,7 +2148,7 @@ def command_check(args):
         try:
             from kite import SandboxScene
             from kite import sources as ksources
-            from kite.scene import Scene, UserIOWarning
+            from kite.scene import UserIOWarning
             from kite.talpa import Talpa
 
             talpa_source_catalog = {
@@ -2189,7 +2226,7 @@ def command_check(args):
                 lat=gc.event.lat, lon=gc.event.lon, north_shift=n, east_shift=e
             )
 
-        src_class_name = problem.config.problem_config.source_type
+        src_class_name = problem.config.problem_config.source_types[0]
         for source in sources:
             # source.regularize()
             try:
@@ -2212,11 +2249,9 @@ def command_check(args):
 
 
 def command_export(args):
-
     command_str = "export"
 
     def setup(parser):
-
         parser.add_option(
             "--main_path",
             dest="main_path",
@@ -2242,7 +2277,7 @@ def command_export(args):
             type="int",
             default=-1,
             help='Int of the stage number "n" of the stage to be summarized.'
-            " Default: all stages up to last complete stage",
+            " Default: -1, i.e. the posterior probability density",
         )
 
         parser.add_option(
@@ -2284,7 +2319,7 @@ def command_export(args):
     problem = load_model(project_dir, options.mode, hypers=False, build=False)
     problem.init_hierarchicals()
 
-    sc = problem.config.sampler_config
+    # sc = problem.config.sampler_config
 
     trace_name = "chain--1.{}".format(problem.config.sampler_config.backend)
     results_path = pjoin(problem.outfolder, bconfig.results_dir_name)
@@ -2396,7 +2431,6 @@ def command_export(args):
 
 
 def main():
-
     if len(sys.argv) < 2:
         sys.exit("Usage: %s" % usage)
 
@@ -2413,6 +2447,8 @@ def main():
             if acommand in subcommands:
                 globals()["command_" + acommand](["--help"])
 
+        if "mpi4py" in sys.modules:
+            print("MPI has been imported")
         sys.exit("Usage: %s" % usage)
 
     else:

@@ -1,25 +1,25 @@
 """
-Metropolis algorithm module, wrapping the pymc3 implementation.
+Metropolis algorithm module, wrapping the pymc implementation.
 
 Provides the possibility to update the involved covariance matrixes within
 the course of sampling the chain.
 """
 
 import logging
-import os
-import shutil
-from copy import deepcopy
+import warnings
 from time import time
 
 import numpy as num
-from pymc3.backends import text
-from pymc3.model import Point, modelcontext
-from pymc3.step_methods.metropolis import metrop_select
-from pymc3.step_methods.metropolis import tune as step_tune
-from pymc3.theanof import inputvars, make_shared_replacements
-from pymc3.vartypes import discrete_types
+from pymc.model import Point, modelcontext
+from pymc.pytensorf import inputvars, make_shared_replacements
+from pymc.sampling import sample_prior_predictive
+
+# from pymc.smc.kernels import _logp_forw
+from pymc.step_methods.metropolis import metrop_select
+from pymc.step_methods.metropolis import tune as step_tune
+from pymc.vartypes import discrete_types
 from pyrocko import util
-from theano import config as tconfig
+from pytensor import config as tconfig
 
 from beat import backend, utility
 from beat.covariance import init_proposal_covariance
@@ -33,7 +33,7 @@ from .base import (
     update_last_samples,
 )
 
-__all__ = ["metropolis_sample", "get_trace_stats", "get_final_stage", "Metropolis"]
+__all__ = ["metropolis_sample", "get_trace_stats", "Metropolis"]
 
 
 logger = logging.getLogger("metropolis")
@@ -45,34 +45,25 @@ class Metropolis(backend.ArrayStepSharedLLK):
 
     Parameters
     ----------
-    vars : list
+    value_vars : list
         List of variables for sampler
-    out_vars : list
-        List of output variables for trace recording. If empty unobserved_RVs
-        are taken.
     n_chains : int
         Number of chains per stage has to be a large number
         of number of n_jobs (processors to be used) on the machine.
     scaling : float
         Factor applied to the proposal distribution i.e. the step size of the
         Markov Chain
-    covariance : :class:`numpy.ndarray`
-        (n_chains x n_chains) for MutlivariateNormal, otherwise (n_chains)
-        Initial Covariance matrix for proposal distribution,
-        if None - identity matrix taken
     likelihood_name : string
-        name of the :class:`pymc3.determinsitic` variable that contains the
+        name of the :class:`pymc.determinsitic` variable that contains the
         model likelihood - defaults to 'like'
     backend :  str
         type of backend to use for sample results storage, for alternatives
         see :class:`backend.backend:catalog`
     proposal_dist :
-        :class:`pymc3.metropolis.Proposal`
-        Type of proposal distribution, see
-        :mod:`pymc3.step_methods.metropolis` for options
+        :class:`beat.sampler.base.Proposal` Type of proposal distribution
     tune : boolean
         Flag for adaptive scaling based on the acceptance rate
-    model : :class:`pymc3.Model`
+    model : :class:`pymc.model.Model`
         Optional model for sampling step.
         Defaults to None (taken from context).
     """
@@ -81,9 +72,7 @@ class Metropolis(backend.ArrayStepSharedLLK):
 
     def __init__(
         self,
-        vars=None,
-        out_vars=None,
-        covariance=None,
+        value_vars=None,
         scale=1.0,
         n_chains=100,
         tune=True,
@@ -93,22 +82,19 @@ class Metropolis(backend.ArrayStepSharedLLK):
         likelihood_name="like",
         backend="csv",
         proposal_name="MultivariateNormal",
-        **kwargs
+        **kwargs,
     ):
-
         model = modelcontext(model)
+        self.likelihood_name = likelihood_name
+        self.proposal_name = proposal_name
+        self.population = None
 
-        if vars is None:
-            vars = model.vars
+        if value_vars is None:
+            value_vars = model.value_vars
 
-        vars = inputvars(vars)
+        self.value_vars = inputvars(value_vars)
 
-        if out_vars is None:
-            out_vars = model.unobserved_RVs
-
-        out_varnames = [out_var.name for out_var in out_vars]
-
-        self.scaling = utility.scalar2floatX(num.atleast_1d(scale))
+        self.scaling = utility.scalar2floatX(scale)
 
         self.tune = tune
         self.check_bound = check_bound
@@ -126,52 +112,105 @@ class Metropolis(backend.ArrayStepSharedLLK):
         # needed to use the same parallel implementation function as for SMC
         self.resampling_indexes = num.arange(n_chains)
         self.n_chains = n_chains
-
-        self.likelihood_name = likelihood_name
-        self._llk_index = out_varnames.index(likelihood_name)
         self.backend = backend
+
+        # initial point comes in reversed order for whatever reason
+        # rearrange to order of value_vars
+        init_point = model.initial_point()
+        self.test_point = {
+            val_var.name: init_point[val_var.name] for val_var in self.value_vars
+        }
+
+        self.initialize_population(model)
+        self.compile_model_graph(model)
+        self.initialize_proposal(model)
+
+    def initialize_population(self, model):
+        # create initial population from prior
+        logger.info(
+            "Creating initial population for {} chains ...".format(self.n_chains)
+        )
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore", category=UserWarning, message="The effect of Potentials"
+            )
+            var_names = [value_var.name for value_var in self.value_vars]
+            prior_draws = sample_prior_predictive(
+                samples=self.n_chains,
+                var_names=var_names,
+                model=model,
+                return_inferencedata=False,
+            )
+
+        self.array_population = num.zeros(self.n_chains)
+        self.population = []
+        for i in range(self.n_chains):
+            self.population.append(
+                Point({v_name: prior_draws[v_name][i] for v_name in var_names})
+            )
+
+        self.population[0] = self.test_point
+
+    def compile_model_graph(self, model):
+        logger.info("Compiling model graph ...")
+        shared = make_shared_replacements(self.test_point, self.value_vars, model)
+
+        # collect all RVs and deterministics to write to file
+        # out_vars = model.deterministics
+        out_vars = model.unobserved_RVs
+        out_varnames = [out_var.name for out_var in out_vars]
+        self._llk_index = out_varnames.index(self.likelihood_name)
+
+        # plot modelgraph
+        # model_to_graphviz(model).view()
+
+        in_rvs = [model.values_to_rvs[val_var] for val_var in self.value_vars]
+
+        self.logp_forw_func = logp_forw(
+            point=self.test_point,
+            out_vars=out_vars,
+            in_vars=in_rvs,  # values of dists
+            shared=shared,
+        )
+
+        self.prior_logp_func = logp_forw(
+            point=self.test_point,
+            out_vars=[model.varlogp],
+            in_vars=self.value_vars,  # logp of dists
+            shared=shared,
+        )
+
+        # determine if there are discrete variables
         self.discrete = num.concatenate(
-            [[v.dtype in discrete_types] * (v.dsize or 1) for v in vars]
+            [
+                num.atleast_1d([v.dtype in discrete_types] * (v.size or 1))
+                for v in self.test_point.values()
+            ]
         )
         self.any_discrete = self.discrete.any()
         self.all_discrete = self.discrete.all()
 
-        # create initial population
-        self.population = []
-        self.array_population = num.zeros(n_chains)
-        logger.info(
-            "Creating initial population for {}" " chains ...".format(self.n_chains)
-        )
-        for i in range(self.n_chains):
-            self.population.append(
-                Point({v.name: v.random() for v in vars}, model=model)
-            )
+        super(Metropolis, self).__init__(self.value_vars, out_vars, shared)
 
-        self.population[0] = model.test_point
-
-        shared = make_shared_replacements(vars, model)
-        self.logp_forw = logp_forw(out_vars, vars, shared)
-        self.check_bnd = logp_forw([model.varlogpt], vars, shared)
-
-        super(Metropolis, self).__init__(vars, out_vars, shared)
-
+    def initialize_proposal(self, model):
         # init proposal
-        if covariance is None and proposal_name in multivariate_proposals:
+        logger.info("Initializing proposal distribution ...%s", self.proposal_name)
+        if self.proposal_name in multivariate_proposals:
+            if self.population is None:
+                raise ValueError("Sampler population needs to be initialised first!")
+
             t0 = time()
             self.covariance = init_proposal_covariance(
-                bij=self.bij, vars=vars, model=model, pop_size=1000
+                bij=self.bij, population=self.population
             )
             t1 = time()
             logger.info("Time for proposal covariance init: %f" % (t1 - t0))
             scale = self.covariance
-        elif covariance is None:
-            scale = num.ones(sum(v.dsize for v in vars))
         else:
-            scale = covariance
+            scale = num.ones(sum(v.size for v in self.test_point.values()))
 
-        self.proposal_name = proposal_name
         self.proposal_dist = choose_proposal(self.proposal_name, scale=scale)
-        self.proposal_samples_array = self.proposal_dist(n_chains)
+        self.proposal_samples_array = self.proposal_dist(self.n_chains)
 
         self.chain_previous_lpoint = [[]] * self.n_chains
         self._tps = None
@@ -182,11 +221,10 @@ class Metropolis(backend.ArrayStepSharedLLK):
         """
         bl = [
             "check_bnd",
-            "logp_forw",
+            "logp_forw_func",
             "proposal_samples_array",
-            "vars",
+            "value_vars",
             "bij",
-            "lij",
             "ordering",
             "lordering",
             "_BlockedStep__newargs",
@@ -224,7 +262,7 @@ class Metropolis(backend.ArrayStepSharedLLK):
             for i in range(n_points):
                 q = self.bij.map(self.population[i])
                 t0 = time()
-                self.logp_forw(q)
+                self.logp_forw_func(q.data)
                 t1 = time()
                 tps[i] = t1 - t0
             self._tps = tps.mean()
@@ -232,7 +270,7 @@ class Metropolis(backend.ArrayStepSharedLLK):
 
     def astep(self, q0):
         if self.stage == 0:
-            l_new = self.logp_forw(q0)
+            l_new = self.logp_forw_func(q0)
             if not num.isfinite(l_new[self._llk_index]):
                 raise ValueError(
                     "Got NaN in likelihood evaluation! "
@@ -279,14 +317,13 @@ class Metropolis(backend.ArrayStepSharedLLK):
                     q = q0 + delta
                     q = q[self.discrete].astype(int)
             else:
-
                 q = q0 + delta
 
             try:
                 l0 = self.chain_previous_lpoint[self.chain_index]
                 llk0 = l0[self._llk_index]
             except IndexError:
-                l0 = self.logp_forw(q0)
+                l0 = self.logp_forw_func(q0)
                 self.chain_previous_lpoint[self.chain_index] = l0
                 llk0 = l0[self._llk_index]
 
@@ -295,26 +332,27 @@ class Metropolis(backend.ArrayStepSharedLLK):
                     "Checking bound: Chain_%i step_%i"
                     % (self.chain_index, self.stage_sample)
                 )
-                varlogp = self.check_bnd(q)
-
-                if num.isfinite(varlogp):
+                # print("before prior test", q)
+                priorlogp = self.prior_logp_func(q)
+                # print("prior", priorlogp)
+                if num.isfinite(priorlogp):
                     logger.debug(
                         "Calc llk: Chain_%i step_%i"
                         % (self.chain_index, self.stage_sample)
                     )
-
-                    lp = self.logp_forw(q)
-
+                    # print("previous sample", q0)
+                    lp = self.logp_forw_func(q)
                     logger.debug(
                         "Select llk: Chain_%i step_%i"
                         % (self.chain_index, self.stage_sample)
                     )
-
+                    # print("current sample", q)
                     tempered_llk_ratio = self.beta * (
                         lp[self._llk_index] - l0[self._llk_index]
                     )
                     q_new, accepted = metrop_select(tempered_llk_ratio, q, q0)
-
+                    # print("accepted:", q_new)
+                    # print("-----------------------------------")
                     if accepted:
                         logger.debug(
                             "Accepted: Chain_%i step_%i"
@@ -345,7 +383,7 @@ class Metropolis(backend.ArrayStepSharedLLK):
                     "Calc llk: Chain_%i step_%i" % (self.chain_index, self.stage_sample)
                 )
 
-                lp = self.logp_forw(q)
+                lp = self.logp_forw_func(q)
 
                 logger.debug(
                     "Select: Chain_%i step_%i" % (self.chain_index, self.stage_sample)
@@ -377,34 +415,6 @@ class Metropolis(backend.ArrayStepSharedLLK):
             )
 
         return q_new, l_new
-
-
-def get_final_stage(homepath, n_stages, model):
-    """
-    Combine Metropolis results into final stage to get one single chain for
-    plotting results.
-    """
-
-    util.ensuredir(homepath)
-
-    mtraces = []
-    for stage in range(n_stages):
-        logger.info("Loading Metropolis stage %i" % stage)
-        stage_outpath = os.path.join(homepath, "stage_%i" % stage)
-
-        mtraces.append(backend.load(name=stage_outpath, model=model))
-
-    ctrace = backend.concatenate_traces(mtraces)
-    outname = os.path.join(homepath, "stage_final")
-
-    if os.path.exists(outname):
-        logger.info("Removing existing previous final stage!")
-        shutil.rmtree(outname)
-
-    util.ensuredir(outname)
-    logger.info("Creating final Metropolis stage")
-
-    text.dump(name=outname, trace=ctrace)
 
 
 def metropolis_sample(
@@ -474,7 +484,6 @@ def metropolis_sample(
     )
 
     with model:
-
         chains = stage_handler.clean_directory(step.stage, chains, rm_flag)
 
         logger.info("Sampling stage ...")
@@ -516,7 +525,7 @@ def metropolis_sample(
             update.engine.close_cashed_stores()
 
         outparam_list = [step.get_sampler_state(), update]
-        stage_handler.dump_atmip_params(step.stage, outparam_list)
+        stage_handler.dump_smc_params(step.stage, outparam_list)
 
 
 def get_trace_stats(mtrace, step, burn=0.5, thin=2, n_jobs=1):
@@ -525,7 +534,7 @@ def get_trace_stats(mtrace, step, burn=0.5, thin=2, n_jobs=1):
 
     Parameters
     ----------
-    mtrace : :class:`pymc3.backends.base.MultiTrace`
+    mtrace : :class:`pymc.backends.base.MultiTrace`
         Multitrace sampling result
     step : initialised :class:`smc.SMC` sampler object
     burn : float

@@ -3,29 +3,26 @@ import logging
 import os
 
 import numpy as num
+from arviz import plot_density
 from matplotlib import pyplot as plt
 from matplotlib.ticker import MaxNLocator
-from matplotlib.backends.backend_pdf import PdfPages
-
-from pymc3 import plots as pmp
-from pymc3 import quantiles
 from pyrocko.cake_plot import str_to_mpl_color as scolor
 from pyrocko.plot import AutoScaler, mpl_graph_color, mpl_papersize, nice_value
-from scipy.stats import kde
 
 from beat import utility
-from beat.config import dist_vars, geometry_mode_str
-from beat.heart import physical_bounds
+from beat.config import bem_mode_str, dist_vars, geometry_mode_str
+from beat.defaults import hypername
+from beat.heart import defaults
 from beat.models import Stage, load_stage
 
 from .common import (
     format_axes,
     get_result_point,
-    histplot_op,
-    hypername,
-    kde2plot,
-    plot_units,
     get_transform,
+    histplot_op,
+    kde2plot,
+    plot_exists,
+    save_figs,
 )
 
 logger = logging.getLogger("plotting.marginals")
@@ -107,7 +104,7 @@ def apply_unified_axis(
                     )
 
                     # check physical bounds if passed truncate
-                    phys_min, phys_max = physical_bounds[v]
+                    phys_min, phys_max = defaults[v].physical_bounds
                     if min < phys_min:
                         min = phys_min
                     if max > phys_max:
@@ -194,27 +191,24 @@ def traceplot(
     kwargs : dict
         for histplot op
     qlist : list
-        of quantiles to plot. Default: (all, 0., 100.)
+        of quantiles to plot. Default: (almost all, 0.01, 99.99)
 
     Returns
     -------
 
     ax : matplotlib axes
     """
-    ntickmarks = 2
     fontsize = 10
     ntickmarks_max = kwargs.pop("ntickmarks_max", 3)
     scale_factor = kwargs.pop("scale_factor", 2 / 3)
-    lines_color = kwargs.pop("lines_color", "red")
 
     num.set_printoptions(precision=3)
 
     def make_bins(data, nbins=40, qlist=None):
-        d = data.flatten()
+        d = data.ravel()
         if qlist is not None:
-            qu = quantiles(d, qlist=qlist)
-            mind = qu[qlist[0]]
-            maxd = qu[qlist[-1]]
+            qu = num.percentile(d, q=qlist)
+            mind, maxd = qu[0], qu[-1]
         else:
             mind = d.min()
             maxd = d.max()
@@ -235,8 +229,9 @@ def traceplot(
 
     if posterior != "None":
         llk = trace.get_values("like", combine=combined, chains=chains, squeeze=False)
+
         llk = num.squeeze(llk[0])
-        llk = pmp.utils.make_2d(llk)
+        llk = num.atleast_2d(llk)
 
         posterior_idxs = utility.get_fit_indexes(llk)
 
@@ -285,7 +280,6 @@ def traceplot(
     var_idx = 0
     varname_page_idx = 0
     for nsubplots in nsubplots_page:
-
         width, height = mpl_papersize("a4", "portrait")
         height_subplot = height / nrow_max
         nrow = int(num.ceil(nsubplots / ncol))
@@ -294,7 +288,6 @@ def traceplot(
         axs = num.atleast_2d(axs)
 
         for i in range(nsubplots):
-
             coli, rowi = utility.mod_i(i, nrow)
             ax = axs[rowi, coli]
 
@@ -318,7 +311,6 @@ def traceplot(
                     plot_name, transform = get_transform(v)
                     d = transform(d)
                     # iterate over columns in case varsize > 1
-
                     if v in dist_vars:
                         if source_idxs is None:
                             source_idx_step = int(num.floor(d.shape[1] / 6))
@@ -349,12 +341,12 @@ def traceplot(
 
                         selected = num.vstack(selected)
                     else:
-                        selected = d.T
+                        selected = num.atleast_2d(d.T)
 
                     nsources = selected.shape[0]
                     logger.debug("Number of sources: %i" % nsources)
                     for isource, e in enumerate(selected):
-                        e = pmp.utils.make_2d(e)
+                        e = num.atleast_2d(e)
                         if make_bins_flag:
                             varbin = make_bins(e, nbins=nbins, qlist=qlist)
                             varbins.append(varbin)
@@ -378,13 +370,15 @@ def traceplot(
                             pcolor = color
 
                         if plot_style == "kde":
-                            pmp.kdeplot(
+                            plot_density(
                                 e,
                                 shade=alpha,
                                 ax=ax,
-                                color=pcolor,
-                                linewidth=1.0,
-                                kwargs_shade={"color": pcolor},
+                                colors=[pcolor],
+                                backend="matplotlib",
+                                backend_kwargs={
+                                    "linewidth": 1.0,
+                                },
                             )
                             ax.relim()
                             ax.autoscale(tight=False)
@@ -394,7 +388,6 @@ def traceplot(
                             xticker = MaxNLocator(nbins=5)
                             xax.set_major_locator(xticker)
                         elif plot_style in ["pdf", "cdf"]:
-
                             kwargs["label"] = source_idxs
                             # following determine quantile annotations in cdf
                             kwargs["nsources"] = nsources
@@ -419,6 +412,7 @@ def traceplot(
                                 'Plot style "%s" not implemented' % plot_style
                             )
 
+                        plot_unit = defaults[hypername(plot_name)].unit
                         try:
                             param = prior_bounds[v]
 
@@ -429,9 +423,7 @@ def traceplot(
                                 except IndexError:
                                     lower, upper = param.lower, param.upper
 
-                                title = "{} {}".format(
-                                    v, plot_units[hypername(plot_name)]
-                                )
+                                title = "{} {}".format(v, plot_unit)
                             else:
                                 lower = num.array2string(param.lower, separator=",")[
                                     1:-1
@@ -442,7 +434,7 @@ def traceplot(
 
                                 title = "{} {} \npriors: ({}; {})".format(
                                     plot_name,
-                                    plot_units[hypername(plot_name)],
+                                    plot_unit,
                                     lower,
                                     upper,
                                 )
@@ -450,9 +442,7 @@ def traceplot(
                             try:
                                 title = "{} {}".format(plot_name, float(lines[v]))
                             except KeyError:
-                                title = "{} {}".format(
-                                    plot_name, plot_units[hypername(plot_name)]
-                                )
+                                title = "{} {}".format(plot_name, plot_unit)
 
                         axs[rowi, coli].set_xlabel(title, fontsize=fontsize)
                         if nvar == 1:
@@ -465,27 +455,27 @@ def traceplot(
                         ax.get_yaxis().set_visible(False)
                         format_axes(axs[rowi, coli])
                         ax.tick_params(axis="x", labelsize=fontsize)
-                        #                axs[rowi, coli].set_ylabel("Frequency")
 
                         if lines:
                             try:
-                                ax.axvline(x=lines[v], color="white", lw=1.0)
-                                ax.axvline(
-                                    x=lines[v],
-                                    color="black",
-                                    linestyle="dashed",
-                                    lw=1.0,
-                                )
+                                for line in lines[v]:
+                                    ax.axvline(x=line, color="white", lw=1.0)
+                                    ax.axvline(
+                                        x=line,
+                                        color="black",
+                                        linestyle="dashed",
+                                        lw=1.0,
+                                    )
                             except KeyError:
                                 pass
 
                         if posterior != "None":
                             if posterior == "all":
                                 for k, idx in posterior_idxs.items():
-                                    ax.axvline(x=e[idx], color=colors[k], lw=1.0)
+                                    ax.axvline(x=e[:, idx], color=colors[k], lw=1.0)
                             else:
                                 idx = posterior_idxs[posterior]
-                                ax.axvline(x=e[idx], color=pcolor, lw=1.0)
+                                ax.axvline(x=e[:, idx], color=pcolor, lw=1.0)
 
         if unify:
             page_varnames = varnames[varname_page_idx : varname_page_idx + nsubplots]
@@ -523,7 +513,7 @@ def correlation_plot(
 
     Parameters
     ----------
-    mtrace : :class:`pymc3.base.MutliTrace`
+    mtrace : :class:`.base.MutliTrace`
         Mutlitrace instance containing the sampling results
     varnames : list of variable names
         Variables to be plotted, if None all variable are plotted
@@ -574,33 +564,36 @@ def correlation_plot(
 
         d[var] = vals
 
-    for k in range(nvar - 1):
-        a = d[varnames[k]]
-        for l in range(k + 1, nvar):
-            logger.debug("%s, %s" % (varnames[k], varnames[l]))
-            b = d[varnames[l]]
+    for i_k in range(nvar - 1):
+        varname_a = varnames[i_k]
+        a = d[varname_a]
+        for i_l in range(i_k + 1, nvar):
+            ax = axs[i_l - 1, i_k]
+            varname_b = varnames[i_l]
+            logger.debug("%s, %s" % (varname_a, varname_b))
+            b = d[varname_b]
 
-            kde2plot(a, b, grid=grid, ax=axs[l - 1, k], cmap=cmap, aspect="auto")
+            kde2plot(a, b, grid=grid, ax=ax, cmap=cmap, aspect="auto")
 
             if point is not None:
-                axs[l - 1, k].plot(
-                    point[varnames[k]],
-                    point[varnames[l]],
+                ax.plot(
+                    point[varnames[i_k]],
+                    point[varnames[i_l]],
                     color=point_color,
                     marker=point_style,
                     markersize=point_size,
                 )
 
-            axs[l - 1, k].tick_params(direction="in")
+            ax.tick_params(direction="in")
 
-            if k == 0:
-                axs[l - 1, k].set_ylabel(varnames[l])
+            if i_k == 0:
+                ax.set_ylabel(varname_b)
 
-        axs[l - 1, k].set_xlabel(varnames[k])
+        axs[i_l - 1, i_k].set_xlabel(varname_a)
 
-    for k in range(nvar - 1):
-        for l in range(k):
-            fig.delaxes(axs[l, k])
+    for i_k in range(nvar - 1):
+        for i_l in range(i_k):
+            fig.delaxes(axs[i_l, i_k])
 
     fig.tight_layout()
     fig.subplots_adjust(wspace=0.05, hspace=0.05)
@@ -630,7 +623,7 @@ def correlation_plot_hist(
 
     Parameters
     ----------
-    mtrace : :class:`pymc3.base.MutliTrace`
+    mtrace : :class:`pymc.backends.base.MultiTrace`
         Mutlitrace instance containing the sampling results
     varnames : list of variable names
         Variables to be plotted, if None all variable are plotted
@@ -667,6 +660,7 @@ def correlation_plot_hist(
     label_pad = 25
     logger.info("Drawing correlation figure ...")
 
+    logger.warning("Does NOT seperate parameters correctly for Mixed Type Setups!")
     if varnames is None:
         varnames = mtrace.varnames
 
@@ -685,7 +679,12 @@ def correlation_plot_hist(
             mtrace.get_values(var, chains=chains, combine=True, squeeze=True)
         )
 
-        _, nvar_elements = vals.shape
+        logger.info("Getting data for `%s` from sampled trace." % var)
+        try:
+            _, nvar_elements = vals.shape
+        except ValueError:  # for variables woth dim=1
+            nvar_elements = 1
+            vals = num.atleast_2d(vals).T
 
         d[var] = vals
 
@@ -704,17 +703,17 @@ def correlation_plot_hist(
         else:
             pcolor = hist_color
 
-        for k in range(nvar):
-            v_namea = varnames[k]
+        for i_k in range(nvar):
+            v_namea = varnames[i_k]
             a = d[v_namea][:, source_i]
 
-            for l in range(k, nvar):
-                ax = axs[l, k]
-                v_nameb = varnames[l]
+            for i_l in range(i_k, nvar):
+                ax = axs[i_l, i_k]
+                v_nameb = varnames[i_l]
                 plot_name_a, transform_a = get_transform(v_namea)
                 plot_name_b, transform_b = get_transform(v_nameb)
                 logger.debug("%s, %s" % (v_namea, v_nameb))
-                if l == k:
+                if i_l == i_k:
                     if point is not None:
                         if v_namea in point.keys():
                             reference = transform_a(point[v_namea][source_i])
@@ -728,7 +727,7 @@ def correlation_plot_hist(
 
                     histplot_op(
                         ax,
-                        pmp.utils.make_2d(a),
+                        num.atleast_2d(a),
                         alpha=alpha,
                         color=pcolor,
                         tstd=0.0,
@@ -769,15 +768,15 @@ def correlation_plot_hist(
                     yax = ax.get_yaxis()
                     yax.set_major_locator(yticker)
 
-                if l != nvar - 1:
+                if i_l != nvar - 1:
                     ax.get_xaxis().set_ticklabels([])
 
-                if k == 0:
+                if i_k == 0:
                     ax.set_ylabel(
-                        plot_name_b + "\n " + plot_units[hypername(plot_name_b)],
+                        plot_name_b + "\n " + defaults[hypername(plot_name_b)].unit,
                         fontsize=fontsize,
                     )
-                    if utility.is_odd(l):
+                    if utility.is_odd(i_l):
                         ax.tick_params(axis="y", pad=label_pad)
                 else:
                     ax.get_yaxis().set_ticklabels([])
@@ -787,16 +786,16 @@ def correlation_plot_hist(
                 try:  # matplotlib version issue workaround
                     ax.tick_params(axis="both", labelrotation=50.0)
                 except Exception:
-                    ax.set_xticklabels(axs[l, k].get_xticklabels(), rotation=50)
-                    ax.set_yticklabels(axs[l, k].get_yticklabels(), rotation=50)
+                    ax.set_xticklabels(axs[i_l, i_k].get_xticklabels(), rotation=50)
+                    ax.set_yticklabels(axs[i_l, i_k].get_yticklabels(), rotation=50)
 
-                if utility.is_odd(k):
+                if utility.is_odd(i_k):
                     ax.tick_params(axis="x", pad=label_pad)
 
             # put transformed varname back to varnames for unification
             # varnames[k] = plot_name_a
             ax.set_xlabel(
-                plot_name_a + "\n " + plot_units[hypername(plot_name_a)],
+                plot_name_a + "\n " + defaults[hypername(plot_name_a)].unit,
                 fontsize=fontsize,
             )
 
@@ -826,13 +825,13 @@ def correlation_plot_hist(
                 ntickmarks_max=ntickmarks_max,
             )
 
-        for k in range(nvar):
+        for i_k in range(nvar):
             if unify:
                 # reset histogram ylims after unify
-                axs[k, k].set_ylim(hist_ylims[k])
+                axs[i_k, i_k].set_ylim(hist_ylims[i_k])
 
-            for l in range(k):
-                fig.delaxes(axs[l, k])
+            for i_l in range(i_k):
+                fig.delaxes(axs[i_l, i_k])
 
         fig.tight_layout()
         fig.subplots_adjust(wspace=0.05, hspace=0.05)
@@ -893,68 +892,57 @@ def draw_posteriors(problem, plot_options):
         else:
             sidxs = ""
 
-        outpath_tmp = os.path.join(
+        outpath = os.path.join(
             problem.outfolder,
             po.figure_dir,
             "stage_%i_%s_%s_%s" % (s, sidxs, po.post_llk, plot_style),
         )
 
-        if not os.path.exists(outpath_tmp + ".%s" % po.outformat) or po.force:
-            logger.info("plotting stage: %s" % stage.handler.stage_path(s))
-            stage.load_results(
-                varnames=problem.varnames,
-                model=problem.model,
-                stage_number=s,
-                load="trace",
-                chains=[-1],
-            )
+        if plot_exists(outpath, po.outformat, po.force):
+            return
 
-            prior_bounds = {}
-            prior_bounds.update(**pc.hyperparameters)
-            prior_bounds.update(**pc.hierarchicals)
-            prior_bounds.update(**pc.priors)
+        logger.info("plotting stage: %s" % stage.handler.stage_path(s))
+        stage.load_results(
+            varnames=problem.varnames,
+            model=problem.model,
+            stage_number=s,
+            load="trace",
+            chains=[-1],
+        )
 
-            figs, _, _ = traceplot(
-                stage.mtrace,
-                varnames=varnames,
-                chains=None,
-                combined=True,
-                source_idxs=po.source_idxs,
-                plot_style=plot_style,
-                lines=po.reference,
-                posterior=po.post_llk,
-                prior_bounds=prior_bounds,
-                nbins=nbins,
-            )
+        prior_bounds = {}
+        prior_bounds.update(**pc.hyperparameters)
+        prior_bounds.update(**pc.hierarchicals)
+        prior_bounds.update(**pc.priors)
 
-            if po.outformat == "display":
-                plt.show()
-            else:
-                logger.info("saving figures to %s" % outpath_tmp)
-                if po.outformat == "pdf":
-                    with PdfPages(outpath_tmp + ".pdf") as opdf:
-                        for fig in figs:
-                            opdf.savefig(fig)
-                else:
-                    for i, fig in enumerate(figs):
-                        outpath = "%s_%i.%s" % (outpath_tmp, i, po.outformat)
-                        logger.info("saving figure to %s" % outpath)
-                        fig.savefig(outpath, format=po.outformat, dpi=po.dpi)
+        figs, _, _ = traceplot(
+            stage.mtrace,
+            varnames=varnames,
+            chains=None,
+            combined=True,
+            source_idxs=po.source_idxs,
+            plot_style=plot_style,
+            lines=po.reference,
+            posterior=po.post_llk,
+            prior_bounds=prior_bounds,
+            nbins=nbins,
+        )
 
-        else:
-            logger.info("plot for stage %s exists. Use force=True for replotting!" % s)
+        save_figs(figs, outpath, po.outformat, po.dpi)
 
 
 def draw_correlation_hist(problem, plot_options):
     """
-    Draw parameter correlation plot and histograms from the final atmip stage.
+    Draw parameter correlation plot and histograms for a model result ensemble.
     Only feasible for 'geometry' problem.
     """
 
     po = plot_options
     mode = problem.config.problem_config.mode
 
-    assert mode == geometry_mode_str
+    if mode not in [geometry_mode_str, bem_mode_str]:
+        raise NotImplementedError(f"The correlation plot is not implemented for {mode}")
+
     assert po.load_stage != 0
 
     hypers = utility.check_hyper_flag(problem)
@@ -962,7 +950,7 @@ def draw_correlation_hist(problem, plot_options):
     if hypers:
         varnames = problem.hypernames
     else:
-        varnames = list(problem.varnames) + problem.hypernames + ["like"]
+        varnames = list(problem.varnames)
 
     if len(po.varnames) > 0:
         varnames = po.varnames
@@ -990,28 +978,16 @@ def draw_correlation_hist(problem, plot_options):
         "corr_hist_%s_%s" % (stage.number, llk_str),
     )
 
-    if not os.path.exists(outpath) or po.force:
-        figs, _ = correlation_plot_hist(
-            mtrace=stage.mtrace,
-            varnames=varnames,
-            cmap=plt.cm.gist_earth_r,
-            chains=None,
-            point=reference,
-            point_size=6,
-            point_color="red",
-        )
-    else:
-        logger.info("correlation plot exists. Use force=True for replotting!")
+    if plot_exists(outpath, po.outformat, po.force):
         return
 
-    if po.outformat == "display":
-        plt.show()
-    else:
-        logger.info("saving figures to %s" % outpath)
-        if po.outformat == "pdf":
-            with PdfPages(outpath + ".pdf") as opdf:
-                for fig in figs:
-                    opdf.savefig(fig)
-        else:
-            for i, fig in enumerate(figs):
-                fig.savefig("%s_%i.%s" % (outpath, i, po.outformat), dpi=po.dpi)
+    figs, _ = correlation_plot_hist(
+        mtrace=stage.mtrace,
+        varnames=varnames,
+        cmap=plt.cm.gist_earth_r,
+        chains=None,
+        point=reference,
+        point_size=6,
+        point_color="red",
+    )
+    save_figs(figs, outpath, po.outformat, po.dpi)

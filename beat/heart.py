@@ -8,12 +8,10 @@ import logging
 import os
 import shutil
 from collections import OrderedDict
-from random import choice, choices
 from time import time
 
 import numpy as num
-from pymc3 import plots as pmp
-from pyrocko import cake, crust2x2, gf, orthodrome, trace, util
+from pyrocko import cake, crust2x2, gf, orthodrome, trace
 from pyrocko.cake import GradientLayer
 from pyrocko.fomosto import qseis, qssp
 from pyrocko.guts import (
@@ -28,14 +26,15 @@ from pyrocko.guts import (
     Tuple,
 )
 from pyrocko.guts_array import Array
-from pyrocko.model import gnss, Event, get_effective_latlon
+from pyrocko.model import Event, gnss
 from pyrocko.moment_tensor import to6
 from pyrocko.spit import OutOfBounds
+from pytensor import config as tconfig
+from pytensor import shared
 from scipy import linalg
-from theano import config as tconfig
-from theano import shared
 
 from beat import utility
+from beat.defaults import defaults
 
 # from pyrocko.fomosto import qseis2d
 
@@ -157,7 +156,6 @@ class Covariance(Object):
 
     @property
     def c_total(self):
-
         self.check_matrix_init("data")
         self.check_matrix_init("pred_g")
         self.check_matrix_init("pred_v")
@@ -166,7 +164,6 @@ class Covariance(Object):
 
     @property
     def p_total(self):
-
         self.check_matrix_init("pred_g")
         self.check_matrix_init("pred_v")
 
@@ -249,13 +246,12 @@ class Covariance(Object):
     def update_slog_pdet(self):
         """
         Update shared variable with current log_norm_factor (lnf)
-        (for theano models).
+        (for pytensor models).
         """
         self.slog_pdet.set_value(self.log_pdet)
         self.slog_pdet.astype(tconfig.floatX)
 
     def get_min_max_components(self):
-
         covmats = []
         for comp in self.covs_supported():
             covmats.append(getattr(self, comp))
@@ -343,7 +339,6 @@ class Trace(Object):
 
 
 class FilterBase(Object):
-
     lower_corner = Float.T(default=0.001, help="Lower corner frequency")
     upper_corner = Float.T(default=0.1, help="Upper corner frequency")
     ffactor = Float.T(
@@ -417,7 +412,6 @@ class BandstopFilter(FilterBase):
 
 
 class FrequencyFilter(FilterBase):
-
     tfade = Float.T(
         default=20.0,
         help="Rise/fall time in seconds of taper applied in timedomain at both"
@@ -515,7 +509,6 @@ class SeismicResult(Object):
 
 
 class PolarityResult(Object):
-
     point = ResultPoint.T(default=ResultPoint.D())
     processed_obs = Array.T(optional=True)
     llk = Float.T(default=0.0, optional=True)
@@ -533,7 +526,6 @@ class PolarityResult(Object):
 
 
 def results_for_export(results, datatype=None, attributes=None):
-
     if attributes is None:
         if datatype is None:
             raise ValueError("Either datatype or attributes need to be defined!")
@@ -560,78 +552,7 @@ def results_for_export(results, datatype=None, attributes=None):
 sqrt2 = num.sqrt(2.0)
 
 
-physical_bounds = dict(
-    east_shift=(-500.0, 500.0),
-    north_shift=(-500.0, 500.0),
-    depth=(0.0, 1000.0),
-    strike=(-90.0, 420.0),
-    strike1=(-90.0, 420.0),
-    strike2=(-90.0, 420.0),
-    dip=(-45.0, 135.0),
-    dip1=(-45.0, 135.0),
-    dip2=(-45.0, 135.0),
-    rake=(-180.0, 270.0),
-    rake1=(-180.0, 270.0),
-    rake2=(-180.0, 270.0),
-    mix=(0, 1),
-    diameter=(0.0, 100.0),
-    sign=(-1.0, 1.0),
-    volume_change=(-1e12, 1e12),
-    fn=(-1e20, 1e20),
-    fe=(-1e20, 1e20),
-    fd=(-1e20, 1e20),
-    mnn=(-sqrt2, sqrt2),
-    mee=(-sqrt2, sqrt2),
-    mdd=(-sqrt2, sqrt2),
-    mne=(-1.0, 1.0),
-    mnd=(-1.0, 1.0),
-    med=(-1.0, 1.0),
-    exx=(-500.0, 500.0),
-    eyy=(-500.0, 500.0),
-    exy=(-500.0, 500.0),
-    rotation=(-500.0, 500.0),
-    w=(-3.0 / 8.0 * num.pi, 3.0 / 8.0 * num.pi),
-    v=(-1.0 / 3, 1.0 / 3.0),
-    kappa=(0.0, 2 * num.pi),
-    sigma=(-num.pi / 2.0, num.pi / 2.0),
-    h=(0.0, 1.0),
-    length=(0.0, 7000.0),
-    width=(0.0, 500.0),
-    slip=(0.0, 150.0),
-    nucleation_x=(-1.0, 1.0),
-    nucleation_y=(-1.0, 1.0),
-    opening_fraction=(-1.0, 1.0),
-    magnitude=(-5.0, 10.0),
-    time=(-300.0, 300.0),
-    time_shift=(-40.0, 40.0),
-    delta_time=(0.0, 100.0),
-    delta_depth=(0.0, 300.0),
-    distance=(0.0, 300.0),
-    duration=(0.0, 600.0),
-    peak_ratio=(0.0, 1.0),
-    durations=(0.0, 600.0),
-    uparr=(-1.0, 150.0),
-    uperp=(-150.0, 150.0),
-    utens=(-150.0, 150.0),
-    nucleation_strike=(0.0, num.inf),
-    nucleation_dip=(0.0, num.inf),
-    velocities=(0.0, 20.0),
-    azimuth=(0, 360),
-    amplitude=(1.0, 10e25),
-    bl_azimuth=(0, 360),
-    bl_amplitude=(0.0, 0.2),
-    locking_depth=(0.1, 100.0),
-    hypers=(-20.0, 20.0),
-    ramp=(-0.01, 0.01),
-    offset=(-1.0, 1.0),
-    lat=(-90.0, 90.0),
-    lon=(-180.0, 180.0),
-    omega=(-10.0, 10.0),
-)
-
-
 def list_repeat(arr, repeat=1):
-
     if isinstance(repeat, list):
         if len(repeat) != arr.size:
             raise ValueError(
@@ -678,8 +599,7 @@ class Parameter(Object):
     )
 
     def validate_bounds(self):
-
-        supported_vars = list(physical_bounds.keys())
+        supported_vars = list(defaults.parameters.keys())
 
         if self.name not in supported_vars:
             candidate = self.name.split("_")[-1]
@@ -696,7 +616,7 @@ class Parameter(Object):
         else:
             name = self.name
 
-        phys_b = physical_bounds[name]
+        pb_lower, pb_upper = defaults[name].physical_bounds
         if self.lower is not None:
             for i in range(self.dimension):
                 if self.upper[i] < self.lower[i]:
@@ -716,7 +636,7 @@ class Parameter(Object):
                         % (self.name, i)
                     )
 
-                if self.upper[i] > phys_b[1] or self.lower[i] < phys_b[0]:
+                if self.upper[i] > pb_upper or self.lower[i] < pb_lower:
                     raise ValueError(
                         'The parameter bounds (%f, %f) for "%s" are outside of'
                         " physically meaningful values (%f, %f)!"
@@ -724,8 +644,8 @@ class Parameter(Object):
                             self.lower[i],
                             self.upper[i],
                             self.name,
-                            phys_b[0],
-                            phys_b[1],
+                            pb_lower,
+                            pb_upper,
                         )
                     )
         else:
@@ -773,8 +693,9 @@ class Parameter(Object):
             return (self.get_upper(shape) - lower) * rands + lower
         except ValueError:
             raise ValueError(
-                "Value inconsistency shapes: {} parameter "
-                "dimension {}".format(shape, self.dimension)
+                "Value inconsistency shapes: {} parameter " "dimension {}".format(
+                    shape, self.dimension
+                )
             )
 
     @property
@@ -782,7 +703,7 @@ class Parameter(Object):
         return self.lower.size
 
     def bound_to_array(self):
-        return num.array([self.lower, self.testval, self.upper], dtype=num.float)
+        return num.array([self.lower, self.testval, self.upper], dtype=num.float64)
 
 
 phase_id_mapping = {"any_SH": "any_S", "any_SV": "any_S", "any_P": "any_P"}
@@ -835,7 +756,6 @@ class PolarityTarget(gf.meta.Receiver):
         return self._phase
 
     def get_takeoff_angle_table(self, source, store):
-
         takeoff_angle = store.get_stored_attribute(
             phase_id_mapping[self.phase_id],
             "takeoff_angle",
@@ -848,7 +768,6 @@ class PolarityTarget(gf.meta.Receiver):
         return takeoff_angle
 
     def get_takeoff_angle_cake(self, source, store):
-
         mod = store.config.earthmodel_1d
         rays = mod.arrivals(
             phases=self.get_phase_definition(store).phases,
@@ -865,7 +784,6 @@ class PolarityTarget(gf.meta.Receiver):
         return takeoff_angle
 
     def update_target(self, engine, source, always_raytrace=False, check=False):
-
         self.azimuth_rad = self.azibazi_to(source)[1] * d2r
         self.distance = self.distance_to(source)
         logger.debug("source distance %f and depth %f", self.distance, source.depth)
@@ -1026,7 +944,6 @@ class SpectrumDataset(SeismicDataset):
         fmax=5.0,
         deltaf=0.1,
     ):
-
         super(SpectrumDataset, self).__init__(
             network=network,
             station=station,
@@ -1093,7 +1010,6 @@ class SpectrumDataset(SeismicDataset):
 
 
 class DynamicTarget(gf.Target):
-
     response = trace.PoleZeroResponse.T(default=None, optional=True)
     domain = StringChoice.T(
         default="time",
@@ -1237,8 +1153,8 @@ class GNSSCompoundComponent(GeodeticDataset):
     Make synthetics generation more efficient.
     """
 
-    los_vector = Array.T(shape=(None, 3), dtype=num.float, optional=True)
-    displacement = Array.T(shape=(None,), dtype=num.float, optional=True)
+    los_vector = Array.T(shape=(None, 3), dtype=float, optional=True)
+    displacement = Array.T(shape=(None,), dtype=float, optional=True)
     component = String.T(default="east", help="direction of measurement, north/east/up")
     stations = List.T(gnss.GNSSStation.T(optional=True))
     covariance = Covariance.T(
@@ -1248,7 +1164,7 @@ class GNSSCompoundComponent(GeodeticDataset):
     )
     odw = Array.T(
         shape=(None,),
-        dtype=num.float,
+        dtype=num.float64,
         help="Overlapping data weights, additional weight factor to the"
         "dataset for overlaps with other datasets",
         optional=True,
@@ -1347,7 +1263,9 @@ class GNSSCompoundComponent(GeodeticDataset):
             "Stations with idxs %s got blacklisted!"
             % utility.list2string(station_blacklist_idxs)
         )
-        return num.array(station_blacklist_idxs)
+        mask = num.ones_like(self.lats, dtype=num.bool_)
+        mask[num.array(station_blacklist_idxs)] = False
+        return mask
 
     def station_name_index_mapping(self):
         if self._station2index is None:
@@ -1358,7 +1276,6 @@ class GNSSCompoundComponent(GeodeticDataset):
 
     @classmethod
     def from_pyrocko_gnss_campaign(cls, campaign, components=["north", "east", "up"]):
-
         valid_components = ["north", "east", "up"]
 
         compounds = []
@@ -1403,7 +1320,6 @@ class GNSSCompoundComponent(GeodeticDataset):
 
 
 class ResultReport(Object):
-
     solution_point = Dict.T(help="result point")
     post_llk = StringChoice.T(
         choices=["max", "mean", "min"],
@@ -1425,11 +1341,11 @@ class IFG(GeodeticDataset):
 
     master = String.T(optional=True, help="Acquisition time of master image YYYY-MM-DD")
     slave = String.T(optional=True, help="Acquisition time of slave image YYYY-MM-DD")
-    amplitude = Array.T(shape=(None,), dtype=num.float, optional=True)
-    wrapped_phase = Array.T(shape=(None,), dtype=num.float, optional=True)
-    incidence = Array.T(shape=(None,), dtype=num.float, optional=True)
-    heading = Array.T(shape=(None,), dtype=num.float, optional=True)
-    los_vector = Array.T(shape=(None, 3), dtype=num.float, optional=True)
+    amplitude = Array.T(shape=(None,), dtype=num.float64, optional=True)
+    wrapped_phase = Array.T(shape=(None,), dtype=num.float64, optional=True)
+    incidence = Array.T(shape=(None,), dtype=num.float64, optional=True)
+    heading = Array.T(shape=(None,), dtype=num.float64, optional=True)
+    los_vector = Array.T(shape=(None, 3), dtype=num.float64, optional=True)
     satellite = String.T(default="Envisat")
 
     def __str__(self):
@@ -1462,7 +1378,7 @@ class IFG(GeodeticDataset):
             Se = -num.sin(num.deg2rad(self.incidence)) * num.sin(
                 num.deg2rad(self.heading - 270)
             )
-            self.los_vector = num.array([Sn, Se, Su], dtype=num.float).T
+            self.los_vector = num.array([Sn, Se, Su], dtype=num.float64).T
             if num.isnan(self.los_vector).any():
                 raise ValueError(
                     "There are Nan values in LOS vector for dataset: %s! "
@@ -1479,11 +1395,11 @@ class DiffIFG(IFG):
     of synthetics and container for SAR data.
     """
 
-    unwrapped_phase = Array.T(shape=(None,), dtype=num.float, optional=True)
-    coherence = Array.T(shape=(None,), dtype=num.float, optional=True)
+    unwrapped_phase = Array.T(shape=(None,), dtype=num.float64, optional=True)
+    coherence = Array.T(shape=(None,), dtype=num.float64, optional=True)
     reference_point = Tuple.T(2, Float.T(), optional=True)
     reference_value = Float.T(optional=True, default=0.0)
-    displacement = Array.T(shape=(None,), dtype=num.float, optional=True)
+    displacement = Array.T(shape=(None,), dtype=num.float64, optional=True)
     covariance = Covariance.T(
         optional=True,
         help=":py:class:`Covariance` that holds data"
@@ -1491,14 +1407,14 @@ class DiffIFG(IFG):
     )
     odw = Array.T(
         shape=(None,),
-        dtype=num.float,
+        dtype=num.float64,
         help="Overlapping data weights, additional weight factor to the"
         "dataset for overlaps with other datasets",
         optional=True,
     )
     mask = Array.T(
         shape=(None,),
-        dtype=num.bool,
+        dtype=num.bool_,
         help="Mask values for Euler pole region determination. "
         "Click polygon mask in kite!",
         optional=True,
@@ -1554,8 +1470,7 @@ class DiffIFG(IFG):
         mask = num.full(lats.size, False)
         if polygons:
             logger.info(
-                "Found polygon mask in %s! Importing for Euler Pole"
-                " correction ..." % name
+                "Found polygon mask in %s! Importing for corrections ..." % name
             )
             from matplotlib.path import Path
 
@@ -1585,14 +1500,10 @@ class DiffIFG(IFG):
 
     def get_data_mask(self, corr_conf):
         """
-        Extracts mask from kite scene and returns mask indexes-
-        maybe during import?!!!
+        Returns extracted mask from kite scene
         """
-        if corr_conf.feature == "Euler Pole":
-            logger.info("Masking data for Euler Pole estimation!")
-            return self.mask
-        else:
-            return None
+        logger.info("Masking data for %s estimation!" % corr_conf.feature)
+        return self.mask
 
 
 class GeodeticResult(Object):
@@ -1601,9 +1512,9 @@ class GeodeticResult(Object):
     """
 
     point = ResultPoint.T(default=ResultPoint.D())
-    processed_obs = Array.T(shape=(None,), dtype=num.float, optional=True)
-    processed_syn = Array.T(shape=(None,), dtype=num.float, optional=True)
-    processed_res = Array.T(shape=(None,), dtype=num.float, optional=True)
+    processed_obs = Array.T(shape=(None,), dtype=num.float64, optional=True)
+    processed_syn = Array.T(shape=(None,), dtype=num.float64, optional=True)
+    processed_res = Array.T(shape=(None,), dtype=num.float64, optional=True)
     llk = Float.T(default=0.0, optional=True)
 
 
@@ -1697,6 +1608,7 @@ def get_store_id(prefix, earth_model_name, sample_rate, crust_ind=0):
 
 def init_geodetic_targets(
     datasets,
+    event,
     earth_model_name="ak135-f-average.m",
     interpolation="nearest_neighbor",
     crust_inds=[0],
@@ -1711,6 +1623,8 @@ def init_geodetic_targets(
     datasets : list
         of :class:`heart.GeodeticDataset` for which the targets are being
         initialised
+    event : :class:`pyrocko.model.Event`
+        for geographic referencing of the targets
     earth_model_name = str
         Name of the earth model that has been used for GF calculation.
     sample_rate : scalar, float
@@ -1728,10 +1642,15 @@ def init_geodetic_targets(
 
     em_name = get_earth_model_prefix(earth_model_name)
 
+    for data in datasets:
+        data.update_local_coords(event)
+
     targets = [
         gf.StaticTarget(
-            lons=d.lons,
-            lats=d.lats,
+            lons=num.full_like(d.lons, event.lon),
+            lats=num.full_like(d.lons, event.lat),
+            east_shifts=d.east_shifts,
+            north_shifts=d.north_shifts,
             interpolation=interpolation,
             quantity="displacement",
             store_id=get_store_id("statics", em_name, sample_rate, crust_ind),
@@ -1751,7 +1670,6 @@ def init_polarity_targets(
     reference_location=None,
     wavename="any_P",
 ):
-
     if reference_location is None:
         store_prefixes = [copy.deepcopy(station.station) for station in stations]
     else:
@@ -2094,11 +2012,16 @@ def get_slowness_taper(fomosto_config, velocity_model, distances):
         phases=all_phases, distances=dists, zstart=mean_source_depth
     )
 
-    ps = num.array([arrivals[i].p for i in range(len(arrivals))])
+    if len(arrivals) == 0:
+        raise ValueError(
+            "No ray arrivals for tabluated phases in distance depth range! Please double check the coordinates of "
+            "the reference_location under gf_config!"
+        )
+
+    ps = num.array([ray.p for ray in arrivals])
 
     slownesses = ps / (cake.r2d * cake.d2m / km)
     smax = slownesses.max()
-
     return (0.0, 0.0, 1.1 * float(smax), 1.3 * float(smax))
 
 
@@ -2462,7 +2385,10 @@ def polarity_construct_gf(
             if not os.path.exists(phases_dir) or force:
                 store = gf.Store(store_dir, "r")
                 if polgf.always_raytrace:
-                    logger.info("Creating dummy store ...")
+                    logger.info(
+                        "Enabled `always_raytrace` flag - Creating dummy store without "
+                        "take-off angles. Please disable flag to calculate!"
+                    )
                 else:
                     logger.info("Calculating interpolation tables ...")
                     store.make_travel_time_tables(force=force)
@@ -2472,7 +2398,7 @@ def polarity_construct_gf(
                 # create dummy files for engine to recognize the store
                 for fn in ["index", "traces"]:
                     dummy_fn = os.path.join(store_dir, fn)
-                    with open(dummy_fn, "a") as f:
+                    with open(dummy_fn, "a"):
                         pass
             else:
                 logger.info("Phases exist use force=True to overwrite!")
@@ -2677,7 +2603,6 @@ def get_phase_taperer(
 
 class BaseMapping(object):
     def __init__(self, stations, targets, mapnumber=0):
-
         self.name = "base"
         self.mapnumber = mapnumber
         self.stations = stations
@@ -2755,7 +2680,6 @@ class BaseMapping(object):
         return len(self.datasets)
 
     def get_target_idxs(self, channels=["Z"]):
-
         t2i = self.target_index_mapping()
         dtargets = utility.gather(self.targets, lambda t: t.codes[3])
 
@@ -2777,7 +2701,6 @@ class BaseMapping(object):
 
 class PolarityMapping(BaseMapping):
     def __init__(self, config, stations, targets, mapnumber=0):
-
         BaseMapping.__init__(self, stations, targets, mapnumber)
 
         self.config = config
@@ -2787,7 +2710,6 @@ class PolarityMapping(BaseMapping):
         self._radiation_weights = None
 
     def get_station_names_data(self):
-
         if self.datasets is None:
             self.datasets = self._load_phase_markers(self.config.polarities_marker_path)
 
@@ -2799,7 +2721,6 @@ class PolarityMapping(BaseMapping):
         return station_names
 
     def get_polarities(self):
-
         if self.datasets is None:
             self.datasets = self._load_phase_markers(self.config.polarities_marker_path)
 
@@ -2809,7 +2730,6 @@ class PolarityMapping(BaseMapping):
         )
 
     def get_station_names_without_data(self):
-
         blacklist = []
         station_names = self.get_station_names()
         dataset_station_names = self.get_station_names_data()
@@ -2894,7 +2814,6 @@ class PolarityMapping(BaseMapping):
             return shared(self._prepared_data, name="%s_data" % self.name, borrow=True)
 
     def update_targets(self, engine, source, always_raytrace=False, check=False):
-
         for target in self.targets:
             target.update_target(
                 engine, source, always_raytrace=always_raytrace, check=check
@@ -2954,7 +2873,7 @@ class WaveformMapping(BaseMapping):
     stations : list
         of :class:`pyrocko.model.Station`
     weights : list
-        of theano.shared variables
+        of pytensor.shared variables
     channels : list
         of channel names valid for all the stations of this wavemap
     datasets : list
@@ -2975,7 +2894,6 @@ class WaveformMapping(BaseMapping):
         deltat=None,
         mapnumber=0,
     ):
-
         BaseMapping.__init__(self, stations, targets, mapnumber)
 
         self.name = name
@@ -3041,7 +2959,6 @@ class WaveformMapping(BaseMapping):
         self.check_consistency()
 
     def get_station_names_without_data(self):
-
         blacklist = []
         station_names = self.get_station_names()
         dataset_station_names = [utility.get_ns_id(tr.nslc_id) for tr in self.datasets]
@@ -3085,7 +3002,6 @@ class WaveformMapping(BaseMapping):
             )
 
     def get_marker_arrival_times(self):
-
         if self._phase_markers is None:
             try:
                 self._load_phase_markers(self.config.arrivals_marker_path)
@@ -3172,14 +3088,12 @@ class WaveformMapping(BaseMapping):
         return nsamples
 
     def get_nsamples_spectrum(self, chop_bounds=["b", "c"], pad_to_pow2=True):
-
         lower_idx, upper_idx = self.get_valid_spectrum_indices(
             chop_bounds=chop_bounds, pad_to_pow2=pad_to_pow2
         )
         return upper_idx - lower_idx
 
     def get_valid_spectrum_indices(self, chop_bounds=["b", "c"], pad_to_pow2=True):
-
         valid_spectrum_indices = utility.get_valid_spectrum_data(
             deltaf=self.get_deltaf(chop_bounds, pad_to_pow2),
             taper_frequencies=self.get_taper_frequencies(),
@@ -3200,7 +3114,6 @@ class WaveformMapping(BaseMapping):
             return shared(self._prepared_data, name="%s_data" % self.name, borrow=True)
 
     def _check_specific_consistency(self):
-
         if self.n_t == 0:
             raise CollectionError(
                 'No data left in mapping "%s" after applying the distance '
@@ -3258,7 +3171,6 @@ class DataWaveformCollection(object):
         self._station2index = None
 
     def adjust_sampling_datasets(self, deltat, snap=False, force=False):
-
         for tr in self._raw_datasets.values():
             if tr.nslc_id not in self._datasets or force:
                 self._datasets[tr.nslc_id] = utility.downsample_trace(
@@ -3322,7 +3234,6 @@ class DataWaveformCollection(object):
             self.waveforms.append(waveform)
 
     def add_responses(self, responses, location=None):
-
         self._responses = OrderedDict()
 
         for k, v in responses.items():
@@ -3334,7 +3245,6 @@ class DataWaveformCollection(object):
             self._responses[k] = v
 
     def add_targets(self, targets, replace=False, force=False):
-
         if replace:
             self._targets = OrderedDict()
 
@@ -3346,7 +3256,6 @@ class DataWaveformCollection(object):
                 logger.warn("Target %s already in collection!" % str(target.codes))
 
     def add_datasets(self, datasets, location=None, replace=False, force=False):
-
         if replace:
             self._datasets = OrderedDict()
             self._raw_datasets = OrderedDict()
@@ -3367,7 +3276,6 @@ class DataWaveformCollection(object):
         return len(self._datasets.keys())
 
     def get_waveform_mapping(self, waveform, config):
-
         ### Mahdi, need to sort domain stuff
         self._check_collection(waveform, errormode="not_in")
 
@@ -3905,7 +3813,6 @@ def seis_derivative(
     n_stencil_steps = len(stencil)
     tmp = num.zeros((n_stencil_steps, ntargets, nsamples), dtype="float64")
     for i, hstep in enumerate(stencil.hsteps):
-
         if parameter in spatial_derivative_parameters:
             target_param_name = spatial_derivative_parameters[parameter]
             diff_targets = []
@@ -4166,7 +4073,6 @@ def pol_synthetics(
 def fft_transforms(
     time_domain_signals, valid_spectrum_indices, outmode="array", pad_to_pow2=True
 ):
-
     if outmode not in stackmodes:
         raise StackingError(
             'Outmode "%s" not available! Available: %s'
@@ -4184,7 +4090,6 @@ def fft_transforms(
         spec_signals = [None] * n_data
 
     for i, tr in enumerate(time_domain_signals):
-
         if outmode == "array":
             n_samples = len(tr)
             ydata = tr
@@ -4198,7 +4103,6 @@ def fft_transforms(
             spec_signals[i] = num.abs(fydata)[lower_idx:upper_idx]
 
         elif outmode in ["data", "tapered_data", "stacked_traces"]:
-
             if outmode == "tapered_data":
                 tr = tr[0]
 
@@ -4265,9 +4169,19 @@ def geo_synthetics(
     'stacked_arrays'
     or list of
     :class:`numpy.ndarray` (target.samples; ux-North, uy-East, uz-Down)
+    returns Nan in displacements if result is invalid!
     """
 
+    if False:
+        # for debugging
+        for source in sources:
+            print(source)
+
+        for target in targets:
+            print(target)
+
     response = engine.process(sources, targets)
+
     ns = len(sources)
     nt = len(targets)
 
@@ -4277,10 +4191,10 @@ def geo_synthetics(
         for target in targets:
             sapp(num.zeros([target.lons.size, 3]))
 
-        for k in range(ns):
-            for l in range(nt):
-                idx = l + (k * nt)
-                stacked_arrays[l] += disp_arrays[idx]
+        for i_s in range(ns):
+            for i_t in range(nt):
+                idx = i_t + (i_s * nt)
+                stacked_arrays[i_t] += disp_arrays[idx]
 
         return stacked_arrays
 
@@ -4462,7 +4376,6 @@ def velocities_from_pole(
 
 
 class StrainRateTensor(Object):
-
     exx = Float.T(default=10)
     eyy = Float.T(default=0)
     exy = Float.T(default=0)
@@ -4572,11 +4485,11 @@ def get_ramp_displacement(locx, locy, azimuth_ramp, range_ramp, offset):
         local coordinates [km] in east direction
     locy : shared array-like :class:`numpy.ndarray`
         local coordinates [km] in north direction
-    azimuth_ramp : :class:`theano.tensor.Tensor` or :class:`numpy.ndarray`
+    azimuth_ramp : :class:`pytensor.tensor.Tensor` or :class:`numpy.ndarray`
         vector with ramp parameter in azimuth
-    range_ramp : :class:`theano.tensor.Tensor` or :class:`numpy.ndarray`
+    range_ramp : :class:`pytensor.tensor.Tensor` or :class:`numpy.ndarray`
         vector with ramp parameter in range
-    offset : :class:`theano.tensor.Tensor` or :class:`numpy.ndarray`
+    offset : :class:`pytensor.tensor.Tensor` or :class:`numpy.ndarray`
         scalar of offset in [m]
     """
     return locy * azimuth_ramp + locx * range_ramp + offset

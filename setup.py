@@ -6,12 +6,11 @@ import time
 from distutils.sysconfig import get_python_inc
 
 from setuptools import Extension, setup
-from setuptools.command.build_py import build_py
 
 op = os.path
 
 packname = "beat"
-version = "1.2.5"
+version = "2.0.0"
 
 
 try:
@@ -35,7 +34,6 @@ class NotInAGitRepos(Exception):
 
 
 def git_infos():
-
     from subprocess import PIPE, run
 
     """Query git about sha1 of last commit and check if there are local \

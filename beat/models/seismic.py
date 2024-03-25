@@ -5,26 +5,25 @@ from logging import getLogger
 from time import time
 
 import numpy as num
-import theano.tensor as tt
-from pymc3 import Deterministic, Uniform
+import pytensor.tensor as tt
+from pymc import Deterministic
 from pyrocko.gf import LocalEngine
 from pyrocko.trace import Trace
-from theano import config as tconfig
-from theano import shared
-from theano.printing import Print
-from theano.tensor import fft
+from pytensor import config as tconfig
+from pytensor import shared
 
 from beat import config as bconfig
 from beat import covariance as cov
-from beat import heart, theanof, utility
+from beat import heart, pytensorf, utility
 from beat.ffi import get_gf_prefix, load_gf_library
 from beat.models.base import (
     Composite,
     ConfigInconsistentError,
     FaultGeometryNotFoundError,
     get_hypervalue_from_point,
+    init_uniform_random,
 )
-from beat.models.distributions import get_hyper_name, multivariate_normal_chol
+from beat.models.distributions import multivariate_normal_chol
 
 logger = getLogger("seismic")
 
@@ -54,7 +53,6 @@ class SeismicComposite(Composite):
     _hierarchicalnames = None
 
     def __init__(self, sc, events, project_dir, hypers=False):
-
         super(SeismicComposite, self).__init__(events)
 
         logger.debug("Setting up seismic structure ...\n")
@@ -76,17 +74,20 @@ class SeismicComposite(Composite):
                 project_dir, bconfig.multi_event_seismic_data_name(i)
             )
 
-            logger.info(
-                "Loading seismic data for event %i"
-                " from: %s " % (i, seismic_data_path)
-            )
-            self.datahandlers.append(
-                heart.init_datahandler(
-                    seismic_config=sc,
-                    seismic_data_path=seismic_data_path,
-                    responses_path=responses_path,
+            if os.path.exists(seismic_data_path):
+                logger.info(
+                    "Loading seismic data for event %i"
+                    " from: %s " % (i, seismic_data_path)
                 )
-            )
+                self.datahandlers.append(
+                    heart.init_datahandler(
+                        seismic_config=sc,
+                        seismic_data_path=seismic_data_path,
+                        responses_path=responses_path,
+                    )
+                )
+            else:
+                logger.info("Did not find seismic data for event %i." % i)
 
         self.noise_analyser = cov.SeismicNoiseAnalyser(
             structure=sc.noise_estimator.structure,
@@ -100,13 +101,19 @@ class SeismicComposite(Composite):
         for i, wc in enumerate(sc.waveforms):
             logger.info('Initialising seismic wavemap for "%s" ...' % wc.name)
             if wc.include:
-                wmap = heart.init_wavemap(
-                    waveformfit_config=wc,
-                    datahandler=self.datahandlers[wc.event_idx],
-                    event=self.events[wc.event_idx],
-                    mapnumber=i,
-                )
-
+                try:
+                    wmap = heart.init_wavemap(
+                        waveformfit_config=wc,
+                        datahandler=self.datahandlers[wc.event_idx],
+                        event=self.events[wc.event_idx],
+                        mapnumber=i,
+                    )
+                except IndexError:
+                    raise IndexError(
+                        "Did not find seismic data for event %i ! "
+                        "Data for sub-events follows naming: "
+                        "seismic_data_subevent_1.pkl, seismic_data_subevent_2.pkl, etc."
+                    )
                 self.wavemaps.append(wmap)
             else:
                 logger.info(
@@ -122,7 +129,6 @@ class SeismicComposite(Composite):
                 )
 
     def _hyper2wavemap(self, hypername):
-
         dummy = "_".join(hypername.split("_")[1:-1])
         for wmap in self.wavemaps:
             if wmap._mapid == dummy:
@@ -267,20 +273,14 @@ class SeismicComposite(Composite):
                                 shape=param.dimension,
                                 lower=param.lower,
                                 upper=param.upper,
-                                testval=param.testvalue,
+                                initval=param.testvalue,
                                 transform=None,
                                 dtype=tconfig.floatX,
                             )
 
-                            try:
-                                self.hierarchicals[hierarchical_name] = Uniform(
-                                    **kwargs
-                                )
-                            except TypeError:
-                                kwargs.pop("name")
-                                self.hierarchicals[hierarchical_name] = Uniform.dist(
-                                    **kwargs
-                                )
+                            self.hierarchicals[hierarchical_name] = init_uniform_random(
+                                kwargs
+                            )
 
                             self._hierarchicalnames.append(hierarchical_name)
                         else:
@@ -330,7 +330,6 @@ class SeismicComposite(Composite):
         for traces, attribute in heart.results_for_export(
             results=results, datatype="seismic"
         ):
-
             filename = "%s_%i.mseed" % (attribute, stage_number)
             outpath = os.path.join(results_path, filename)
             try:
@@ -453,7 +452,7 @@ class SeismicComposite(Composite):
 
         Parameters
         ----------
-        point : :func:`pymc3.Point`
+        point : :func:`pymc.Point`
             Dictionary with model parameters
         force : bool
             force preparation of data with input params otherwise cached is
@@ -479,7 +478,6 @@ class SeismicComposite(Composite):
 
             wmap_results = []
             for j, obs_tr in enumerate(obs_proc_traces[i]):
-
                 taper = at.get_pyrocko_taper(float(obs_tr.tmin - at.a))
 
                 if outmode != "tapered_data":
@@ -555,7 +553,6 @@ class SeismicComposite(Composite):
 
         stdz_residuals = OrderedDict()
         for dataset, result, target in zip(self.datasets, results, self.targets):
-
             hp = get_hypervalue_from_point(
                 point, dataset, counter, hp_specific=hp_specific
             )
@@ -650,6 +647,8 @@ class SeismicGeometryComposite(SeismicComposite):
         directory of the model project, where to find the data
     sources : list
         of :class:`pyrocko.gf.seismosizer.Source`
+    mapping : list
+        of dict of varnames and their sizes
     events : list
         of :class:`pyrocko.model.Event`
         contains information of reference event(s), coordinates of reference
@@ -658,8 +657,7 @@ class SeismicGeometryComposite(SeismicComposite):
         if true initialise object for hyper parameter optimization
     """
 
-    def __init__(self, sc, project_dir, sources, events, hypers=False):
-
+    def __init__(self, sc, project_dir, sources, mapping, events, hypers=False):
         super(SeismicGeometryComposite, self).__init__(
             sc, events, project_dir, hypers=hypers
         )
@@ -669,10 +667,15 @@ class SeismicGeometryComposite(SeismicComposite):
         self.choppers = {}
 
         self.sources = sources
+        self.mapping = mapping
 
         self.correction_name = "time_shift"
 
         self.config = sc
+
+    @property
+    def n_sources_total(self):
+        return len(self.sources)
 
     def point2sources(self, point):
         """
@@ -687,29 +690,24 @@ class SeismicGeometryComposite(SeismicComposite):
         tpoint.update(self.fixed_rvs)
         tpoint = utility.adjust_point_units(tpoint)
 
-        # remove hyperparameters from point
-        hps = self.config.get_hypernames()
-
-        for hyper in hps:
-            if hyper in tpoint:
-                tpoint.pop(hyper)
-
-        source = self.sources[0]
-        source_params = list(source.keys()) + list(source.stf.keys())
-
-        for param in list(tpoint.keys()):
-            if param not in source_params:
-                tpoint.pop(param)
-
         # update source times
         if "time" in tpoint:
             if self.nevents == 1:
                 tpoint["time"] += self.event.time  # single event
             else:
-                for i, event in enumerate(self.events):  # multi event
-                    tpoint["time"][i] += event.time
+                # careful! if setup with multi-source geodetic and geodetic + seismic
+                # the joint source needs to be first, TODO clean-up
+                times = tpoint["time"]
+                for i in range(times.size):  # multi event
+                    times[i] += self.events[i].time
 
-        source_points = utility.split_point(tpoint)
+                tpoint["time"] = times
+
+        source_points = utility.split_point(
+            tpoint,
+            mapping=self.mapping,
+            weed_params=True,
+        )
 
         for i, source in enumerate(self.sources):
             utility.update_source(source, **source_points[i])
@@ -743,16 +741,16 @@ class SeismicGeometryComposite(SeismicComposite):
         Parameters
         ----------
         input_rvs : list
-            of :class:`pymc3.distribution.Distribution` of source parameters
+            of :class:`pymc.distribution.Distribution` of source parameters
         fixed_rvs : dict
             of :class:`numpy.array`
         hyperparams : dict
-            of :class:`pymc3.distribution.Distribution`
+            of :class:`pymc.distribution.Distribution`
         problem_config : :class:`config.ProblemConfig`
 
         Returns
         -------
-        posterior_llk : :class:`theano.tensor.Tensor`
+        posterior_llk : :class:`pytensor.tensor.Tensor`
         """
         chop_bounds = ["b", "c"]  # we want llk calculation only between b c
 
@@ -771,7 +769,6 @@ class SeismicGeometryComposite(SeismicComposite):
         t2 = time()
         wlogpts = []
 
-        self.init_hierarchicals(problem_config)
         self.analyse_noise(tpoint, chop_bounds=chop_bounds)
         self.init_weights()
         if self.config.station_corrections:
@@ -809,7 +806,7 @@ class SeismicGeometryComposite(SeismicComposite):
                 )
                 sources = [self.sources[wc.event_idx]]
 
-            self.synthesizers[wmap._mapid] = theanof.SeisSynthesizer(
+            self.synthesizers[wmap._mapid] = pytensorf.SeisSynthesizer(
                 engine=self.engine,
                 sources=sources,
                 targets=wmap.targets,
@@ -821,6 +818,7 @@ class SeismicGeometryComposite(SeismicComposite):
                 pre_stack_cut=self.config.pre_stack_cut,
                 station_corrections=self.config.station_corrections,
                 domain=wc.domain,
+                mapping=self.mapping,
             )
 
             synths, _ = self.synthesizers[wmap._mapid](self.input_rvs)
@@ -848,7 +846,7 @@ class SeismicGeometryComposite(SeismicComposite):
 
         Parameters
         ----------
-        point : :func:`pymc3.Point`
+        point : :func:`pymc.Point`
             Dictionary with model parameters
         kwargs especially to change output of seismic forward model
             outmode = 'traces'/ 'array' / 'data'
@@ -868,7 +866,7 @@ class SeismicGeometryComposite(SeismicComposite):
         sc = self.config
         synths = []
         obs = []
-        for wmap in self.wavemaps:
+        for i, wmap in enumerate(self.wavemaps):
             wc = wmap.config
             if not wmap.is_prepared or force:
                 wmap.prepare_data(
@@ -916,7 +914,7 @@ class SeismicGeometryComposite(SeismicComposite):
                 chop_bounds=chop_bounds,
                 nprocs=nprocs,
                 # plot=True,
-                **kwargs
+                **kwargs,
             )
 
             if self.config.station_corrections and wc.domain == "time":
@@ -931,7 +929,6 @@ class SeismicGeometryComposite(SeismicComposite):
                         tr.tmax = dtr.tmax
 
             if wc.domain == "spectrum":
-
                 valid_spectrum_indices = wmap.get_valid_spectrum_indices(
                     chop_bounds=chop_bounds, pad_to_pow2=True
                 )
@@ -1001,7 +998,6 @@ class SeismicGeometryComposite(SeismicComposite):
                 for channel in wmap.channels:
                     tidxs = wmap.get_target_idxs([channel])
                     for station, tidx in zip(wmap.stations, tidxs):
-
                         logger.debug(
                             "Channel %s of Station %s " % (channel, station.station)
                         )
@@ -1063,7 +1059,6 @@ class SeismicDistributerComposite(SeismicComposite):
     """
 
     def __init__(self, sc, project_dir, events, hypers=False):
-
         super(SeismicDistributerComposite, self).__init__(
             sc, events, project_dir, hypers=hypers
         )
@@ -1106,7 +1101,7 @@ class SeismicDistributerComposite(SeismicComposite):
                 )
 
                 self.sweepers.append(
-                    theanof.Sweeper(
+                    pytensorf.Sweeper(
                         dgc.patch_lengths[idx],
                         n_p_dip,
                         n_p_strike,
@@ -1161,7 +1156,7 @@ class SeismicDistributerComposite(SeismicComposite):
         crust_inds : list
             of int to indexes of Green's Functions
         make_shared : bool
-            if True transforms gfs to :class:`theano.shared` variables
+            if True transforms gfs to :class:`pytensor.shared` variables
         """
         if not isinstance(crust_inds, list):
             raise TypeError("crust_inds need to be a list!")
@@ -1212,7 +1207,6 @@ class SeismicDistributerComposite(SeismicComposite):
                     self.gfs[key] = gfs
 
     def get_formula(self, input_rvs, fixed_rvs, hyperparams, problem_config):
-
         # no a, d taper bounds as GF library saved between b c
         chop_bounds = ["b", "c"]
 
@@ -1239,7 +1233,6 @@ class SeismicDistributerComposite(SeismicComposite):
             gfs.init_optimization()
 
         self.init_weights()
-        self.init_hierarchicals(problem_config)
         if self.config.station_corrections:
             logger.info(
                 "Initialized %i hierarchical parameters for "
@@ -1262,7 +1255,7 @@ class SeismicDistributerComposite(SeismicComposite):
                 index=index,
                 positions_dip=nuc_dip[index],
                 positions_strike=nuc_strike[index],
-                backend="theano",
+                backend="pytensor",
             )
 
             sf_patch_indexs = self.fault.cum_subfault_npatches[index : index + 2]
@@ -1360,7 +1353,7 @@ class SeismicDistributerComposite(SeismicComposite):
 
         Parameters
         ----------
-        point : :func:`pymc3.Point`
+        point : :func:`pymc.Point`
             Dictionary with model parameters
         kwargs especially to change output of the forward model
             outmode: stacked_traces/ tapered_data/ array

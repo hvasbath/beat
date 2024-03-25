@@ -1,15 +1,9 @@
 import logging
 import os
 
-from scipy import stats
-
-from tqdm import tqdm
-
 import numpy as num
 from matplotlib import pyplot as plt
-from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.ticker import MaxNLocator
-from pymc3.plots.utils import make_2d
 from pyrocko import gmtpy, trace
 from pyrocko.cake_plot import str_to_mpl_color as scolor
 from pyrocko.guts import load
@@ -21,6 +15,8 @@ from pyrocko.plot import (
     mpl_margins,
     mpl_papersize,
 )
+from scipy import stats
+from tqdm import tqdm
 
 from beat import utility
 from beat.heart import calculate_radiation_weights
@@ -29,16 +25,19 @@ from beat.models import Stage, load_stage
 from .common import (
     draw_line_on_array,
     format_axes,
-    hide_ticks,
     get_gmt_config,
+    get_llk_idx_to_trace,
     get_result_point,
+    get_weights_point,
+    hide_ticks,
+    hist2d_plot_op,
+    plot_exists,
     plot_inset_hist,
+    save_figs,
     spherical_kde_op,
     str_dist,
     str_duration,
     str_unit,
-    get_weights_point,
-    hist2d_plot_op,
 )
 
 km = 1000.0
@@ -46,6 +45,10 @@ SQRT2 = num.sqrt(2.0)
 PI = num.pi
 
 logger = logging.getLogger("plotting.seismic")
+
+
+def skey(tr):
+    return tr.channel
 
 
 def n_model_plot(models, axes=None, draw_bg=True, highlightidx=[]):
@@ -111,7 +114,6 @@ def n_model_plot(models, axes=None, draw_bg=True, highlightidx=[]):
 
 
 def load_earthmodels(store_superdir, store_ids, depth_max="cmb"):
-
     ems = []
     emr = []
     for store_id in store_ids:
@@ -127,13 +129,11 @@ def load_earthmodels(store_superdir, store_ids, depth_max="cmb"):
 
 
 def draw_earthmodels(problem, plot_options):
-
     from beat.heart import init_geodetic_targets, init_seismic_targets
 
     po = plot_options
 
     for datatype, composite in problem.composites.items():
-
         if datatype == "seismic":
             models_dict = {}
             sc = problem.config.seismic_config
@@ -197,15 +197,17 @@ def draw_earthmodels(problem, plot_options):
             if not os.path.exists(outpath) or po.force:
                 targets = init_geodetic_targets(
                     datasets=composite.datasets,
+                    event=problem.config.event,
                     earth_model_name=gc.gf_config.earth_model_name,
                     interpolation="multilinear",
                     crust_inds=list(range(*gc.gf_config.n_variations)),
                     sample_rate=gc.gf_config.sample_rate,
                 )
 
+                store_ids = [t.store_id for t in targets]
                 models = load_earthmodels(
                     store_superdir=composite.engine.store_superdirs[0],
-                    targets=targets,
+                    store_ids=store_ids,
                     depth_max=gc.gf_config.source_depth_max * km,
                 )
                 models_dict[outpath] = models[0]  # select only source site
@@ -279,7 +281,6 @@ def fuzzy_waveforms(
 
     if extent is None:
         key = traces[0].channel
-        skey = lambda tr: tr.channel
 
         ymin, ymax = trace.minmax(traces, key=skey)[key]
         xmin, xmax = trace.minmaxtime(traces, key=skey)[key]
@@ -292,7 +293,6 @@ def fuzzy_waveforms(
     grid = num.zeros(grid_size, dtype="float64")
 
     for tr in traces:
-
         draw_line_on_array(
             tr.get_xdata(),
             tr.ydata,
@@ -334,7 +334,6 @@ def fuzzy_spectrum(
     cmap=None,
     alpha=0.5,
 ):
-
     if cmap is None:
         cmap = get_fuzzy_cmap()
 
@@ -343,7 +342,6 @@ def fuzzy_spectrum(
 
     if extent is None:
         key = traces[0].channel
-        skey = lambda tr: tr.channel
 
         ymin, ymax = trace.minmax(traces, key=skey)[key]
 
@@ -352,10 +350,7 @@ def fuzzy_spectrum(
         )
 
         extent = [*taper_frequencies, 0, ypad_factor * ymax]
-    else:
-        lower_idx, upper_idx = 0, -1
 
-    # fxdata = fxdata[lower_idx:upper_idx]
     for tr in traces:
         ydata = zero_pad_spectrum(tr)
         draw_line_on_array(
@@ -400,8 +395,7 @@ def extract_time_shifts(point, hierarchicals, wmap):
 def form_result_ensemble(
     stage, composite, nensemble, chop_bounds, target_index, bresults, bvar_reductions
 ):
-
-    if nensemble > 1:
+    if nensemble > 0:
         logger.info("Collecting ensemble of %i synthetic waveforms ..." % nensemble)
         nchains = len(stage.mtrace)
         csteps = float(nchains) / nensemble
@@ -444,7 +438,7 @@ def form_result_ensemble(
         target_synths.append(bresults[i].processed_syn)
         target_var_reductions.append(bvar_reductions[nslcd_id_str])
 
-        if nensemble > 1:
+        if nensemble > 0:
             for results, var_reductions in zip(ens_results, ens_var_reductions):
                 # put all results per target here not only single
 
@@ -491,7 +485,6 @@ def subplot_waveforms(
         t2 = num.concatenate((t, t[::-1]))
         axes.fill(t2, y2, **kwargs)
 
-    skey = lambda tr: tr.channel
     inset_axs_width, inset_axs_height = 0.2, 0.18
 
     plot_taper(
@@ -517,7 +510,7 @@ def subplot_waveforms(
 
         in_ax = plot_inset_hist(
             axes,
-            data=make_2d(var_reductions),
+            data=num.atleast_2d(var_reductions),
             best_data=best_data,
             bbox_to_anchor=(0.9, 0.75, inset_axs_width, inset_axs_height),
             background_alpha=0.7,
@@ -527,7 +520,7 @@ def subplot_waveforms(
     # histogram of stdz residual
     in_ax_res = plot_inset_hist(
         axes,
-        data=make_2d(stdz_residual),
+        data=num.atleast_2d(stdz_residual),
         best_data=None,
         bbox_to_anchor=(0.65, 0.75, inset_axs_width, inset_axs_height),
         color="grey",
@@ -537,7 +530,7 @@ def subplot_waveforms(
     x = num.linspace(*stats.norm.ppf((0.001, 0.999)), 100)
     gauss = stats.norm.pdf(x)
     in_ax_res.plot(x, gauss, "k-", lw=0.5, alpha=0.8)
-    in_ax_res.set_title("std. res. [$\sigma$]", fontsize=5)
+    in_ax_res.set_title(r"std. res. [$\sigma$]", fontsize=5)
 
     if synth_plot_flag:
         # only plot if highlighted point exists
@@ -568,10 +561,10 @@ def subplot_waveforms(
         if po.nensemble > 1:
             in_ax = plot_inset_hist(
                 axes,
-                data=make_2d(time_shifts),
+                data=num.atleast_2d(time_shifts),
                 best_data=best_data,
                 bbox_to_anchor=(-0.0985, 0.16, inset_axs_width, inset_axs_height),
-                # cmap=plt.cm.get_cmap('seismic'),
+                # cmap=plt.get_cmap('seismic'),
                 # cbounds=time_shift_bounds,
                 color=time_shift_color,
                 alpha=0.7,
@@ -590,19 +583,18 @@ def subplot_waveforms(
         (
             tmarks[0],
             ytmarks[0],
-            "$\,$ " + str_duration(tmarks[0] - source.time),
+            r"$\,$ " + str_duration(tmarks[0] - source.time),
             hor_alignment,
             "bottom",
         ),
         (
             tmarks[1],
             ytmarks[1],
-            "$\Delta$ " + str_duration(tmarks[1] - tmarks[0]),
+            r"$\Delta$ " + str_duration(tmarks[1] - tmarks[0]),
             "center",
             "bottom",
         ),
     ]:
-
         axes2.annotate(
             text,
             xy=(xtmark, ytmark),
@@ -651,7 +643,6 @@ def subplot_spectrum(
     tap_color_annot,
     ypad_factor,
 ):
-
     from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
     inset_axs_width, inset_axs_height = 0.2, 0.18
@@ -692,7 +683,7 @@ def subplot_spectrum(
 
         in_ax = plot_inset_hist(
             axes2,
-            data=make_2d(var_reductions),
+            data=num.atleast_2d(var_reductions),
             best_data=best_data,
             bbox_to_anchor=(0.9, bbox_y, inset_axs_width, inset_axs_height),
         )
@@ -701,7 +692,7 @@ def subplot_spectrum(
     # histogram of stdz residual
     in_ax_res = plot_inset_hist(
         axes2,
-        data=make_2d(stdz_residual),
+        data=num.atleast_2d(stdz_residual),
         best_data=None,
         bbox_to_anchor=(0.65, bbox_y, inset_axs_width, inset_axs_height),
         color="grey",
@@ -711,7 +702,7 @@ def subplot_spectrum(
     x = num.linspace(*stats.norm.ppf((0.001, 0.999)), 100)
     gauss = stats.norm.pdf(x)
     in_ax_res.plot(x, gauss, "k-", lw=0.5, alpha=0.8)
-    in_ax_res.set_title("spc. std. res. [$\sigma$]", fontsize=5)
+    in_ax_res.set_title(r"spc. std. res. [$\sigma$]", fontsize=5)
 
     fxdata = result.processed_syn.get_xdata()
 
@@ -719,7 +710,6 @@ def subplot_spectrum(
     colors = [obs_color, syn_color, misfit_color]
     ymaxs = []
     for attr_suffix, lw, color in zip(["obs", "syn", "res"], linewidths, colors):
-
         tr = getattr(result, "processed_{}".format(attr_suffix))
         ydata = zero_pad_spectrum(tr)
         ymaxs.append(ydata.max())
@@ -765,7 +755,7 @@ def subplot_spectrum(
     )
 
     axes.annotate(
-        "$ f \ |\ ^{%0.2g}_{%0.2g} \ $" % (fxdata[0], xpos),
+        r"$ f \ |\ ^{%0.2g}_{%0.2g} \ $" % (fxdata[0], xpos),
         xycoords="data",
         xy=(xpos, ymax_factor_f * ymax),
         xytext=(1.0, 1.0),
@@ -914,11 +904,9 @@ def seismic_fits(problem, stage, plot_options):
         )
         cg_to_target_codes = utility.gather(unique_target_codes, lambda t: t[3])
         cgs = cg_to_target_codes.keys()
-        target_domains = list(utility.gather(event_targets, lambda t: t.domain).keys())
+        # target_domains = list(utility.gather(event_targets, lambda t: t.domain).keys())
 
         channel_index = dict((channel, i) for (i, channel) in enumerate(cgs))
-
-        skey = lambda tr: tr.channel
 
         figs = []
         logger.info("Plotting waveforms ... for event number: %i" % event_idx)
@@ -933,16 +921,20 @@ def seismic_fits(problem, stage, plot_options):
             dist = source.distance_to(target)
             data.append(dist)
 
-        dists = num.array(data, dtype=num.float)
+        dists = num.array(data, dtype=num.float64)
         iorder = num.argsort(dists)
 
         ns_id_codes_sorted = [list(ns_id_to_target_codes.keys())[ii] for ii in iorder]
+
+        if len(ns_id_codes_sorted) == 0:
+            logger.info("Did not find targets for event, skipping plotting ...")
+            continue
 
         figures = {}
         # draw station specific data-fits
         for istation, ns_id in enumerate(ns_id_codes_sorted):
             target_codes = ns_id_to_target_codes[ns_id]
-            have_drawn = []
+
             for target_code in target_codes:
                 domain_targets = target_codes_to_targets[target_code]
                 for k_subf, target in enumerate(domain_targets):
@@ -1097,7 +1089,6 @@ def seismic_fits(problem, stage, plot_options):
 
 
 def draw_seismic_fits(problem, po):
-
     if "seismic" not in list(problem.composites.keys()):
         raise TypeError("No seismic composite defined for this problem!")
 
@@ -1128,27 +1119,13 @@ def draw_seismic_fits(problem, po):
         "waveforms_%s_%s_%i" % (stage.number, llk_str, po.nensemble),
     )
 
-    if not os.path.exists(outpath) or po.force:
-        event_figs = seismic_fits(problem, stage, po)
-    else:
-        logger.info("waveform plots exist. Use force=True for replotting!")
+    if plot_exists(outpath, po.outformat, po.force):
         return
 
-    if po.outformat == "display":
-        plt.show()
-    else:
-        for event_idx, figs in event_figs:
-            event_outpath = "{}_{}".format(outpath, event_idx)
-            logger.info("saving figures to %s" % event_outpath)
-            if po.outformat == "pdf":
-                with PdfPages(event_outpath + ".pdf") as opdf:
-                    for fig in figs:
-                        opdf.savefig(fig)
-            else:
-                for i, fig in enumerate(figs):
-                    fig.savefig(
-                        event_outpath + "_%i.%s" % (i, po.outformat), dpi=po.dpi
-                    )
+    event_figs = seismic_fits(problem, stage, po)
+    for event_idx, figs in event_figs:
+        event_outpath = f"{outpath}_{event_idx}"
+        save_figs(figs, event_outpath, po.outformat, po.dpi)
 
 
 def point2array(point, varnames, idx_source=1, rpoint=None):
@@ -1177,84 +1154,103 @@ def extract_mt_components(problem, po, include_magnitude=False):
     """
     Extract Moment Tensor components from problem results for plotting.
     """
-    source_type = problem.config.problem_config.source_type
+    source_types = problem.config.problem_config.source_types
     n_sources = problem.config.problem_config.n_sources
 
-    if source_type in ["MTSource", "MTQTSource"]:
-        varnames = ["mnn", "mee", "mdd", "mne", "mnd", "med"]
-    elif source_type in ["DCSource", "RectangularSource"]:
-        varnames = ["strike", "dip", "rake"]
-    else:
-        raise ValueError('Plot is only supported for point "MTSource" and "DCSource"')
+    composite = problem.composites[problem.config.problem_config.datatypes[0]]
 
-    if include_magnitude:
-        varnames += ["magnitude"]
+    list_m6s = []
+    list_best_mts = []
+    running_source_idx = 0
+    for n_source, source_type in zip(n_sources, source_types):
+        if source_type in ["MTSource", "MTQTSource"]:
+            varnames = ["mnn", "mee", "mdd", "mne", "mnd", "med"]
+        elif source_type in [
+            "DCSource",
+            "RectangularSource",
+            "RectangularBEMSource",
+            "DiskBEMSource",
+        ]:
+            varnames = ["strike", "dip", "rake"]
+        else:
+            logger.warning("Plot is not supported for source_type %s" % source_type)
+            list_m6s.append(None)
+            list_best_mts.append(None)
+            continue
 
-    if not po.reference:
-        rpoint = None
-        llk_str = po.post_llk
-        stage = load_stage(
-            problem, stage_number=po.load_stage, load="trace", chains=[-1]
-        )
+        if include_magnitude:
+            varnames += ["magnitude"]
 
-        list_m6s = []
-        list_best_mts = []
-        for idx_source in range(n_sources):
-            n_mts = len(stage.mtrace)
-            m6s = num.empty((n_mts, len(varnames)), dtype="float64")
-            for i, varname in enumerate(varnames):
-                try:
-                    m6s[:, i] = (
-                        stage.mtrace.get_values(varname, combine=True, squeeze=True)
-                        .T[idx_source]
-                        .ravel()
-                    )
-
-                except ValueError:  # if fixed value add that to the ensemble
-                    rpoint = problem.get_random_point()
-                    mtfield = num.full_like(
-                        num.empty((n_mts), dtype=num.float64),
-                        rpoint[varname][idx_source],
-                    )
-                    m6s[:, i] = mtfield
-
-            if po.nensemble:
-                logger.info("Drawing %i solutions from ensemble ..." % po.nensemble)
-                csteps = float(n_mts) / po.nensemble
-                idxs = num.floor(num.arange(0, n_mts, csteps)).astype("int32")
-                m6s = m6s[idxs, :]
-            else:
-                logger.info("Drawing full ensemble ...")
-
-            point = get_result_point(stage.mtrace, po.post_llk)
-            best_mt = point2array(
-                point, varnames=varnames, rpoint=rpoint, idx_source=idx_source
+        if not po.reference:
+            rpoint = None
+            llk_str = po.post_llk
+            stage = load_stage(
+                problem, stage_number=po.load_stage, load="trace", chains=[-1]
             )
 
-            list_m6s.append(m6s)
-            list_best_mts.append(best_mt)
-    else:
-        llk_str = "ref"
-        point = po.reference
-        list_best_mts = []
-        list_m6s = []
-        if source_type == "MTQTSource":
-            composite = problem.composites[problem.config.problem_config.datatypes[0]]
-            composite.point2sources(po.reference)
-            for source in composite.sources:
-                list_m6s.append([source.get_derived_parameters()[0:6]])
-                list_best_mts.append(None)
+            best_idx = get_llk_idx_to_trace(stage.mtrace, po.post_llk)
+            point = get_result_point(stage.mtrace, po.post_llk)
+            source_points = utility.split_point(
+                point,
+                mapping=composite.mapping,
+                weed_params=True,
+            )
 
-        else:
-            for idx_source in range(n_sources):
-                list_m6s.append(
-                    [
-                        point2array(
-                            point=po.reference, varnames=varnames, idx_source=idx_source
+            for idx_source in range(n_source):
+                n_mts = len(stage.mtrace)
+                m6s = num.empty((n_mts, len(varnames)), dtype="float64")
+                for i, varname in enumerate(varnames):
+                    try:
+                        m6s[:, i] = (
+                            stage.mtrace.get_values(varname, combine=True, squeeze=True)
+                            .T[idx_source]
+                            .ravel()
                         )
-                    ]
-                )
-                list_best_mts.append(None)
+
+                    except ValueError:  # if fixed value add that to the ensemble
+                        rpoint = source_points[running_source_idx]
+                        mtfield = num.full_like(
+                            num.empty((n_mts), dtype=num.float64),
+                            rpoint[varname],
+                        )
+                        m6s[:, i] = mtfield
+
+                best_mt = m6s[best_idx, :]
+                if po.nensemble:
+                    logger.info("Drawing %i solutions from ensemble ..." % po.nensemble)
+                    csteps = float(n_mts) / po.nensemble
+                    idxs = num.floor(num.arange(0, n_mts, csteps)).astype("int32")
+                    m6s = m6s[idxs, :]
+                else:
+                    logger.info("Drawing full ensemble ...")
+
+                list_m6s.append(m6s)
+                list_best_mts.append(best_mt)
+                running_source_idx += 1
+        else:
+            llk_str = "ref"
+            point = po.reference
+            list_best_mts = []
+            list_m6s = []
+            for n_source, source_type in zip(n_sources, source_types):
+                if source_type == "MTQTSource":
+                    composite.point2sources(po.reference)
+                    for source in composite.sources:
+                        list_m6s.append([source.get_derived_parameters()[0:6]])
+                        list_best_mts.append(None)
+
+                else:
+                    for idx_source in range(n_source):
+                        list_m6s.append(
+                            [
+                                point2array(
+                                    point=po.reference,
+                                    varnames=varnames,
+                                    idx_source=idx_source,
+                                )
+                            ]
+                        )
+                        list_best_mts.append(None)
 
     return list_m6s, list_best_mts, llk_str, point
 
@@ -1316,7 +1312,6 @@ def draw_ray_piercing_points_bb(
             raise ValueError("Number of stations is inconsistent with polarity data!")
 
         for i_s, station in enumerate(stations):
-
             ax.text(
                 y[i_s],
                 x[i_s],
@@ -1335,7 +1330,6 @@ def draw_ray_piercing_points_bb(
 
 
 def lower_focalsphere_angles(grid_resolution, projection):
-
     nx = grid_resolution
     ny = grid_resolution
 
@@ -1397,7 +1391,6 @@ def mts2amps(
     view="top",
     wavename="any_P",
 ):
-
     n_balls = len(mts)
     nx = ny = grid_resolution
 
@@ -1406,7 +1399,6 @@ def mts2amps(
     )
 
     for mt in mts:
-
         mt = beachball.deco_part(mt, mt_type=beachball_type, view=view)
 
         radiation_weights = calculate_radiation_weights(
@@ -1502,16 +1494,16 @@ def plot_fuzzy_beachball_mpl_pixmap(
             zorder=zorder,
             alpha=alpha,
         )
-
     elif method == "imshow":
+        extent = (
+            position[0] + y[0] * size,
+            position[0] + y[-1] * size,
+            position[1] - x[0] * size,
+            position[1] - x[-1] * size,
+        )
         axes.imshow(
             amps.T,
-            extent=(
-                position[0] + y[0] * size,
-                position[0] + y[-1] * size,
-                position[1] - x[0] * size,
-                position[1] - x[-1] * size,
-            ),
+            extent=extent,
             cmap=cmap,
             transform=transform,
             zorder=zorder - 0.1,
@@ -1546,9 +1538,12 @@ def plot_fuzzy_beachball_mpl_pixmap(
     phi = num.linspace(0.0, 2 * PI, 361)
     x = num.cos(phi)
     y = num.sin(phi)
+    pos_y = position[0] + y * size
+    pos_x = position[1] + x * size
+
     axes.plot(
-        position[0] + y * size,
-        position[1] + x * size,
+        pos_y,
+        pos_x,
         linewidth=linewidth,
         color=edgecolor,
         transform=transform,
@@ -1558,7 +1553,6 @@ def plot_fuzzy_beachball_mpl_pixmap(
 
 
 def draw_fuzzy_beachball(problem, po):
-
     if po.load_stage is None:
         po.load_stage = -1
 
@@ -1588,101 +1582,87 @@ def draw_fuzzy_beachball(problem, po):
         wavenames = ["any_P"]
 
     for k_pamp, wavename in enumerate(wavenames):
-
         for idx_source, (m6s, best_mt) in enumerate(zip(list_m6s, list_best_mt)):
             outpath = os.path.join(
                 problem.outfolder,
                 po.figure_dir,
-                "fuzzy_beachball_%i_%s_%i_%s_%i.%s"
-                % (
-                    po.load_stage,
-                    llk_str,
-                    po.nensemble,
-                    wavename,
-                    idx_source,
-                    po.outformat,
-                ),
+                "fuzzy_beachball_%i_%s_%i_%s_%i"
+                % (po.load_stage, llk_str, po.nensemble, wavename, idx_source),
             )
 
-            if not os.path.exists(outpath) or po.force or po.outformat == "display":
-                fig = plt.figure(figsize=(4.0, 4.0))
-                fig.subplots_adjust(left=0.0, right=1.0, bottom=0.0, top=1.0)
-                axes = fig.add_subplot(1, 1, 1)
+            if plot_exists(outpath, po.outformat, po.force):
+                return
 
-                transform, position, size = beachball.choose_transform(
-                    axes, kwargs["size_units"], kwargs["position"], kwargs["size"]
-                )
+            fig = plt.figure(figsize=(4.0, 4.0))
+            fig.subplots_adjust(left=0.0, right=1.0, bottom=0.0, top=1.0)
+            axes = fig.add_subplot(1, 1, 1)
 
-                plot_fuzzy_beachball_mpl_pixmap(
-                    m6s,
-                    axes,
-                    best_mt=best_mt,
-                    best_color="white",
+            transform, position, size = beachball.choose_transform(
+                axes, kwargs["size_units"], kwargs["position"], kwargs["size"]
+            )
+
+            plot_fuzzy_beachball_mpl_pixmap(
+                m6s,
+                axes,
+                best_mt=best_mt,
+                best_color="white",
+                wavename=wavename,
+                **kwargs,
+            )
+
+            if best_mt is not None:
+                best_amps, bx, by = mts2amps(
+                    [best_mt],
+                    grid_resolution=kwargs["grid_resolution"],
+                    projection=kwargs["projection"],
+                    beachball_type=kwargs["beachball_type"],
                     wavename=wavename,
-                    **kwargs
+                    mask=False,
                 )
 
-                if best_mt is not None:
-                    best_amps, bx, by = mts2amps(
-                        [best_mt],
-                        grid_resolution=kwargs["grid_resolution"],
-                        projection=kwargs["projection"],
-                        beachball_type=kwargs["beachball_type"],
-                        wavename=wavename,
-                        mask=False,
-                    )
+                axes.contour(
+                    position[0] + by * size,
+                    position[1] + bx * size,
+                    best_amps.T,
+                    levels=[0.0],
+                    colors=["black"],
+                    linestyles="dashed",
+                    linewidths=kwargs["linewidth"],
+                    transform=transform,
+                    zorder=kwargs["zorder"],
+                    alpha=kwargs["alpha"],
+                )
 
-                    axes.contour(
-                        position[0] + by * size,
-                        position[1] + bx * size,
-                        best_amps.T,
-                        levels=[0.0],
-                        colors=["black"],
-                        linestyles="dashed",
-                        linewidths=kwargs["linewidth"],
-                        transform=transform,
-                        zorder=kwargs["zorder"],
-                        alpha=kwargs["alpha"],
-                    )
+            if "polarity" in problem.config.problem_config.datatypes:
+                pmap = composite.wavemaps[k_pamp]
+                source = composite.sources[pmap.config.event_idx]
+                pmap.update_targets(
+                    composite.engine,
+                    source,
+                    always_raytrace=composite.config.gf_config.always_raytrace,
+                )
+                draw_ray_piercing_points_bb(
+                    axes,
+                    pmap.get_takeoff_angles_rad(),
+                    pmap.get_azimuths_rad(),
+                    pmap._prepared_data,
+                    stations=pmap.stations,
+                    size=size,
+                    position=position,
+                    transform=transform,
+                )
 
-                if "polarity" in problem.config.problem_config.datatypes:
-                    pmap = composite.wavemaps[k_pamp]
-                    source = composite.sources[pmap.config.event_idx]
-                    pmap.update_targets(
-                        composite.engine,
-                        source,
-                        always_raytrace=composite.config.gf_config.always_raytrace,
-                    )
-                    draw_ray_piercing_points_bb(
-                        axes,
-                        pmap.get_takeoff_angles_rad(),
-                        pmap.get_azimuths_rad(),
-                        pmap._prepared_data,
-                        stations=pmap.stations,
-                        size=size,
-                        position=position,
-                        transform=transform,
-                    )
+            axes.set_xlim(0.0, 10.0)
+            axes.set_ylim(0.0, 10.0)
+            axes.set_axis_off()
 
-                axes.set_xlim(0.0, 10.0)
-                axes.set_ylim(0.0, 10.0)
-                axes.set_axis_off()
-
-                if not po.outformat == "display":
-                    logger.info("saving figure to %s" % outpath)
-                    fig.savefig(outpath, dpi=po.dpi)
-                else:
-                    plt.show()
-
-            else:
-                logger.info("Plot already exists! Please use --force to overwrite!")
+            save_figs([fig], outpath, po.outformat, po.dpi)
 
 
 def fuzzy_mt_decomposition(axes, list_m6s, labels=None, colors=None, fontsize=12):
     """
     Plot fuzzy moment tensor decompositions for list of mt ensembles.
     """
-    from pymc3 import quantiles
     from pyrocko.moment_tensor import MomentTensor
 
     logger.info("Drawing Fuzzy MT Decomposition ...")
@@ -1694,11 +1674,10 @@ def fuzzy_mt_decomposition(axes, list_m6s, labels=None, colors=None, fontsize=12
         "size_units": "data",
         "edgecolor": "black",
         "linewidth": 1,
-        "grid_resolution": 200,
+        "grid_resolution": 400,
     }
 
     def get_decomps(source_vals):
-
         isos = []
         dcs = []
         clvds = []
@@ -1731,7 +1710,9 @@ def fuzzy_mt_decomposition(axes, list_m6s, labels=None, colors=None, fontsize=12
 
         lines.append((label, m6s, color))
 
-    magnitude_full_max = max(m6s.mean(axis=0)[-1] for (_, m6s, _) in lines)
+    magnitude_full_max = max(
+        m6s.mean(axis=0)[-1] for (_, m6s, _) in lines if m6s is not None
+    )
 
     for xpos, label in [
         (0.0, "Full"),
@@ -1740,7 +1721,6 @@ def fuzzy_mt_decomposition(axes, list_m6s, labels=None, colors=None, fontsize=12
         (6.0, "CLVD"),
         (8.0, "DC"),
     ]:
-
         axes.annotate(
             label,
             xy=(1 + xpos, nlines_max),
@@ -1754,6 +1734,9 @@ def fuzzy_mt_decomposition(axes, list_m6s, labels=None, colors=None, fontsize=12
         )
 
     for i, (label, m6s, color_t) in enumerate(lines):
+        if m6s is None:
+            continue
+
         ypos = nlines_max - (i * yscale) - 1.0
         mean_magnitude = m6s.mean(0)[-1]
         size0 = mean_magnitude / magnitude_full_max
@@ -1778,30 +1761,27 @@ def fuzzy_mt_decomposition(axes, list_m6s, labels=None, colors=None, fontsize=12
             (6.0, clvds, "+"),
             (8.0, dcs, None),
         ]:
-
             ratios = num.array([comp[1] for comp in decomp])
             ratio = ratios.mean()
             ratios_diff = ratios.max() - ratios.min()
 
-            ratios_qu = quantiles(ratios * 100.0)
+            ratios_qu = num.percentile(ratios * 100.0, [2.5, 97.5])
             mt_parts = [comp[2] for comp in decomp]
 
             if ratio > 1e-4:
                 try:
-                    size = num.sqrt(ratio) * 0.95 * size0
+                    size = num.sqrt(ratio) * 0.98 * size0
                     kwargs["position"] = (1.0 + xpos, ypos)
                     kwargs["size"] = size
                     kwargs["color_t"] = color_t
-                    beachball.plot_fuzzy_beachball_mpl_pixmap(
+                    plot_fuzzy_beachball_mpl_pixmap(
                         mt_parts, axes, best_mt=None, **kwargs
                     )
 
                     if ratios_diff > 0.0:
-                        label = "{:03.1f}-{:03.1f}%".format(
-                            ratios_qu[2.5], ratios_qu[97.5]
-                        )
+                        label = "{:03.1f}-{:03.1f}%".format(*ratios_qu)
                     else:
-                        label = "{:03.1f}%".format(ratios_qu[2.5])
+                        label = "{:03.1f}%".format(ratios_qu[0])
 
                     axes.annotate(
                         label,
@@ -1867,10 +1847,9 @@ def fuzzy_mt_decomposition(axes, list_m6s, labels=None, colors=None, fontsize=12
 
 
 def draw_fuzzy_mt_decomposition(problem, po):
-
     fontsize = 10
 
-    n_sources = problem.config.problem_config.n_sources
+    n_sources = sum(problem.config.problem_config.n_sources)
 
     if po.load_stage is None:
         po.load_stage = -1
@@ -1880,27 +1859,20 @@ def draw_fuzzy_mt_decomposition(problem, po):
     outpath = os.path.join(
         problem.outfolder,
         po.figure_dir,
-        "fuzzy_mt_decomposition_%i_%s_%i.%s"
-        % (po.load_stage, llk_str, po.nensemble, po.outformat),
+        "fuzzy_mt_decomposition_%i_%s_%i" % (po.load_stage, llk_str, po.nensemble),
     )
 
-    if not os.path.exists(outpath) or po.force or po.outformat == "display":
+    if plot_exists(outpath, po.outformat, po.force):
+        return
 
-        height = 1.5 + (n_sources - 1) * 0.65
-        fig = plt.figure(figsize=(6.0, height))
-        fig.subplots_adjust(left=0.01, right=0.99, bottom=0.03, top=0.97)
-        axes = fig.add_subplot(1, 1, 1)
+    height = 1.5 + (n_sources - 1) * 0.65
+    fig = plt.figure(figsize=(6.0, height))
+    fig.subplots_adjust(left=0.01, right=0.99, bottom=0.03, top=0.97)
+    axes = fig.add_subplot(1, 1, 1)
 
-        fuzzy_mt_decomposition(axes, list_m6s=list_m6s, fontsize=fontsize)
+    fuzzy_mt_decomposition(axes, list_m6s=list_m6s, fontsize=fontsize)
 
-        if not po.outformat == "display":
-            logger.info("saving figure to %s" % outpath)
-            fig.savefig(outpath, dpi=po.dpi)
-        else:
-            plt.show()
-
-    else:
-        logger.info("Plot already exists! Please use --force to overwrite!")
+    save_figs([fig], outpath, po.outformat, po.dpi)
 
 
 def station_variance_reductions(problem, stage, plot_options):
@@ -1917,7 +1889,7 @@ def station_variance_reductions(problem, stage, plot_options):
     composite = problem.composites["seismic"]
 
     fontsize = 8
-    fontsize_title = 10
+    # fontsize_title = 10
     labelpad = 1  # distance between ticks and label
 
     target_index = dict((target, i) for (i, target) in enumerate(composite.targets))
@@ -1943,13 +1915,13 @@ def station_variance_reductions(problem, stage, plot_options):
         bresults = composite.assemble_results(
             best_point, outmode="tapered_data", chop_bounds=chop_bounds
         )
-        synth_plot_flag = True
+        # synth_plot_flag = True
     else:
         # get dummy results for data
         logger.warning('Got "None" post_llk, still loading MAP for VR calculation')
         best_point = get_result_point(stage.mtrace, "max")
         bresults = composite.assemble_results(best_point, chop_bounds=chop_bounds)
-        synth_plot_flag = False
+        # synth_plot_flag = False
 
     tpoint = get_weights_point(composite, best_point, problem.config)
 
@@ -1990,6 +1962,13 @@ def station_variance_reductions(problem, stage, plot_options):
 
         cg_to_target_codes = utility.gather(unique_target_codes, lambda t: t[3])
 
+        if len(ns_id_to_target_codes) == 0:
+            logger.info(
+                "Did not find targets for event %s, skipping plotting ..."
+                % event.__str__()
+            )
+            continue
+
         # get channel group specific mean variance reductions
         cg_var_reductions = {}
         for cg, target_codes in cg_to_target_codes.items():
@@ -2022,7 +2001,7 @@ def station_variance_reductions(problem, stage, plot_options):
             dist = source.distance_to(target)
             data.append(dist)
 
-        dists = num.array(data, dtype=num.float)
+        dists = num.array(data, dtype=num.float64)
         iorder = num.argsort(dists)
         sorted_dists = dists[iorder] / km
 
@@ -2160,7 +2139,6 @@ def station_variance_reductions(problem, stage, plot_options):
 
 
 def draw_station_variance_reductions(problem, po):
-
     if "seismic" not in list(problem.composites.keys()):
         raise TypeError("No seismic composite defined for this problem!")
 
@@ -2191,29 +2169,13 @@ def draw_station_variance_reductions(problem, po):
         "station_variance_reductions_%s_%s_%i" % (stage.number, llk_str, po.nensemble),
     )
 
-    if not os.path.exists(outpath) or po.force:
-        event_figs = station_variance_reductions(problem, stage, po)
-    else:
-        logger.info(
-            "station variance reductions plot exists. Use force=True for replotting!"
-        )
+    if plot_exists(outpath, po.outformat, po.force):
         return
 
-    if po.outformat == "display":
-        plt.show()
-    else:
-        for event_idx, figs in event_figs:
-            event_outpath = "{}_{}".format(outpath, event_idx)
-            logger.info("saving figures to %s" % event_outpath)
-            if po.outformat == "pdf":
-                with PdfPages(event_outpath + ".pdf") as opdf:
-                    for fig in figs:
-                        opdf.savefig(fig)
-            else:
-                for i, fig in enumerate(figs):
-                    fig.savefig(
-                        event_outpath + "_%i.%s" % (i, po.outformat), dpi=po.dpi
-                    )
+    event_figs = station_variance_reductions(problem, stage, po)
+    for event_idx, figs in event_figs:
+        event_outpath = f"{outpath}_{event_idx}"
+        save_figs(figs, event_outpath, po.outformat, po.dpi)
 
 
 def draw_hudson(problem, po):
@@ -2244,6 +2206,16 @@ def draw_hudson(problem, po):
     beachballsize_small = beachballsize * 0.5
 
     for idx_source, (m6s, best_mt) in enumerate(zip(list_m6s, list_best_mts)):
+        outpath = os.path.join(
+            problem.outfolder,
+            po.figure_dir,
+            "hudson_%i_%s_%i_%i.%s"
+            % (po.load_stage, llk_str, po.nensemble, idx_source, po.outformat),
+        )
+
+        if plot_exists(outpath, po.outformat, po.force):
+            return
+
         fig = plt.figure(figsize=(4.0, 4.0))
         fig.subplots_adjust(left=0.0, right=1.0, bottom=0.0, top=1.0)
         axes = fig.add_subplot(1, 1, 1)
@@ -2332,23 +2304,8 @@ def draw_hudson(problem, po):
                 "skipping drawing ..."
             )
 
-        outpath = os.path.join(
-            problem.outfolder,
-            po.figure_dir,
-            "hudson_%i_%s_%i_%i.%s"
-            % (po.load_stage, llk_str, po.nensemble, idx_source, po.outformat),
-        )
-
-        if not os.path.exists(outpath) or po.force or po.outformat == "display":
-
-            if not po.outformat == "display":
-                logger.info("saving figure to %s" % outpath)
-                fig.savefig(outpath, dpi=po.dpi)
-            else:
-                plt.show()
-
-        else:
-            logger.info("Plot already exists! Please use --force to overwrite!")
+            logger.info("saving figure to %s" % outpath)
+            fig.savefig(outpath, dpi=po.dpi)
 
 
 def draw_data_stations(
@@ -2397,7 +2354,6 @@ def draw_data_stations(
 
 
 def draw_events(gmt, events, *args, **kwargs):
-
     ev_lons = [ev.lon for ev in events]
     ev_lats = [ev.lat for ev in events]
 
@@ -2467,7 +2423,7 @@ def gmt_station_map_azimuthal(
             max_distance,
             data_cpt,
             scale_label,
-            *("-J%s" % J_location, "-R%s" % R_location, "-St14p")
+            *("-J%s" % J_location, "-R%s" % R_location, "-St14p"),
         )
     else:
         st_lons = [station.lon for station in stations]
@@ -2501,7 +2457,7 @@ def gmt_station_map_azimuthal(
         gmt,
         [event],
         *("-J%s" % J_location, "-R%s" % R_location),
-        **dict(G="orange", S="a14p")
+        **dict(G="orange", S="a14p"),
     )
 
 
@@ -2560,95 +2516,93 @@ def draw_station_map_gmt(problem, po):
                 % (wmap.name, wmap.mapnumber, value_string, po.outformat),
             )
 
+            if plot_exists(outpath, po.outformat, po.force):
+                continue
+
             dist = max(wmap.get_distances_deg())
-            if not os.path.exists(outpath) or po.force:
 
-                if point:
-                    time_shifts = extract_time_shifts(point, sc.hierarchicals, wmap)
-                else:
-                    time_shifts = None
-
-                if dist > 30:
-                    logger.info(
-                        "Using equidistant azimuthal projection for"
-                        " teleseismic setup of wavemap %s." % wmap._mapid
-                    )
-
-                    gmt = gmtpy.GMT(config=gmtconfig)
-                    gmt_station_map_azimuthal(
-                        gmt,
-                        wmap.stations,
-                        event,
-                        data=time_shifts,
-                        max_distance=dist,
-                        width=w,
-                        bin_width=bin_width,
-                        fontsize=fontsize,
-                        font=font,
-                    )
-
-                    gmt.save(outpath, resolution=po.dpi, size=w)
-
-                else:
-                    logger.info(
-                        "Using equidistant projection for regional setup "
-                        "of wavemap %s." % wmap._mapid
-                    )
-                    from pyrocko import orthodrome as otd
-                    from pyrocko.automap import Map
-
-                    m = Map(
-                        lat=event.lat,
-                        lon=event.lon,
-                        radius=dist * otd.d2m,
-                        width=h,
-                        height=h,
-                        show_grid=True,
-                        show_topo=True,
-                        show_scale=True,
-                        color_dry=(143, 188, 143),  # grey
-                        illuminate=True,
-                        illuminate_factor_ocean=0.15,
-                        # illuminate_factor_land = 0.2,
-                        show_rivers=True,
-                        show_plates=False,
-                        gmt_config=gmtconfig,
-                    )
-
-                    if time_shifts:
-                        sargs = m.jxyr + ["-St14p"]
-                        draw_data_stations(
-                            m.gmt,
-                            wmap.stations,
-                            time_shifts,
-                            dist,
-                            data_cpt=None,
-                            scale_label="time shifts [s]",
-                            *sargs
-                        )
-
-                        for st in wmap.stations:
-                            text = "{}.{}".format(st.network, st.station)
-                            m.add_label(lat=st.lat, lon=st.lon, text=text)
-                    else:
-                        m.add_stations(
-                            wmap.stations, psxy_style=dict(S="t14p", G="red")
-                        )
-
-                    draw_events(m.gmt, [event], *m.jxyr, **dict(G="yellow", S="a14p"))
-                    m.save(outpath, resolution=po.dpi, oversample=2.0)
-
-                logger.info("saving figure to %s" % outpath)
+            if point:
+                time_shifts = extract_time_shifts(point, sc.hierarchicals, wmap)
             else:
-                logger.info("Plot exists! Use --force to overwrite!")
+                time_shifts = None
+
+            if dist > 30:
+                logger.info(
+                    "Using equidistant azimuthal projection for"
+                    " teleseismic setup of wavemap %s." % wmap._mapid
+                )
+
+                gmt = gmtpy.GMT(config=gmtconfig)
+                gmt_station_map_azimuthal(
+                    gmt,
+                    wmap.stations,
+                    event,
+                    data=time_shifts,
+                    max_distance=dist,
+                    width=w,
+                    bin_width=bin_width,
+                    fontsize=fontsize,
+                    font=font,
+                )
+
+                gmt.save(outpath, resolution=po.dpi, size=w)
+            else:
+                logger.info(
+                    "Using equidistant projection for regional setup "
+                    "of wavemap %s." % wmap._mapid
+                )
+                from pyrocko import orthodrome as otd
+                from pyrocko.automap import Map
+
+                m = Map(
+                    lat=event.lat,
+                    lon=event.lon,
+                    radius=dist * otd.d2m,
+                    width=h,
+                    height=h,
+                    show_grid=True,
+                    show_topo=True,
+                    show_scale=True,
+                    color_dry=(143, 188, 143),  # grey
+                    illuminate=True,
+                    illuminate_factor_ocean=0.15,
+                    # illuminate_factor_land = 0.2,
+                    show_rivers=True,
+                    show_plates=False,
+                    gmt_config=gmtconfig,
+                )
+
+                if time_shifts:
+                    sargs = m.jxyr + ["-St14p"]
+                    draw_data_stations(
+                        m.gmt,
+                        wmap.stations,
+                        time_shifts,
+                        dist,
+                        data_cpt=None,
+                        scale_label="time shifts [s]",
+                        *sargs,
+                    )
+
+                    for st in wmap.stations:
+                        text = "{}.{}".format(st.network, st.station)
+                        m.add_label(lat=st.lat, lon=st.lon, text=text)
+                else:
+                    m.add_stations(wmap.stations, psxy_style=dict(S="t14p", G="red"))
+
+                draw_events(m.gmt, [event], *m.jxyr, **dict(G="yellow", S="a14p"))
+                m.save(outpath, resolution=po.dpi, oversample=2.0)
+
+            logger.info("saving figure to %s" % outpath)
 
 
 def draw_lune_plot(problem, po):
-
     if po.outformat == "svg":
         raise NotImplementedError("SVG format is not supported for this plot!")
 
-    if problem.config.problem_config.source_type != "MTQTSource":
+    try:
+        idx = problem.config.problem_config.source_types.index("MTQTSource")
+    except ValueError:
         raise TypeError("Lune plot is only supported for the MTQTSource!")
 
     if po.load_stage is None:
@@ -2657,9 +2611,9 @@ def draw_lune_plot(problem, po):
     stage = load_stage(problem, stage_number=po.load_stage, load="trace", chains=[-1])
     n_mts = len(stage.mtrace)
 
-    n_sources = problem.config.problem_config.n_sources
+    n_source = problem.config.problem_config.n_sources[idx]
 
-    for idx_source in range(n_sources):
+    for idx_source in range(n_source):
         result_ensemble = {}
         for varname in ["v", "w"]:
             try:
@@ -2716,7 +2670,6 @@ def draw_lune_plot(problem, po):
 
 
 def lune_plot(v_tape=None, w_tape=None, reference_v_tape=None, reference_w_tape=None):
-
     from beat.sources import v_to_gamma, w_to_delta
 
     if len(gmtpy.detect_gmt_installations()) < 1:
@@ -2726,14 +2679,12 @@ def lune_plot(v_tape=None, w_tape=None, reference_v_tape=None, reference_w_tape=
     font = "1"
 
     def draw_lune_arcs(gmt, R, J):
-
         lons = [30.0, -30.0, 30.0, -30.0]
         lats = [54.7356, 35.2644, -35.2644, -54.7356]
 
         gmt.psxy(in_columns=(lons, lats), N=True, W="1p,black", R=R, J=J)
 
     def draw_lune_points(gmt, R, J, labels=True):
-
         lons = [0.0, -30.0, -30.0, -30.0, 0.0, 30.0, 30.0, 30.0, 0.0]
         lats = [-90.0, -54.7356, 0.0, 35.2644, 90.0, 54.7356, 0.0, -35.2644, 0.0]
         annotations = ["-ISO", "", "+CLVD", "+LVD", "+ISO", "", "-CLVD", "-LVD", "DC"]
@@ -2745,7 +2696,6 @@ def lune_plot(v_tape=None, w_tape=None, reference_v_tape=None, reference_w_tape=
         if labels:
             farg = ["-F+f+j"]
             for lon, lat, text, align in zip(lons, lats, annotations, alignments):
-
                 rows.append(
                     (lon, lat, "%i,%s,%s" % (fontsize, font, "black"), align, text)
                 )
@@ -2805,7 +2755,6 @@ def lune_plot(v_tape=None, w_tape=None, reference_v_tape=None, reference_w_tape=
         # -Ctmp_$out.cpt -I -N -A- -O -K >> $ps
 
     def draw_reference_lune(gmt, R, J, reference_v_tape, reference_w_tape):
-
         gamma = num.rad2deg(v_to_gamma(reference_v_tape))  # lune longitude [rad]
         delta = num.rad2deg(w_to_delta(reference_w_tape))  # lune latitude [rad]
 

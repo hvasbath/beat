@@ -3,11 +3,11 @@ import os
 from multiprocessing import RawArray
 
 import numpy as num
-import theano.tensor as tt
+import pytensor.tensor as tt
 from pyrocko.guts import load
 from pyrocko.trace import Trace
-from theano import config as tconfig
-from theano import shared
+from pytensor import config as tconfig
+from pytensor import shared
 
 from beat import heart, parallel
 from beat.config import GeodeticGFLibraryConfig, SeismicGFLibraryConfig
@@ -17,7 +17,7 @@ logger = logging.getLogger("ffi")
 
 gf_dtype = "float64"
 
-backends = {"numpy": num, "theano": tt}
+backends = {"numpy": num, "pytensor": tt}
 
 
 def get_backend(backend):
@@ -65,7 +65,6 @@ class GFLibrary(object):
     """
 
     def __init__(self, config):
-
         self.config = config
         self._gfmatrix = None
         self._sgfmatrix = None
@@ -74,10 +73,10 @@ class GFLibrary(object):
         self._stack_switch = {}
 
     def _check_mode_init(self, mode):
-        if mode == "theano":
+        if mode == "pytensor":
             if self._sgfmatrix is None:
                 raise GFLibraryError(
-                    'To use "stack_all" theano stacking optimization mode'
+                    'To use "stack_all" pytensor stacking optimization mode'
                     " has to be initialised!"
                 )
 
@@ -108,11 +107,10 @@ class GFLibrary(object):
     def sw_patchidxs(self):
         if self._mode == "numpy":
             return self.patchidxs
-        elif self._mode == "theano":
+        elif self._mode == "pytensor":
             return self.spatchidxs
 
     def save_config(self, outdir="", filename=None):
-
         filename = filename or "%s" % self.filename
         outpath = os.path.join(outdir, filename + ".yaml")
         logger.debug("Dumping GF config to %s" % outpath)
@@ -122,7 +120,6 @@ class GFLibrary(object):
         self.config.dump(filename=outpath, header=header)
 
     def load_config(self, filename):
-
         try:
             config = load(filename=filename)
         except IOError:
@@ -134,7 +131,7 @@ class GFLibrary(object):
         """
         Sets mode on witch backend the stacking is working.
         Dependent on that the input to the stack function has to be
-        either of :class:`numpy.ndarray` or of :class:`theano.tensor.Tensor`
+        either of :class:`numpy.ndarray` or of :class:`pytensor.tensor.Tensor`
 
         Parameters
         ----------
@@ -152,7 +149,7 @@ class GFLibrary(object):
 
     def get_stack_mode(self):
         """
-        Returns string of stack mode either "numpy" or "theano"
+        Returns string of stack mode either "numpy" or "pytensor"
         """
         return self._mode
 
@@ -202,7 +199,6 @@ class GeodeticGFLibrary(GFLibrary):
     """
 
     def __init__(self, config=GeodeticGFLibraryConfig()):
-
         super(GeodeticGFLibrary, self).__init__(config=config)
 
         self._sgfmatrix = None
@@ -237,7 +233,6 @@ filename: %s""" % (
         self.save_config(outdir=outdir, filename=filename)
 
     def setup(self, npatches, nsamples, allocate=False):
-
         self.dimensions = (npatches, nsamples)
 
         if allocate:
@@ -247,7 +242,6 @@ filename: %s""" % (
         self.set_stack_mode(mode="numpy")
 
     def init_optimization(self):
-
         logger.info("Setting %s GF Library to optimization mode." % self.filename)
         self._sgfmatrix = shared(
             self._gfmatrix.astype(tconfig.floatX), name=self.filename, borrow=True
@@ -256,9 +250,9 @@ filename: %s""" % (
 
         self.spatchidxs = shared(self.patchidxs, name="geo_patchidx_vec", borrow=True)
 
-        self._stack_switch = {"numpy": self._gfmatrix, "theano": self._sgfmatrix}
+        self._stack_switch = {"numpy": self._gfmatrix, "pytensor": self._sgfmatrix}
 
-        self.set_stack_mode(mode="theano")
+        self.set_stack_mode(mode="pytensor")
 
     def put(self, entries, patchidx):
         """
@@ -298,7 +292,7 @@ filename: %s""" % (
     def stack_all(self, slips):
         """
         Stack all patches for all targets at once.
-        In theano for efficient optimization.
+        In pytensor for efficient optimization.
 
         Parameters
         ----------
@@ -337,7 +331,6 @@ class SeismicGFLibrary(GFLibrary):
     """
 
     def __init__(self, config=SeismicGFLibraryConfig()):
-
         super(SeismicGFLibrary, self).__init__(config=config)
 
         self._sgfmatrix = None
@@ -382,7 +375,6 @@ filename: %s""" % (
     def setup(
         self, ntargets, npatches, ndurations, nstarttimes, nsamples, allocate=False
     ):
-
         self.dimensions = (ntargets, npatches, ndurations, nstarttimes, nsamples)
 
         if allocate:
@@ -393,7 +385,6 @@ filename: %s""" % (
         self.set_stack_mode(mode="numpy")
 
     def init_optimization(self):
-
         logger.info("Setting %s GF Library to optimization mode." % self.filename)
         self._sgfmatrix = shared(
             self._gfmatrix.astype(tconfig.floatX), name=self.filename, borrow=True
@@ -408,9 +399,9 @@ filename: %s""" % (
 
         self.spatchidxs = shared(self.patchidxs, name="seis_patchidx_vec", borrow=True)
 
-        self._stack_switch = {"numpy": self._gfmatrix, "theano": self._sgfmatrix}
+        self._stack_switch = {"numpy": self._gfmatrix, "pytensor": self._sgfmatrix}
 
-        self.set_stack_mode(mode="theano")
+        self.set_stack_mode(mode="pytensor")
 
     def set_patch_time(self, targetidx, tmin):
         """
@@ -494,18 +485,18 @@ filename: %s""" % (
     def starttimes2idxs(self, starttimes, interpolation="nearest_neighbor"):
         """
         Transforms starttimes into indexes to the GFLibrary.
-        Depending on the stacking mode of the GFLibrary theano or numpy
+        Depending on the stacking mode of the GFLibrary pytensor or numpy
         is used.
 
         Parameters
         ----------
-        starttimes [s]: :class:`numpy.ndarray` or :class:`theano.tensor.Tensor`
+        starttimes [s]: :class:`numpy.ndarray` or :class:`pytensor.tensor.Tensor`
             of the rupturing of the patch, float
 
         Returns
         -------
         starttimeidxs, starttimes : :class:`numpy.ndarray` or
-            :class:`theano.tensor.Tensor`, int16
+            :class:`pytensor.tensor.Tensor`, int16
             (output depends on interpolation scheme,
             if multilinear interpolation factors are returned as well)
         """
@@ -543,18 +534,18 @@ filename: %s""" % (
     def durations2idxs(self, durations, interpolation="nearest_neighbor"):
         """
         Transforms durations into indexes to the GFLibrary.
-        Depending on the stacking mode of the GFLibrary theano or numpy
+        Depending on the stacking mode of the GFLibrary pytensor or numpy
         is used.
 
         Parameters
         ----------
-        durations [s] : :class:`numpy.ndarray` or :class:`theano.tensor.Tensor`
+        durations [s] : :class:`numpy.ndarray` or :class:`pytensor.tensor.Tensor`
             of the rupturing of the patch, float
 
         Returns
         -------
         durationidxs, starttimes : :class:`numpy.ndarray` or
-            :class:`theano.tensor.Tensor`, int16
+            :class:`pytensor.tensor.Tensor`, int16
         """
         backend = get_backend(self._mode)
 
@@ -586,7 +577,7 @@ filename: %s""" % (
     ):
         """
         Stack selected traces from the GF Library of specified
-        target, patch, durations and starttimes. Numpy or theano dependent
+        target, patch, durations and starttimes. Numpy or pytensor dependent
         on the stack_mode
 
         Parameters
@@ -594,7 +585,7 @@ filename: %s""" % (
 
         Returns
         -------
-        :class:`numpy.ndarray` or of :class:`theano.tensor.Tensor` dependent
+        :class:`numpy.ndarray` or of :class:`pytensor.tensor.Tensor` dependent
         on stack mode
         """
         durationidxs, rt_factors = self.durations2idxs(
@@ -623,11 +614,11 @@ filename: %s""" % (
     ):
         """
         Stack all patches for all targets at once.
-        In theano for efficient optimization.
+        In pytensor for efficient optimization.
 
         Parameters
         ----------
-        starttimes: numpy or theano tensor
+        starttimes: numpy or pytensor tensor
             size (ntargets, npatches) to be able to account for time-shifts!
 
         Returns
@@ -635,7 +626,6 @@ filename: %s""" % (
         matrix : size (ntargets, nsamples)
         option : tensor.batched_dot(sd.dimshuffle((1,0,2)), u).sum(axis=0)
         """
-
         if targetidxs is None:
             raise ValueError("Target indexes have to be defined!")
 
@@ -656,7 +646,6 @@ filename: %s""" % (
         )
 
         if interpolation == "nearest_neighbor":
-
             cd = (
                 self._stack_switch[self._mode][
                     targetidxs, patchidxs, durationidxs, starttimeidxs, :
@@ -670,7 +659,6 @@ filename: %s""" % (
             )
 
         elif interpolation == "multilinear":
-
             d_st_ceil_rt_ceil = self._stack_switch[self._mode][
                 targetidxs, patchidxs, durationidxs, starttimeidxs, :
             ].reshape((self.ntargets, npatches, self.nsamples))
@@ -713,7 +701,7 @@ filename: %s""" % (
                 "Interpolation scheme %s not implemented!" % interpolation
             )
 
-        if self._mode == "theano":
+        if self._mode == "pytensor":
             return tt.batched_dot(cd.dimshuffle((2, 0, 1)), cslips)
 
         elif self._mode == "numpy":
@@ -813,10 +801,9 @@ filename: %s""" % (
 
 
 def _process_patch_geodetic(engine, gfs, targets, patch, patchidx, los_vectors, odws):
-
     logger.debug("Patch Number %i", patchidx)
     logger.debug("Calculating synthetics ...")
-
+    logger.debug(patch.__str__())
     disp = heart.geo_synthetics(
         engine=engine, targets=targets, sources=[patch], outmode="stacked_array"
     )
@@ -1017,7 +1004,6 @@ def geo_construct_gf_linear_patches(
 def _process_patch_seismic(
     engine, gfs, targets, patch, patchidx, durations, starttimes
 ):
-
     # ensur event reference time
     logger.debug("Using reference event source time ...")
     patch.time = gfs.config.event.time
@@ -1033,7 +1019,6 @@ def _process_patch_seismic(
         source_patches_durations.append(pcopy)
 
     for j, target in enumerate(targets):
-
         traces, _ = heart.seis_synthetics(
             engine=engine,
             sources=source_patches_durations,
@@ -1141,7 +1126,7 @@ def seis_construct_gf_linear(
             rupture_velocities = fault.vector2subfault(
                 idx, velocities_prior.get_lower(fault.subfault_npatches)
             )
-        except (IndexError):
+        except IndexError:
             raise ValueError(
                 "Velocities need to be of size either"
                 " npatches or number of fault segments"

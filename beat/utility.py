@@ -11,29 +11,47 @@ import collections
 import copy
 import logging
 import os
-import pickle
 import re
 from functools import wraps
 from timeit import Timer
 
+import cloudpickle as pickle
 import numpy as num
 from pyrocko import catalog, orthodrome, util
 from pyrocko.cake import LayeredModel, m2d, read_nd_model_str
-from pyrocko.gf.seismosizer import RectangularSource
 from pyrocko.guts import Float, Int, Object
-from theano import config as tconfig
+from pytensor import config as tconfig
 
 logger = logging.getLogger("utility")
 
 DataMap = collections.namedtuple("DataMap", "list_ind, slc, shp, dtype, name")
 
-locationtypes = {"east_shift", "north_shift", "depth", "distance", "delta_depth"}
-dimensiontypes = {"length", "width", "diameter"}
+locationtypes = {
+    "east_shift",
+    "north_shift",
+    "depth",
+    "distance",
+    "delta_depth",
+    "delta_east_shift_bottom",
+    "delta_north_shift_bottom",
+    "depth_bottom",
+}
+
+dimensiontypes = {
+    "length",
+    "width",
+    "diameter",
+    "a_half_axis",
+    "b_half_axis",
+    "a_half_axis_bottom",
+    "b_half_axis_bottom",
+}
 mttypes = {"mnn", "mee", "mdd", "mne", "mnd", "med"}
 degtypes = {"strike", "dip", "rake"}
 nucleationtypes = {"nucleation_x", "nucleation_y"}
 patch_anchor_points = {"center", "bottom_depth", "bottom_left"}
 
+patypes = {"traction", "strike_traction", "dip_traction", "tensile_traction"}
 kmtypes = set.union(locationtypes, dimensiontypes, patch_anchor_points)
 grouped_vars = set.union(kmtypes, mttypes, degtypes, nucleationtypes)
 
@@ -70,7 +88,6 @@ class Counter(object):
         self.d = dict()
 
     def __call__(self, string, multiplier=1):
-
         if string not in self.d:
             self.d[string] = 0
         else:
@@ -95,13 +112,13 @@ class Counter(object):
 
 class ListArrayOrdering(object):
     """
-    An ordering for a list to an array space. Takes also non theano.tensors.
-    Modified from pymc3 blocking.
+    An ordering for a list to an array space. Takes also non pytensor.tensors.
+    Modified from pymc blocking.
 
     Parameters
     ----------
     list_arrays : list
-        :class:`numpy.ndarray` or :class:`theano.tensor.Tensor`
+        :class:`numpy.ndarray` or :class:`pytensor.tensor.Tensor`
     intype : str
         defining the input type 'tensor' or 'numpy'
     """
@@ -114,7 +131,7 @@ class ListArrayOrdering(object):
         for array in list_arrays:
             if intype == "tensor":
                 name = array.name
-                array = array.tag.test_value
+                array = array.get_test_value()
             elif intype == "numpy":
                 name = "numpy"
 
@@ -179,7 +196,6 @@ class ListToArrayBijection(object):
         -------
         lpoint
         """
-
         a_list = copy.copy(self.list_arrays)
 
         for list_ind, _, shp, _, var in self.ordering.vmap:
@@ -202,7 +218,7 @@ class ListToArrayBijection(object):
 
         Returns
         -------
-        :class:`pymc3.model.Point`
+        :class:`pymc.model.Point`
         """
         point = {}
 
@@ -316,12 +332,12 @@ class ListToArrayBijection(object):
 
         Parameters
         ----------
-        tarray : :class:`theano.tensor.Tensor`
+        tarray : :class:`pytensor.tensor.Tensor`
 
         Returns
         -------
         a_list : list
-            of :class:`theano.tensor.Tensor`
+            of :class:`pytensor.tensor.Tensor`
         """
 
         a_list = copy.copy(self.list_arrays)
@@ -340,7 +356,7 @@ def weed_input_rvs(input_rvs, mode, datatype):
     Parameters
     ----------
     input_rvs : dict
-        of :class:`pymc3.Distribution` or set of variable names
+        of :class:`pymc.Distribution` or set of variable names
     mode : str
         'geometry', 'static, 'kinematic', 'interseismic' determining the
         discarded RVs
@@ -350,7 +366,7 @@ def weed_input_rvs(input_rvs, mode, datatype):
     Returns
     -------
     weeded_input_rvs : dict
-        of :class:`pymc3.Distribution`
+        of :class:`pymc.Distribution`
     """
 
     weeded_input_rvs = copy.copy(input_rvs)
@@ -390,12 +406,17 @@ def weed_input_rvs(input_rvs, mode, datatype):
                 "fd",
             ] + burian
 
-    elif mode == "interseismic":
+    elif mode == "bem":
         if datatype == "geodetic":
-            tobeweeded = burian
-
-    else:
+            tobeweeded = [
+                "time",
+                "duration",
+                "peak_ratio",
+            ] + burian
+    elif mode == "ffi":
         tobeweeded = []
+    else:
+        raise TypeError(f"Mode {mode} not supported!")
 
     for weed in tobeweeded:
         if isinstance(weeded_input_rvs, dict):
@@ -606,13 +627,16 @@ def transform_sources(sources, datatypes, decimation_factors=None):
     for datatype in datatypes:
         transformed_sources = []
 
-        for source in sources:
-            transformed_source = copy.deepcopy(source)
+        for idx, source in enumerate(sources):
+            transformed_source = source.clone()
 
             if decimation_factors is not None:
-                transformed_source.update(
-                    decimation_factor=decimation_factors[datatype], anchor="top"
-                )
+                try:
+                    transformed_source.update(
+                        decimation_factor=decimation_factors[datatype], anchor="top"
+                    )
+                except KeyError:
+                    logger.info("Not setting decimation for source %i" % idx)
 
             if datatype == "geodetic" or datatype == "polarity":
                 transformed_source.stf = None
@@ -631,25 +655,27 @@ def adjust_point_units(point):
     Parameters
     ----------
     point : dict
-        :func:`pymc3.model.Point` of model parameter units as keys
+        :func:`pymc.model.Point` of model parameter units as keys
 
     Returns
     -------
     mpoint : dict
-        :func:`pymc3.model.Point`
+        :func:`pymc.model.Point`
     """
 
     mpoint = {}
     for key, value in point.items():
         if key in kmtypes:
             mpoint[key] = value * km
+        elif key in patypes:
+            mpoint[key] = value * km * km
         else:
             mpoint[key] = value
 
     return mpoint
 
 
-def split_point(point):
+def split_point(point, mapping=None, n_sources_total=None, weed_params=False):
     """
     Split point in solution space into List of dictionaries with source
     parameters for each source.
@@ -657,27 +683,53 @@ def split_point(point):
     Parameters
     ----------
     point : dict
-        :func:`pymc3.model.Point`
+        :func:`pymc.model.Point`
+    mapping : :class: `beat.config.DatatypeParameterMapping`
+    n_sources_total : int
+        total number of sources for each type in setup
+    weed_params: bool
+        if True only source related parameters are kept in the point
+        if False it may raise an error.
 
     Returns
     -------
     source_points : list
-        of :func:`pymc3.model.Point`
+        of :func:`pymc.model.Point`
     """
-    params = point.keys()
-    if len(params) > 0:
-        n_sources = point[next(iter(params))].shape[0]
+
+    if mapping is not None and n_sources_total is not None:
+        raise ValueError("Must provide either mapping or n_sources_total")
+
+    if mapping is None and n_sources_total is None:
+        raise ValueError("Must provide either mapping or n_sources_total")
+
+    if mapping is not None:
+        point_to_sources = mapping.point_to_sources_mapping()
+        n_sources_total = mapping.n_sources
     else:
-        n_sources = 0
+        point_to_sources = None
 
-    source_points = []
-    for i in range(n_sources):
-        source_param_dict = dict()
-        for param, value in point.items():
-            source_param_dict[param] = float(value[i])
+    if weed_params:
+        source_parameter_names = mapping.point_variable_names()
+        for param in list(point.keys()):
+            if param not in source_parameter_names:
+                point.pop(param)
 
-        source_points.append(source_param_dict)
+    source_points = [{} for i in range(n_sources_total)]
+    for param, values in point.items():
+        if point_to_sources:
+            source_idxs = point_to_sources[param]
+        else:
+            source_idxs = range(n_sources_total)
 
+        for value, idx in zip(values, source_idxs):
+            try:
+                source_points[idx][param] = float(value)
+            except IndexError:
+                raise IndexError(
+                    "Tried to set index %i for parameter %s, but does not exist."
+                    % (idx, param)
+                )
     return source_points
 
 
@@ -727,10 +779,10 @@ def update_source(source, **point):
     ----------
     source : :class:`pyrocko.gf.seismosizer.Source`
     point : dict
-        :func:`pymc3.model.Point`
+        :func:`pymc.model.Point`
     """
 
-    for (k, v) in point.items():
+    for k, v in point.items():
         if k not in source.keys():
             if source.stf is not None:
                 try:
@@ -1126,7 +1178,7 @@ def slice2string(slice_obj):
         return slice_obj
 
 
-def list2string(l, fill=", "):
+def list2string(any_list, fill=", "):
     """
     Convert list of string to single string.
 
@@ -1135,7 +1187,7 @@ def list2string(l, fill=", "):
     l: list
         of strings
     """
-    return fill.join("%s" % slice2string(listentry) for listentry in l)
+    return fill.join("%s" % slice2string(listentry) for listentry in any_list)
 
 
 def string2slice(slice_string):
@@ -1151,7 +1203,7 @@ def string2slice(slice_string):
     return slice(*[int(idx) for idx in slice_string.split(":")])
 
 
-def unique_list(l):
+def unique_list(any_list):
     """
     Find unique entries in list and return them in a list.
     Keeps variable order.
@@ -1165,7 +1217,7 @@ def unique_list(l):
     list with only unique elements
     """
     used = []
-    return [x for x in l if x not in used and (used.append(x) or True)]
+    return [x for x in any_list if x not in used and (used.append(x) or True)]
 
 
 def join_models(global_model, crustal_model):
@@ -1193,7 +1245,7 @@ def join_models(global_model, crustal_model):
     return joined_model
 
 
-def split_off_list(l, off_length):
+def split_off_list(any_list, off_length):
     """
     Split a list with length 'off_length' from the beginning of an input
     list l.
@@ -1211,7 +1263,7 @@ def split_off_list(l, off_length):
     list
     """
 
-    return [l.pop(0) for i in range(off_length)]
+    return [any_list.pop(0) for i in range(off_length)]
 
 
 def mod_i(i, cycle):
@@ -1257,12 +1309,12 @@ def biggest_common_divisor(a, b):
     return int(a)
 
 
-def gather(l, key, sort=None, filter=None):
+def gather(any_list, key, sort=None, filter=None):
     """
     Return dictionary of input l grouped by key.
     """
     d = {}
-    for x in l:
+    for x in any_list:
         if filter is not None and not filter(x):
             continue
 
@@ -1507,7 +1559,6 @@ def positions2idxs(positions, cell_size, min_pos=0.0, backend=num, dtype="int16"
 
 
 def rotate_coords_plane_normal(coords, sf):
-
     coords -= sf.bottom_left / km
 
     rots = get_rotation_matrix()
@@ -1605,12 +1656,10 @@ def find_elbow(data, theta=None, rotate_left=False):
 
 
 class StencilOperator(Object):
-
     h = Float.T(default=0.1, help="step size left and right of the reference value")
     order = Int.T(default=3, help="number of points of central differences")
 
     def __init__(self, **kwargs):
-
         stencil_order = kwargs["order"]
         if stencil_order not in [3, 5]:
             raise ValueError(

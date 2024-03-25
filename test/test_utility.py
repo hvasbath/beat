@@ -1,10 +1,9 @@
 import logging
 import unittest
-from tempfile import mkdtemp
 from time import time
 
 import numpy as num
-import theano.tensor as tt
+import pytensor.tensor as tt
 from pyrocko import util
 
 from beat import utility
@@ -20,7 +19,6 @@ class TestUtility(unittest.TestCase):
         unittest.TestCase.__init__(self, *args, **kwargs)
 
     def test_rotation(self):
-
         self.R = utility.get_rotation_matrix(["x", "y"])
         self.Rz = utility.get_rotation_matrix("z")
 
@@ -60,15 +58,16 @@ class TestUtility(unittest.TestCase):
         lpoint = [a, b, c]
         lij = utility.ListToArrayBijection(lordering, lpoint)
 
-        ref_point = {"a": a, "b": b, "c": c}
+        # ref_point = {"a": a, "b": b, "c": c}
         array = lij.l2a(lpoint)
         point = lij.l2d(lpoint)
-        print("arr", array)
-        print("point, ref_point", point, ref_point)
-        print(lij.l2d(lij.a2l(array)))
+
+        point_from_array = lij.l2d(lij.a2l(array))
+
+        for k, val in point_from_array.items():
+            num.testing.assert_allclose(val, point[k])
 
     def test_window_rms(self):
-
         data = num.random.randn(5000)
         ws = int(data.size / 5)
         t0 = time()

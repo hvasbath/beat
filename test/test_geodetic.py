@@ -1,35 +1,33 @@
 import logging
-import os
-import shutil
 import unittest
 from copy import deepcopy
-from tempfile import mkdtemp
+from pathlib import Path
 
 import numpy as num
-import theano.tensor as tt
-from numpy.testing import assert_allclose
-from pyrocko import orthodrome, plot, trace, util
-from theano import config
+from pyrocko import util
+from pytensor import config as tconfig
+from pytest import mark
 
-from beat import heart, models
+from beat import models
 
-config.mode = "FAST_COMPILE"
+tconfig.mode = "FAST_COMPILE"
 
 
 logger = logging.getLogger("test_geodetic")
 km = 1000.0
 
-project_dir = "/home/vasyurhm/BEATS/LaquilaJointPonlyUPDATE_nf"
+# TODO update with version 2.0.0 compliant setup
+project_dir = Path("/home/vasyurhm/BEATS/LaquilaJointPonlyUPDATE_nf")
 
 
 class TestGeodeticComposite(unittest.TestCase):
     def setUp(self):
-
         self.mode = "geometry"
+        mark.skipif(project_dir.is_dir() is False, reason="Needs project dir")
         self.problem = models.load_model(project_dir, self.mode)
 
+    @mark.skipif(project_dir.is_dir() is False, reason="Needs project dir")
     def test_step(self):
-
         step = self.problem.init_sampler()
         rp = self.problem.get_random_point()
         rp1 = deepcopy(rp)

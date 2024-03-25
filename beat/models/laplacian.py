@@ -2,15 +2,15 @@ import os
 from logging import getLogger
 
 import numpy as num
-from pymc3 import Deterministic
-from theano import config as tconfig
-from theano import shared
-from theano import tensor as tt
+from pymc import Deterministic
+from pytensor import config as tconfig
+from pytensor import shared
+from pytensor import tensor as tt
 
 from beat import config as bconfig
 from beat.heart import log_determinant
 from beat.models.base import Composite, FaultGeometryNotFoundError
-from beat.utility import load_objects, distances
+from beat.utility import distances, load_objects
 
 logger = getLogger("ffi.laplacian")
 
@@ -26,7 +26,6 @@ __all__ = [
 
 class LaplacianDistributerComposite(Composite):
     def __init__(self, config, project_dir, events, hypers):
-
         super(LaplacianDistributerComposite, self).__init__(events)
 
         self.config = config
@@ -100,22 +99,22 @@ class LaplacianDistributerComposite(Composite):
         """
         Get smoothing likelihood formula for the model built. Has to be called
         within a with model context.
-        Part of the pymc3 model.
+        Part of the pymc model.
 
         Parameters
         ----------
         input_rvs : dict
-            of :class:`pymc3.distribution.Distribution`
+            of :class:`pymc.distribution.Distribution`
         fixed_rvs : dict
             of :class:`numpy.array` here only dummy
         hyperparams : dict
-            of :class:`pymc3.distribution.Distribution`
+            of :class:`pymc.distribution.Distribution`
         problem_config : :class:`config.ProblemConfig`
             here it is not used
 
         Returns
         -------
-        posterior_llk : :class:`theano.tensor.Tensor`
+        posterior_llk : :class:`pytensor.tensor.Tensor`
         """
 
         logger.info("Initialising Laplacian smoothing operator ...")
@@ -127,12 +126,12 @@ class LaplacianDistributerComposite(Composite):
         self.input_rvs.update(fixed_rvs)
 
         logpts = tt.zeros((self.n_t), tconfig.floatX)
-        for l, var in enumerate(self.slip_varnames):
+        for i_l, var in enumerate(self.slip_varnames):
             Ls = self.shared_smoothing_op.dot(input_rvs[var])
             exponent = Ls.T.dot(Ls)
 
             logpts = tt.set_subtensor(
-                logpts[l : l + 1],
+                logpts[i_l : i_l + 1],
                 self._eval_prior(hyperparams[hp_name], exponent=exponent),
             )
 
@@ -149,10 +148,10 @@ class LaplacianDistributerComposite(Composite):
         point : dict
             with numpy array-like items and variable name keys
         """
-        for l, varname in enumerate(self.slip_varnames):
+        for i_l, varname in enumerate(self.slip_varnames):
             Ls = self.smoothing_op.dot(point[varname])
             _llk = num.asarray([Ls.T.dot(Ls)])
-            self._llks[l].set_value(_llk)
+            self._llks[i_l].set_value(_llk)
 
     def get_hyper_formula(self, hyperparams):
         """
@@ -278,6 +277,8 @@ def get_smoothing_operator_correlated(patches_coords, correlation_function="gaus
     """
 
     inter_patch_distances = distances(patches_coords, patches_coords)
+    # remove invalid diag at distance zero
+    num.fill_diagonal(inter_patch_distances, num.ones(inter_patch_distances.shape[0]))
 
     if correlation_function == "gaussian":
         a = 1 / num.power(inter_patch_distances, 2)
@@ -290,7 +291,8 @@ def get_smoothing_operator_correlated(patches_coords, correlation_function="gaus
             '"nearest_neighbor" correlation function!'
         )
 
-    num.fill_diagonal(a, num.zeros(a.shape[0]))  # remove invalid diag
+    # fill diagonal
+    num.fill_diagonal(a, num.zeros(a.shape[0]))
     norm_distances = a.sum(0)
     num.fill_diagonal(a, -norm_distances)
     return a

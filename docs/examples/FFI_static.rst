@@ -123,12 +123,12 @@ Under the *problem_config* we find the parameters that we need to adjust::
         regularization: none
         npatches: 121
         initialization: random
-      source_type: RectangularSource
+      source_types: [RectangularSource]
       stf_type: HalfSinusoid
       decimation_factors:
         geodetic: 1
         seismic: 1
-      n_sources: 1
+      n_sources: [1]
       datatypes: [geodetic, seismic]
       hyperparameters:
         h_SAR: !beat.heart.Parameter

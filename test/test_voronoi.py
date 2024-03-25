@@ -17,7 +17,6 @@ logger = logging.getLogger("test_voronoi")
 def plot_voronoi_cell_discretization(
     gfs_dip, gfs_strike, voro_dip, voro_strike, gf2voro_idxs
 ):
-
     ax = plt.axes()
 
     ax.plot(gfs_strike, gfs_dip, "xk")
@@ -62,7 +61,6 @@ class VoronoiTestCase(unittest.TestCase):
         )
 
     def test_voronoi_discretization(self):
-
         t0 = time()
         gf2voro_idxs_c = voronoi.get_voronoi_cell_indexes_c(
             self.gf_points_dip,
@@ -99,7 +97,7 @@ class VoronoiTestCase(unittest.TestCase):
                 self.gf_points_strike,
                 self.voronoi_points_dip,
                 self.voronoi_points_strike,
-                gf2voro_idxs,
+                gf2voro_idxs_numpy,
             )
 
 

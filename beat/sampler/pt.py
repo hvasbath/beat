@@ -8,32 +8,22 @@ import sys
 # disable internal(fine) blas parallelisation as we parallelise over chains
 os.environ["OMP_NUM_THREADS"] = "1"
 
-from collections import OrderedDict
-from copy import deepcopy
-from logging import getLevelName, getLogger
-from pickle import HIGHEST_PROTOCOL
+if True:  # noqa: E402
+    from collections import OrderedDict
+    from copy import deepcopy
+    from logging import getLevelName, getLogger
+    from pickle import HIGHEST_PROTOCOL
 
-import numpy as num
-from mpi4py import MPI
-from theano import config as tconfig
+    import numpy as num
+    from pytensor import config as tconfig
 
-from beat.backend import MemoryChain, SampleStage, backend_catalog
-from beat.config import sample_p_outname
-from beat.sampler import distributed
-from beat.sampler.base import (
-    ChainCounter,
-    Proposal,
-    _iter_sample,
-    choose_proposal,
-    multivariate_proposals,
-)
-from beat.utility import dump_objects, list2string, load_objects, setup_logging
+    from beat.backend import MemoryChain, SampleStage, backend_catalog
+    from beat.config import sample_p_outname
+    from beat.sampler import distributed
+    from beat.sampler.base import ChainCounter, Proposal, _iter_sample, choose_proposal
+    from beat.utility import dump_objects, list2string, load_objects, setup_logging
 
 logger = getLogger("pt")
-
-
-MPI.pickle.PROTOCOL = HIGHEST_PROTOCOL
-
 
 __all__ = [
     "pt_sample",
@@ -92,7 +82,6 @@ class SamplingHistory(object):
         self.filename = sample_p_outname
 
     def record(self, sample_count, acceptance_matrix, t_scale, acceptance):
-
         self.sample_counts.append(sample_count)
         self.acceptance_matrixes.append(acceptance_matrix)
         self.acceptance.append(acceptance)
@@ -129,7 +118,6 @@ class TemperingManager(object):
         beta_tune_interval,
         n_workers_posterior,
     ):
-
         self.n_workers = n_workers
         self.n_workers_posterior = n_workers_posterior
         self.n_workers_tempered = int(self.n_workers - self.n_workers_posterior)
@@ -400,7 +388,6 @@ class TemperingManager(object):
         """
 
         if source not in self._worker_package_mapping.keys():
-
             step = deepcopy(self.step)
             step.beta = self.betas[self.worker2index(source)]  # subtract master
             step.stage = 1
@@ -564,7 +551,7 @@ def master_process(
     logger.info("Sending work packages to workers...")
     manager.update_betas()
     for beta in manager.betas:
-        comm.recv(source=MPI.ANY_SOURCE, tag=tags.READY, status=status)
+        comm.recv(source=MPI.ANY_SOURCE, tag=tags.READY, status=status)  # noqa: F821
         source = status.Get_source()
 
         if record_worker_chains:
@@ -595,17 +582,22 @@ def master_process(
     logger.info("Sampling ...")
     logger.info("------------")
     while True:
-
         m1 = num.empty(manager.step.lordering.size)
         comm.Recv(
-            [m1, MPI.DOUBLE], source=MPI.ANY_SOURCE, tag=MPI.ANY_TAG, status=status
+            [m1, MPI.DOUBLE],  # noqa: F821
+            source=MPI.ANY_SOURCE,  # noqa: F821
+            tag=MPI.ANY_TAG,  # noqa: F821
+            status=status,  # noqa: F821
         )
         source1 = status.Get_source()
         logger.debug("Got sample 1 from worker %i" % source1)
 
         m2 = num.empty(manager.step.lordering.size)
         comm.Recv(
-            [m2, MPI.DOUBLE], source=MPI.ANY_SOURCE, tag=MPI.ANY_TAG, status=status
+            [m2, MPI.DOUBLE],  # noqa: F821
+            source=MPI.ANY_SOURCE,  # noqa: F821
+            tag=MPI.ANY_TAG,  # noqa: F821
+            status=status,  # noqa: F821
         )
         source2 = status.Get_source()
         logger.debug("Got sample 2 from worker %i" % source2)
@@ -620,6 +612,7 @@ def master_process(
                 steps_until_tune += 1
 
         m1, m2 = manager.propose_chain_swap(m1, m2, source1, source2)
+
         # beta updating
         if steps_until_tune >= beta_tune_interval:
             manager.tune_betas()
@@ -630,7 +623,7 @@ def master_process(
             for source in [source1, source2]:
                 if not manager.worker_beta_updated(source1):
                     comm.Send(
-                        [manager.get_beta(source), MPI.DOUBLE],
+                        [manager.get_beta(source), MPI.DOUBLE],  # noqa: F821
                         dest=source,
                         tag=tags.BETA,
                     )
@@ -666,7 +659,7 @@ def worker_process(comm, tags, status):
     tags : message tags
     status : mpi.status object
     """
-    name = MPI.Get_processor_name()
+    name = MPI.Get_processor_name()  # noqa: F821
     logger.debug("Entering worker process with rank %d on %s." % (comm.rank, name))
     comm.send(None, dest=0, tag=tags.READY)
 
@@ -681,13 +674,13 @@ def worker_process(comm, tags, status):
 
     # do initial sampling
     result = sample_pt_chain(**kwargs)
-    comm.Send([result, MPI.DOUBLE], dest=0, tag=tags.DONE)
+    comm.Send([result, MPI.DOUBLE], dest=0, tag=tags.DONE)  # noqa: F821
 
     # enter repeated sampling
     while True:
         # TODO: make transd-compatible
         data = num.empty(step.lordering.size, dtype=tconfig.floatX)
-        comm.Recv([data, MPI.DOUBLE], tag=MPI.ANY_TAG, source=0, status=status)
+        comm.Recv([data, MPI.DOUBLE], tag=MPI.ANY_TAG, source=0, status=status)  # noqa: F821
 
         tag = status.Get_tag()
         if tag == tags.SAMPLE:
@@ -699,7 +692,7 @@ def worker_process(comm, tags, status):
             result = sample_pt_chain(**kwargs)
 
             logger.debug("Worker %i attempting to send ..." % comm.rank)
-            comm.Send([result, MPI.DOUBLE], dest=0, tag=tags.DONE)
+            comm.Send([result, MPI.DOUBLE], dest=0, tag=tags.DONE)  # noqa: F821
             logger.debug("Worker %i sent message successfully ..." % comm.rank)
 
         elif tag == tags.BETA:
@@ -748,7 +741,7 @@ def sample_pt_chain(
         Number of iterations to tune, if applicable (defaults to None)
     progressbar : bool
         Flag for displaying a progress bar
-    model : :class:`pymc3.Model`
+    model : :class:`pymc.Model`
         (optional if in `with` context) has to contain deterministic
         variable name defined under step.likelihood_name' that contains the
         model likelihood
@@ -758,7 +751,7 @@ def sample_pt_chain(
     :class:`numpy.NdArray` with end-point of the MarkovChain
     """
     if isinstance(draws, Proposal):
-        n_steps = int(draws())
+        n_steps = draws()[0]
     else:
         n_steps = draws
 
@@ -776,7 +769,6 @@ def sample_pt_chain(
         trace,
         chain,
         tune,
-        model,
         random_seed,
         overwrite=False,
         update_proposal=update_proposal,
@@ -855,7 +847,7 @@ def pt_sample(
     buffer_thinning : int
         every nth sample of the buffer is written to disk,
         default: 1 (no thinning)
-    model : :class:`pymc3.Model`
+    model : :class:`pymc.Model`
         (optional if in `with` context) has to contain deterministic
         variable name defined under step.likelihood_name' that contains the
         model likelihood
@@ -943,6 +935,17 @@ def _sample():
 
 
 if __name__ == "__main__":
+    import cloudpickle
+
+    try:
+        from mpi4py import MPI
+
+        logger.debug("Found MPI")
+    except ImportError:
+        raise ImportError("'mpi4py' and a mpi library need to be installed!")
+
+    MPI.pickle.__init__(cloudpickle.dumps, cloudpickle.loads)
+    MPI.pickle.PROTOCOL = HIGHEST_PROTOCOL
 
     try:
         _, levelname, project_dir = sys.argv
@@ -953,4 +956,5 @@ if __name__ == "__main__":
     setup_logging(
         project_dir=project_dir, levelname=levelname, logfilename="BEAT_log.txt"
     )
+
     _sample()

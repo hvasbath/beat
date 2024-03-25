@@ -27,7 +27,6 @@ def metrop_select(m1, m2):
 
 
 def master_process(comm, size, tags, status):
-
     num_workers = size - 1
     tasks = range(num_workers)
     chain = []

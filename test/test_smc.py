@@ -1,18 +1,21 @@
 import logging
 import multiprocessing as mp
-import os
 import shutil
 import unittest
 from tempfile import mkdtemp
 
 import numpy as num
-import pymc3 as pm
-import theano.tensor as tt
+import pymc as pm
+import pytensor.tensor as tt
 from pyrocko import util
+from pytensor import config as tconfig
 
-from beat import backend, smc, utility
+from beat import backend, utility
+from beat.sampler import smc
 
 logger = logging.getLogger("test_smc")
+
+tconfig.compute_test_value = "pdb"
 
 
 class TestSMC(unittest.TestCase):
@@ -28,7 +31,7 @@ class TestSMC(unittest.TestCase):
         )
 
         self.n_cpu = mp.cpu_count()
-        self.n_chains = 300
+        self.n_chains = 100
         self.n_steps = 100
         self.tune_interval = 25
 
@@ -70,11 +73,10 @@ class TestSMC(unittest.TestCase):
                 shape=n,
                 lower=-2.0 * num.ones_like(mu1),
                 upper=2.0 * num.ones_like(mu1),
-                testval=-1.0 * num.ones_like(mu1),
+                initval=-1.0 * num.ones_like(mu1),
                 transform=None,
             )
-            like = pm.Deterministic("like", two_gaussians(X))
-            llk = pm.Potential("like", like)
+            _ = pm.Deterministic("like", two_gaussians(X))
 
         with SMC_test:
             step = smc.SMC(
@@ -96,7 +98,7 @@ class TestSMC(unittest.TestCase):
 
         stage_handler = backend.SampleStage(test_folder)
 
-        mtrace = stage_handler.load_multitrace(-1, model=SMC_test)
+        mtrace = stage_handler.load_multitrace(-1, varnames=SMC_test.value_vars)
 
         d = mtrace.get_values("X", combine=True, squeeze=True)
         x = last_sample(d)

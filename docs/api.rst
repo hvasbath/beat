@@ -91,14 +91,6 @@ The :mod:`models` Module
 .. automodule:: models.geodetic
    :members:
 
-
-The :mod:`interseismic` Module
-------------------------------
-
-.. automodule:: interseismic
-   :members:
-
-
 The :mod:`covariance` Module
 ----------------------------
 
@@ -106,10 +98,10 @@ The :mod:`covariance` Module
    :members:
 
 
-The :mod:`theanof` Module
--------------------------
+The :mod:`pytensorf` Module
+---------------------------
 
-.. automodule:: theanof
+.. automodule:: pytensorf
    :members:
 
 
