@@ -1076,7 +1076,7 @@ def result_check(mtrace, min_length):
 
 def command_summarize(args):
     from arviz import summary
-    from numpy import ravel, split, vstack
+    from numpy import hstack, ravel, split, vstack
     from pyrocko.gf import RectangularSource
 
     command_str = "summarize"
@@ -1288,23 +1288,27 @@ def command_summarize(args):
                     # BEAT sources calculate derived params
                     if options.calc_derived:
                         composite.point2sources(point)
-                        if hasattr(source, "get_derived_parameters"):
+                        if options.mode == geometry_mode_str:
                             for source in sources:
-                                deri = source.get_derived_parameters(
-                                    point=reference,  # need to pass correction params
-                                    store=store,
-                                    target=target,
-                                    event=problem.config.event,
-                                )
-                                derived.append(deri)
+                                if hasattr(source, "get_derived_parameters"):
+                                    deri = source.get_derived_parameters(
+                                        point=reference,  # need to pass correction params
+                                        store=store,
+                                        target=target,
+                                        event=problem.config.event,
+                                    )
+                                    derived.append(deri)
 
-                        # pyrocko Rectangular source, TODO use BEAT RS ...
-                        elif isinstance(source, RectangularSource):
-                            for source in sources:
-                                source.magnitude = None
-                                derived.append(
-                                    source.get_magnitude(store=store, target=target)
-                                )
+                                # pyrocko Rectangular source, TODO use BEAT RS ...
+                                elif isinstance(source, RectangularSource):
+                                    source.magnitude = None
+                                    derived.append(
+                                        source.get_magnitude(store=store, target=target)
+                                    )
+
+                            if len(pc.source_types) > 1:
+                                derived = [hstack(derived)]
+
                         elif options.mode == bem_mode_str:
                             response = composite.engine.process(
                                 sources=composite.sources, targets=composite.targets

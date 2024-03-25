@@ -319,6 +319,7 @@ class FileChain(BaseChain):
         self.draws = 0
         self._df = None
         self.filename = None
+        self.derived_mapping = None
 
     def __len__(self):
         if self.filename is None:
@@ -339,18 +340,20 @@ class FileChain(BaseChain):
                 "Inconsistent number of variables %i and shapes %i!" % (nvars, nshapes)
             )
 
+        self.derived_mapping = {}
         for varname, shape in zip(varnames, shapes):
             if varname in self.varnames:
-                # TODO for mixed source setups needs resolving
-                raise ValueError(
-                    "Sampled stage contains parameter `%s` to be summarized! "
-                    "--calc_derived cannot be used! Needs patching ..." % varname
-                )
-            else:
-                self.flat_names[varname] = _create_flat_names(varname, shape)
-                self.var_shapes[varname] = shape
-                self.var_dtypes[varname] = "float64"
-                self.varnames.append(varname)
+                exist_idx = self.varnames.index(varname)
+                self.varnames.pop(exist_idx)
+                exist_shape = self.var_shapes[varname]
+                shape = tuple(map(sum, zip(exist_shape, shape)))
+                concat_idx = len(self.varnames)
+                self.derived_mapping[exist_idx] = concat_idx
+
+            self.flat_names[varname] = _create_flat_names(varname, shape)
+            self.var_shapes[varname] = shape
+            self.var_dtypes[varname] = "float64"
+            self.varnames.append(varname)
 
     def _load_df(self):
         raise ValueError("This method must be defined in inheriting classes!")
@@ -391,6 +394,11 @@ class FileChain(BaseChain):
         If buffer is full write samples to file.
         """
         self.count += 1
+        if self.derived_mapping:
+            for exist_idx, concat_idx in self.derived_mapping.items():
+                value = lpoint.pop(exist_idx)
+                lpoint[concat_idx] = num.hstack((value, lpoint[concat_idx]))
+
         self.buffer.append((lpoint, draw))
         if self.count == self.buffer_size:
             self.record_buffer()
