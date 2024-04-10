@@ -84,9 +84,8 @@ def _create_flat_names_summary(varname, shape):
     if not shape or sum(shape) == 1:
         return [varname]
 
-    labels = (num.ravel(xs).tolist() for xs in num.indices(shape))
-    labels = (map(str, [xs]) for xs in labels)
-    return ["{}{}".format(varname, "".join(idxs)) for idxs in zip(*labels)]
+    labels = num.indices(shape).ravel().tolist()
+    return ["{}[{}]".format(varname, idxs) for idxs in labels]
 
 
 def _create_shape(flat_names):
