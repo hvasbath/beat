@@ -1099,6 +1099,9 @@ class GeodeticDataset(gf.meta.MultiLocation):
 
                 data_mask = self.get_data_mask(corr_conf)
 
+                if self.los_vector is None:
+                    self.update_los_vector()
+
                 corr.setup_correction(
                     locy=locy,
                     locx=locx,

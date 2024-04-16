@@ -184,11 +184,11 @@ parameter_info = {
         default_bounds=(-200.0, 200.0),
         unit=u_nanostrain,
     ),
-    "pole_lat": Bounds(
-        physical_bounds=(-90.0, 90.0), default_bounds=(0, 1), unit=u_deg
+    "lat": Bounds(
+        physical_bounds=(-90.0, 90.0), default_bounds=(30.0, 30.5), unit=u_deg
     ),
-    "pole_lon": Bounds(
-        physical_bounds=(-180.0, 180.0), default_bounds=(0, 1), unit=u_deg
+    "lon": Bounds(
+        physical_bounds=(-180.0, 180.0), default_bounds=(30.0, 30.5), unit=u_deg
     ),
     "omega": Bounds(
         physical_bounds=(-10.0, 10.0), default_bounds=(0.5, 0.6), unit=u_deg_myr
@@ -239,19 +239,13 @@ parameter_info = {
         physical_bounds=(0.0, 1.0), default_bounds=(0.0, 1.0), unit=u_hyp
     ),
     "hypers": Bounds(
-        physical_bounds=(-4.0, 10.0), default_bounds=(-2.0, 6.0), unit=u_hyp
+        physical_bounds=(-10.0, 10.0), default_bounds=(-2.0, 6.0), unit=u_hyp
     ),
     "ramp": Bounds(
         physical_bounds=(-0.005, 0.005), default_bounds=(-0.005, 0.005), unit=u_rad
     ),
     "offset": Bounds(
         physical_bounds=(-0.05, 0.05), default_bounds=(-0.05, 0.05), unit=u_m
-    ),
-    "lat": Bounds(
-        physical_bounds=(30.0, 30.5), default_bounds=(30.0, 30.5), unit=u_deg
-    ),
-    "lon": Bounds(
-        physical_bounds=(30.0, 30.5), default_bounds=(30.0, 30.5), unit=u_deg
     ),
     "traction": Bounds(physical_bounds=(0, 1000), default_bounds=(0, 50), unit=u_pa),
     "strike_traction": Bounds(
