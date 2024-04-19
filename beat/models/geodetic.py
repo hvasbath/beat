@@ -250,7 +250,6 @@ class GeodeticComposite(Composite):
         force=False,
         update=False,
     ):
-        from kite.scene import Scene, UserIOWarning
         from pyrocko.guts import dump
 
         from beat.plotting import map_displacement_grid
@@ -313,6 +312,8 @@ class GeodeticComposite(Composite):
                     dump(model_camp, filename=outname)
 
             elif "SAR" == typ:
+                from kite.scene import Scene, UserIOWarning
+
                 logger.info("Exporting SAR data ...")
                 for dataset, result in zip(self.datasets, results):
                     if dataset.typ == "SAR":
