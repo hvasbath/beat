@@ -379,7 +379,7 @@ def gnss_fits(problem, stage, plot_options):
 
             out_filename = "/tmp/histbounds.txt"
             m.gmt.pshistogram(
-                in_rows=num.atleast_2d(all_var_reductions[dataset.component]),
+                in_rows=num.atleast_2d(all_var_reductions[dataset.component]).T,
                 W=(imax - imin) / nbins,
                 out_filename=out_filename,
                 Z=Z,

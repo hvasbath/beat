@@ -547,7 +547,7 @@ class EulerPole(tt.Op):
             num.array(self.lats), num.array(self.lons), pole_lat, pole_lon, omega
         )
 
-        if self.data_mask:
+        if len(self.data_mask) > 0:
             velocities[num.array(self.data_mask), :] = 0.0
 
         z[0] = velocities

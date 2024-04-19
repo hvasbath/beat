@@ -1239,8 +1239,10 @@ class GNSSCompoundComponent(GeodeticDataset):
         return scene
 
     def get_data_mask(self, corr_config):
+        """
+        Return dataset mask, i.e. boolean numpy array, 0/1 indicating false/true masking,
+        """
         s2idx = self.station_name_index_mapping()
-
         if (
             len(corr_config.station_whitelist) > 0
             and len(corr_config.station_blacklist) > 0
@@ -1266,8 +1268,8 @@ class GNSSCompoundComponent(GeodeticDataset):
             "Stations with idxs %s got blacklisted!"
             % utility.list2string(station_blacklist_idxs)
         )
-        mask = num.ones_like(self.lats, dtype=num.bool_)
-        mask[num.array(station_blacklist_idxs)] = False
+        mask = num.zeros_like(self.lats, dtype=num.bool_)
+        mask[num.array(station_blacklist_idxs)] = True
         return mask
 
     def station_name_index_mapping(self):
