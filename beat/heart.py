@@ -1269,7 +1269,8 @@ class GNSSCompoundComponent(GeodeticDataset):
             % utility.list2string(station_blacklist_idxs)
         )
         mask = num.zeros_like(self.lats, dtype=num.bool_)
-        mask[num.array(station_blacklist_idxs)] = True
+        if len(station_blacklist_idxs) > 0:
+            mask[num.array(station_blacklist_idxs)] = True
         return mask
 
     def station_name_index_mapping(self):
