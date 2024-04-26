@@ -344,6 +344,7 @@ class FileChain(BaseChain):
             if varname in self.varnames:
                 exist_idx = self.varnames.index(varname)
                 self.varnames.pop(exist_idx)
+                self.flat_names.pop(varname)
                 exist_shape = self.var_shapes[varname]
                 shape = tuple(map(sum, zip(exist_shape, shape)))
                 concat_idx = len(self.varnames)
