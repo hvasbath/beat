@@ -91,7 +91,7 @@ class BEMResponse(Object):
 
         magnitudes = []
         for source, slips in zip(self.discretized_sources, total_slips):
-            moments = source.get_areas_triangles() * total_slips * shear_modulus
+            moments = source.get_areas_triangles() * slips * shear_modulus
             magnitudes.append(moment_to_magnitude(moments.sum()))
 
         return magnitudes
