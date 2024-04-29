@@ -4,16 +4,15 @@ import os
 import numpy as num
 from matplotlib import pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
-from matplotlib.ticker import MaxNLocator, FixedLocator
+from matplotlib.ticker import FixedLocator, MaxNLocator
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 from pymc3 import quantiles
-from pyrocko import orthodrome as otd
-from pyrocko.guts import Bool, Dict, Int, List, Object, String, StringChoice, load
+from pyrocko.guts import Bool, Dict, Int, List, Object, String, StringChoice
 from pyrocko.plot import mpl_graph_color, mpl_papersize
 from scipy.stats import kde
 from theano import config as tconfig
 
-from beat import utility, defaults
+from beat import utility
 
 logger = logging.getLogger("plotting.common")
 
@@ -24,15 +23,21 @@ def arccosdeg(x):
     return num.rad2deg(num.arccos(x))
 
 
+def do_nothing(x):
+    return x
+
+
 transforms = {
     "h": ("dip", arccosdeg),
     "kappa": ("strike", num.rad2deg),
     "sigma": ("rake", num.rad2deg),
+    "major_axis": ("a_half_axis", do_nothing),
+    "minor_axis": ("b_half_axis", do_nothing),
+    "tensile_traction": ("normal_traction", do_nothing),
 }
 
 
 def get_transform(varname):
-
     try:
         new_varname, transform = transforms[varname]
     except KeyError:
@@ -57,7 +62,6 @@ def cbtick(x):
 
 
 def plot_cov(target, point_size=20):
-
     ax = plt.axes()
     im = ax.scatter(
         target.lons,
@@ -91,7 +95,6 @@ def plot_log_cov(cov_mat):
 
 
 def get_gmt_config(gmtpy, fontsize=14, h=20.0, w=20.0):
-
     if gmtpy.is_gmt5(version="newest"):
         gmtconfig = {
             "MAP_GRID_PEN_PRIMARY": "0.1p",
@@ -236,7 +239,6 @@ def get_result_point(mtrace, point_llk="max"):
 
 
 def hist_binning(mind, maxd, nbins=40):
-
     step = ((maxd - mind) / nbins).astype(tconfig.floatX)
 
     if step == 0:
@@ -385,7 +387,6 @@ def histplot_op(
 
 
 def hist2d_plot_op(ax, data_x, data_y, bins=(None, None), cmap=None):
-
     if cmap is None:
         cmap = plt.get_cmap("afmhot_r")
 
@@ -404,7 +405,6 @@ def hist2d_plot_op(ax, data_x, data_y, bins=(None, None), cmap=None):
 
 
 def variance_reductions_hist_plot(axs, variance_reductions, labels):
-
     n_vrs = len(variance_reductions)
 
     if n_vrs != len(labels):
@@ -460,7 +460,6 @@ def kde2plot(x, y, grid=200, ax=None, **kwargs):
 def spherical_kde_op(
     lats0, lons0, lats=None, lons=None, grid_size=(200, 200), sigma=None
 ):
-
     from beat.models.distributions import vonmises_fisher, vonmises_std
 
     if sigma is None:
@@ -579,7 +578,6 @@ def plot_inset_hist(
     alpha=0.4,
     background_alpha=1.0,
 ):
-
     in_ax = inset_axes(
         axes,
         width="100%",
@@ -804,7 +802,6 @@ def get_nice_plot_bounds(dmin, dmax, override_mode="min-max"):
 
 
 def plot_covariances(datasets, covariances):
-
     cmap = plt.get_cmap("seismic")
 
     ndata = len(covariances)
@@ -842,7 +839,6 @@ def plot_covariances(datasets, covariances):
     cbw = 0.15
 
     for kidx, (cov, dataset) in enumerate(zip(covariances, datasets)):
-
         figidx, rowidx = utility.mod_i(kidx, ndmax)
         axs = axes[figidx][rowidx, :]
 
@@ -859,7 +855,6 @@ def plot_covariances(datasets, covariances):
             cmat = getattr(cov, attr)
             ax = axs[l]
             if cmat is not None and cmat.sum() != 0.0:
-
                 im = ax.imshow(
                     cmat,
                     cmap=cmap,
@@ -927,7 +922,6 @@ def set_axes_equal_3d(ax, axes="xyz"):
 
 
 def get_weights_point(composite, best_point, config):
-
     if composite.config.noise_estimator.structure == "non-toeplitz":
         # nT run is done with test point covariances!
         if config.sampler_config.parameters.update_covariances:
@@ -952,7 +946,6 @@ def plot_exists(outpath, outformat, force):
 
 
 def save_figs(figs, outpath, outformat, dpi):
-
     if outformat == "display":
         plt.show()
 

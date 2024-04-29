@@ -5,27 +5,25 @@ import os
 import numpy as num
 from matplotlib import pyplot as plt
 from matplotlib.ticker import MaxNLocator
-
 from pymc3 import plots as pmp
 from pymc3 import quantiles
 from pyrocko.cake_plot import str_to_mpl_color as scolor
 from pyrocko.plot import AutoScaler, mpl_graph_color, mpl_papersize, nice_value
-from scipy.stats import kde
 
 from beat import utility
-from beat.config import dist_vars, geometry_mode_str, bem_mode_str
+from beat.config import bem_mode_str, dist_vars, geometry_mode_str
+from beat.defaults import hypername
 from beat.heart import defaults
 from beat.models import Stage, load_stage
-from beat.defaults import hypername
 
 from .common import (
     format_axes,
     get_result_point,
+    get_transform,
     histplot_op,
     kde2plot,
-    get_transform,
-    save_figs,
     plot_exists,
+    save_figs,
 )
 
 logger = logging.getLogger("plotting.marginals")
@@ -285,7 +283,6 @@ def traceplot(
     var_idx = 0
     varname_page_idx = 0
     for nsubplots in nsubplots_page:
-
         width, height = mpl_papersize("a4", "portrait")
         height_subplot = height / nrow_max
         nrow = int(num.ceil(nsubplots / ncol))
@@ -294,7 +291,6 @@ def traceplot(
         axs = num.atleast_2d(axs)
 
         for i in range(nsubplots):
-
             coli, rowi = utility.mod_i(i, nrow)
             ax = axs[rowi, coli]
 
@@ -394,7 +390,6 @@ def traceplot(
                             xticker = MaxNLocator(nbins=5)
                             xax.set_major_locator(xticker)
                         elif plot_style in ["pdf", "cdf"]:
-
                             kwargs["label"] = source_idxs
                             # following determine quantile annotations in cdf
                             kwargs["nsources"] = nsources
@@ -607,6 +602,7 @@ def correlation_plot(
 def correlation_plot_hist(
     mtrace,
     varnames=None,
+    source_param_dicts=None,
     figsize=None,
     hist_color=None,
     cmap=None,
@@ -631,6 +627,8 @@ def correlation_plot_hist(
         Mutlitrace instance containing the sampling results
     varnames : list of variable names
         Variables to be plotted, if None all variable are plotted
+    source_param_dicts: list of dict
+        of parameters and indexes to trace arrays
     figsize : figure size tuple
         If None, size is (12, num of variables * 2) inch
     cmap : matplotlib colormap
@@ -667,14 +665,6 @@ def correlation_plot_hist(
     if varnames is None:
         varnames = mtrace.varnames
 
-    nvar = len(varnames)
-
-    if figsize is None:
-        if nvar < 5:
-            figsize = mpl_papersize("a5", "landscape")
-        else:
-            figsize = mpl_papersize("a4", "landscape")
-
     d = dict()
     for var in varnames:
         _, transform = get_transform(var)
@@ -688,9 +678,22 @@ def correlation_plot_hist(
 
     figs = []
     axes = []
-    for source_i in range(nvar_elements):
+
+    for source_i, param_dict in enumerate(source_param_dicts):
         logger.info("for variables of source %i ..." % source_i)
         hist_ylims = []
+        source_varnames = list(param_dict.keys())
+        weeded_source_varnames = [
+            varname for varname in source_varnames if varname in varnames
+        ]
+        nvar = len(weeded_source_varnames)
+
+        if figsize is None:
+            if nvar < 5:
+                figsize = mpl_papersize("a5", "landscape")
+            else:
+                figsize = mpl_papersize("a4", "landscape")
+
         fig, axs = plt.subplots(nrows=nvar, ncols=nvar, figsize=figsize)
 
         if hist_color is None:
@@ -701,20 +704,21 @@ def correlation_plot_hist(
         else:
             pcolor = hist_color
 
-        for k in range(nvar):
-            v_namea = varnames[k]
-            a = d[v_namea][:, source_i]
+        for i_k in range(nvar):
+            v_namea = weeded_source_varnames[i_k]
+            source_i_a = param_dict[v_namea]
+            a = d[v_namea][:, source_i_a]
 
-            for l in range(k, nvar):
-                ax = axs[l, k]
-                v_nameb = varnames[l]
+            for i_l in range(i_k, nvar):
+                ax = axs[i_l, i_k]
+                v_nameb = weeded_source_varnames[i_l]
                 plot_name_a, transform_a = get_transform(v_namea)
                 plot_name_b, transform_b = get_transform(v_nameb)
                 logger.debug("%s, %s" % (v_namea, v_nameb))
-                if l == k:
+                if i_l == i_k:
                     if point is not None:
                         if v_namea in point.keys():
-                            reference = transform_a(point[v_namea][source_i])
+                            reference = transform_a(point[v_namea][source_i_a])
                             ax.axvline(
                                 x=reference, color=point_color, lw=point_size / 4.0
                             )
@@ -738,7 +742,8 @@ def correlation_plot_hist(
                     xlim = ax.get_xlim()
                     hist_ylims.append(ax.get_ylim())
                 else:
-                    b = d[v_nameb][:, source_i]
+                    source_i_b = param_dict[v_namea]
+                    b = d[v_nameb][:, source_i_b]
 
                     kde2plot(a, b, grid=grid, ax=ax, cmap=cmap, aspect="auto")
 
@@ -747,8 +752,8 @@ def correlation_plot_hist(
 
                     if point is not None:
                         if v_namea and v_nameb in point.keys():
-                            value_vara = transform_a(point[v_namea][source_i])
-                            value_varb = transform_b(point[v_nameb][source_i])
+                            value_vara = transform_a(point[v_namea][source_i_a])
+                            value_varb = transform_b(point[v_nameb][source_i_b])
                             ax.plot(
                                 value_vara,
                                 value_varb,
@@ -766,15 +771,15 @@ def correlation_plot_hist(
                     yax = ax.get_yaxis()
                     yax.set_major_locator(yticker)
 
-                if l != nvar - 1:
+                if i_l != nvar - 1:
                     ax.get_xaxis().set_ticklabels([])
 
-                if k == 0:
+                if i_k == 0:
                     ax.set_ylabel(
                         plot_name_b + "\n " + defaults[hypername(plot_name_b)].unit,
                         fontsize=fontsize,
                     )
-                    if utility.is_odd(l):
+                    if utility.is_odd(i_l):
                         ax.tick_params(axis="y", pad=label_pad)
                 else:
                     ax.get_yaxis().set_ticklabels([])
@@ -784,10 +789,10 @@ def correlation_plot_hist(
                 try:  # matplotlib version issue workaround
                     ax.tick_params(axis="both", labelrotation=50.0)
                 except Exception:
-                    ax.set_xticklabels(axs[l, k].get_xticklabels(), rotation=50)
-                    ax.set_yticklabels(axs[l, k].get_yticklabels(), rotation=50)
+                    ax.set_xticklabels(axs[i_l, i_k].get_xticklabels(), rotation=50)
+                    ax.set_yticklabels(axs[i_l, i_k].get_yticklabels(), rotation=50)
 
-                if utility.is_odd(k):
+                if utility.is_odd(i_k):
                     ax.tick_params(axis="x", pad=label_pad)
 
             # put transformed varname back to varnames for unification
@@ -979,9 +984,23 @@ def draw_correlation_hist(problem, plot_options):
     if plot_exists(outpath, po.outformat, po.force):
         return
 
+    if "seismic" in problem.config.problem_config.datatypes:
+        datatype = "seismic"
+    else:
+        datatype = problem.config.problem_config.data_types[0]
+
+    mapping = problem.composite[datatype]
+    point_to_sources = mapping.point_to_sources_mapping()
+    source_param_dicts = utility.split_point(
+        point_to_sources,
+        mapping=mapping,
+        weed_params=True,
+    )
+
     figs, _ = correlation_plot_hist(
         mtrace=stage.mtrace,
         varnames=varnames,
+        source_param_dicts=source_param_dicts,
         cmap=plt.cm.gist_earth_r,
         chains=None,
         point=reference,
