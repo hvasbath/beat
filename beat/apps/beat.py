@@ -1296,7 +1296,7 @@ def command_summarize(args):
                                 sources=composite.sources, targets=composite.targets
                             )
                             derived = response.get_source_magnitudes(
-                                composite.engine.config.shear_modulus
+                                composite.engine.config.mu
                             )
 
                     lpoint = problem.model.lijection.d2l(point)

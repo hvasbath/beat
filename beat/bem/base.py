@@ -93,7 +93,7 @@ class BEMResponse(Object):
 
         magnitudes = []
         for source, slips in zip(self.discretized_sources, total_slips):
-            moments = source.get_areas_triangles() * total_slips * shear_modulus
+            moments = source.get_areas_triangles() * slips * shear_modulus
             magnitudes.append(moment_to_magnitude(moments.sum()))
 
         return magnitudes
@@ -127,7 +127,7 @@ class BEMEngine(object):
         self._obs_points = None
         self._ncoords_targets = None
 
-    def process(self, sources: list, targets: list, debug=True) -> num.ndarray:
+    def process(self, sources: list, targets: list, debug=False) -> num.ndarray:
         mesh_size = self.config.mesh_size * km
 
         if self.config.check_mesh_intersection:
@@ -184,7 +184,7 @@ class BEMEngine(object):
             [source.triangles_xyz for source in discretized_sources]
         )
         disp_mat = HS.disp_matrix(
-            obs_pts=obs_points, tris=all_triangles, nu=self.config.poissons_ratio
+            obs_pts=obs_points, tris=all_triangles, nu=self.config.nu
         )
 
         n_all_triangles = all_triangles.shape[0]
@@ -235,8 +235,8 @@ class BEMEngine(object):
                         receiver_mesh,
                         source_mesh.triangles_xyz,
                         bcond.slip_component,
-                        nu=self.config.poissons_ratio,
-                        mu=self.config.shear_modulus,
+                        nu=self.config.nu,
+                        mu=self.config.mu,
                     )
 
                     if debug:

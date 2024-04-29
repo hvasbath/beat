@@ -51,6 +51,8 @@ def slip_distribution_3d(
             if comp in ["strike", "dip"]:
                 absmax = num.max([num.abs(a.min()), a.max()])
                 cbounds = [-cb_round(absmax), cb_round(absmax)]
+                if k == 1:
+                    cbounds = [-0.3, 0.3]
             else:
                 cbounds = [cb_round(a.min()), cb_round(a.max())]
 
