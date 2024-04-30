@@ -602,7 +602,7 @@ def correlation_plot(
 def correlation_plot_hist(
     mtrace,
     varnames=None,
-    source_param_dicts=None,
+    mapping=None,
     figsize=None,
     hist_color=None,
     cmap=None,
@@ -627,8 +627,7 @@ def correlation_plot_hist(
         Mutlitrace instance containing the sampling results
     varnames : list of variable names
         Variables to be plotted, if None all variable are plotted
-    source_param_dicts: list of dict
-        of parameters and indexes to trace arrays
+    mapping: ...
     figsize : figure size tuple
         If None, size is (12, num of variables * 2) inch
     cmap : matplotlib colormap
@@ -679,9 +678,15 @@ def correlation_plot_hist(
     figs = []
     axes = []
 
-    print(source_param_dicts)
-    # min_source_ixs = {
-    #    varname: int(min(idxs)) for varname, idxs in source_param_dicts.items()}
+    point_to_sources = mapping.point_to_sources_mapping()
+    source_param_dicts = utility.split_point(
+        point_to_sources,
+        point_to_sources=point_to_sources,
+        n_sources_total=sum(mapping.n_sources),
+    )
+    min_source_ixs = {
+        varname: int(min(idxs)) for varname, idxs in point_to_sources.items()
+    }
 
     for source_i, param_dict in enumerate(source_param_dicts):
         logger.info("for variables of source %i ..." % source_i)
@@ -689,7 +694,7 @@ def correlation_plot_hist(
         print(source_i, param_dict)
         source_varnames = list(param_dict.keys())
         weeded_source_varnames = [
-            varname for varname in source_varnames if varname in varnames
+            varname for varname in varnames if varname in source_varnames
         ]
         nvar = len(weeded_source_varnames)
 
@@ -711,15 +716,10 @@ def correlation_plot_hist(
 
         for i_k in range(nvar):
             v_namea = weeded_source_varnames[i_k]
-            source_i_a = int(param_dict[v_namea]) #  - min_source_ixs[v_namea]
+            source_i_a = int(param_dict[v_namea]) - min_source_ixs[v_namea]
             print("source_i_a", source_i_a, v_namea)
-            try:
-                a = d[v_namea][:, source_i_a]
-            except IndexError:
-                source_i_a -= 1
-                a = d[v_namea][:, source_i_a]
 
-
+            a = d[v_namea][:, source_i_a]
             for i_l in range(i_k, nvar):
                 ax = axs[i_l, i_k]
                 v_nameb = weeded_source_varnames[i_l]
@@ -753,7 +753,7 @@ def correlation_plot_hist(
                     xlim = ax.get_xlim()
                     hist_ylims.append(ax.get_ylim())
                 else:
-                    source_i_b = int(param_dict[v_namea])
+                    source_i_b = int(param_dict[v_nameb]) - min_source_ixs[v_nameb]
                     print("v_nameb", v_nameb, source_i_b)
                     try:
                         b = d[v_nameb][:, source_i_b]
@@ -820,7 +820,9 @@ def correlation_plot_hist(
 
         if unify:
             varnames_repeat_x = [
-                var_reap for varname in weeded_source_varnames for var_reap in (varname,) * nvar
+                var_reap
+                for varname in weeded_source_varnames
+                for var_reap in (varname,) * nvar
             ]
             varnames_repeat_y = weeded_source_varnames * nvar
             unitiesx = unify_tick_intervals(
@@ -1006,17 +1008,11 @@ def draw_correlation_hist(problem, plot_options):
         datatype = problem.config.problem_config.datatypes[0]
 
     mapping = problem.composites[datatype].mapping
-    point_to_sources = mapping.point_to_sources_mapping()
-    source_param_dicts = utility.split_point(
-        point_to_sources,
-        point_to_sources=point_to_sources,
-        n_sources_total=2,
-    )
 
     figs, _ = correlation_plot_hist(
         mtrace=stage.mtrace,
         varnames=varnames,
-        source_param_dicts=source_param_dicts,
+        mapping=mapping,
         cmap=plt.cm.gist_earth_r,
         chains=None,
         point=reference,

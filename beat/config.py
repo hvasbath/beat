@@ -10,12 +10,14 @@ kinematic distributed slip.
 import logging
 import os
 from collections import OrderedDict
+from typing import Dict as TDict
+from typing import List as TList
 
 import numpy as num
 from pyrocko import gf, model, trace, util
 from pyrocko.cake import load_model
 from pyrocko.gf import RectangularSource as PyrockoRS
-from pyrocko.gf.seismosizer import Cloneable, LocalEngine
+from pyrocko.gf.seismosizer import Cloneable
 from pyrocko.guts import (
     ArgumentError,
     Bool,
@@ -30,13 +32,11 @@ from pyrocko.guts import (
     dump,
     load,
 )
-from typing import Dict as TDict
-from typing import List as TList
+from pytensor import config as tconfig
 
-from theano import config as tconfig
-
-from beat import utility, bem
+from beat import utility
 from beat.covariance import available_noise_structures, available_noise_structures_2d
+from beat.defaults import default_decimation_factors, defaults
 from beat.heart import (
     ArrivalTaper,
     Filter,
@@ -45,20 +45,23 @@ from beat.heart import (
     ReferenceLocation,
     _domain_choices,
 )
-from beat.defaults import default_decimation_factors, defaults
-from beat.sources import (
-    RectangularSource,
-    stf_catalog,
-    source_catalog as geometry_source_catalog,
-)
+from beat.sources import RectangularSource, stf_catalog
+from beat.sources import source_catalog as geometry_source_catalog
 from beat.utility import check_point_keys, list2string
+
+logger = logging.getLogger("config")
+
 
 try:
     from beat.bem import source_catalog as bem_source_catalog
 
     bem_catalog = {"geodetic": bem_source_catalog}
 except ImportError:
+    logger.warning(
+        "To enable 'bem' mode packages 'pygmsh' and 'cutde' need to be installed."
+    )
     bem_catalog = {}
+    bem_source_catalog = {}
 
 
 source_catalog = {}
@@ -67,8 +70,6 @@ for catalog in [geometry_source_catalog, bem_source_catalog]:
 
 
 guts_prefix = "beat"
-
-logger = logging.getLogger("config")
 
 stf_names = stf_catalog.keys()
 all_source_names = list(source_catalog.keys()) + list(bem_source_catalog.keys())
@@ -1199,8 +1200,8 @@ class BoundaryConditions(Object):
 
 
 class BEMConfig(MediumConfig):
-    nu = Float.T(default=0.25, help="Poisson's ratio")
-    mu = Float.T(default=33e9, help="Shear modulus [Pa]")
+    poissons_ratio = Float.T(default=0.25, help="Poisson's ratio")
+    shear_modulus = Float.T(default=33e9, help="Shear modulus [Pa]")
     earth_model_name = String.T(default="homogeneous-elastic-halfspace")
     mesh_size = Float.T(
         default=0.5,
@@ -1227,11 +1228,10 @@ def get_parameter(variable, nvars=1, lower=1, upper=2):
 
 
 class DatatypeParameterMapping(Object):
-
     sources_variables = List.T(Dict.T(String.T(), Int.T()))
+    n_sources = Int.T()
 
     def __init__(self, **kwargs):
-
         Object.__init__(self, **kwargs)
 
         self._mapping = None
@@ -1242,12 +1242,15 @@ class DatatypeParameterMapping(Object):
             self.point_to_sources_mapping()
 
         if k not in self._mapping.keys():
-            raise KeyError(k)
+            raise KeyError("Parameters mapping does not contain parameters:", k)
 
         return self._mapping[k]
 
     def point_to_sources_mapping(self) -> TDict[str, TList[int]]:
-
+        """
+        Mapping for mixed source setups. Mapping source parameter name to source indexes.
+        Is used by utilit.split_point to split the full point into subsource_points.
+        """
         if self._mapping is None:
             start_idx = 0
             total_variables = {}
@@ -1270,7 +1273,6 @@ class DatatypeParameterMapping(Object):
         return self.point_to_sources_mapping().keys()
 
     def total_variables_sizes(self) -> TDict[str, int]:
-
         mapping = self.point_to_sources_mapping()
         variables_sizes = {}
         for variable, idxs in mapping.items():
@@ -1285,12 +1287,11 @@ class SourcesParameterMapping(Object):
     """
 
     source_types = List.T(String.T(), default=[])
-    n_sources = List.T(String.T(), default=[])
+    n_sources = List.T(Int.T(), default=[])
     datatypes = List.T(StringChoice.T(choices=_datatype_choices), default=[])
     mappings = Dict.T(String.T(), DatatypeParameterMapping.T())
 
     def __init__(self, **kwargs):
-
         Object.__init__(self, **kwargs)
 
         for datatype in self.datatypes:
@@ -1299,7 +1300,7 @@ class SourcesParameterMapping(Object):
     def add(self, sources_variables: TDict = {}, datatype: str = "geodetic"):
         if datatype in self.mappings:
             self.mappings[datatype] = DatatypeParameterMapping(
-                sources_variables=sources_variables
+                sources_variables=sources_variables, n_sources=sum(self.n_sources)
             )
         else:
             raise ValueError(
@@ -1509,11 +1510,10 @@ class ProblemConfig(Object):
         Returns
         -------
         rvs : dict
-            variable random variables
+            random variable names and their kwargs
         fixed_params : dict
             fixed random parameters
         """
-        from pymc3 import Uniform
 
         logger.debug("Optimization for %s sources", list2string(self.n_sources))
 
@@ -1521,24 +1521,18 @@ class ProblemConfig(Object):
         fixed_params = {}
         for param in self.priors.values():
             if not num.array_equal(param.lower, param.upper):
-                shape = self.get_parameter_shape(param)
+                size = self.get_parameter_size(param)
 
                 kwargs = dict(
                     name=param.name,
-                    shape=num.sum(shape),
-                    lower=param.get_lower(shape),
-                    upper=param.get_upper(shape),
-                    testval=param.get_testvalue(shape),
+                    shape=(num.sum(size),),
+                    lower=param.get_lower(size),
+                    upper=param.get_upper(size),
+                    initval=param.get_testvalue(size),
                     transform=None,
                     dtype=tconfig.floatX,
                 )
-                try:
-                    rvs[param.name] = Uniform(**kwargs)
-
-                except TypeError:
-                    kwargs.pop("name")
-                    rvs[param.name] = Uniform.dist(**kwargs)
-
+                rvs[param.name] = kwargs
             else:
                 logger.info(
                     f"not solving for {param.name}, got fixed at {utility.list2string(param.lower.flatten())}"
@@ -1592,7 +1586,7 @@ class ProblemConfig(Object):
                     double_check.append(name)
                 else:
                     raise ValueError(
-                        "Parameter %s not unique in %s!".format(name, dict_name)
+                        "Parameter %s not unique in %s!" % (name, dict_name)
                     )
 
             logger.info(f"All {dict_name} ok!")
@@ -1631,8 +1625,8 @@ class ProblemConfig(Object):
         """
         test_point = {}
         for varname, var in self.priors.items():
-            shape = self.get_parameter_shape(var)
-            test_point[varname] = var.get_testvalue(shape)
+            size = self.get_parameter_size(var)
+            test_point[varname] = var.get_testvalue(size)
 
         for varname, var in self.hyperparameters.items():
             test_point[varname] = var.get_testvalue()
@@ -1642,20 +1636,20 @@ class ProblemConfig(Object):
 
         return test_point
 
-    def get_parameter_shape(self, param):
+    def get_parameter_size(self, param):
         if self.mode == ffi_mode_str and param.name in hypo_vars:
-            shape = self.n_sources[0]
+            size = self.n_sources[0]
         elif self.mode == ffi_mode_str and self.mode_config.npatches:
-            shape = self.mode_config.subfault_npatches
-            if len(shape) == 0:
-                shape = self.mode_config.npatches
+            size = self.mode_config.subfault_npatches
+            if len(size) == 0:
+                size = self.mode_config.npatches
         elif self.mode in [ffi_mode_str, geometry_mode_str, bem_mode_str]:
-            shape = param.dimension
+            size = param.dimension
 
         else:
             raise TypeError(f"Mode not implemented: {self.mode}")
 
-        return shape
+        return size
 
     def get_derived_variables_shapes(self):
         """
@@ -2173,7 +2167,6 @@ def init_config(
     c.project_dir = os.path.join(os.path.abspath(main_path), name)
 
     if mode in [geometry_mode_str, bem_mode_str]:
-
         for datatype in datatypes:
             init_dataset_config(c, datatype=datatype, mode=mode)
 
@@ -2216,14 +2209,14 @@ def init_config(
                 ' "geometry" mode: "%s"!' % (source_types[0], geometry_source_type)
             )
 
-        n_sources = gmc.problem_config.n_sources[0]
+        n_sources = gmc.problem_config.n_sources
         point = {k: v.testvalue for k, v in gmc.problem_config.priors.items()}
         point = utility.adjust_point_units(point)
-        source_points = utility.split_point(point, n_sources_total=n_sources)
+        source_points = utility.split_point(point, n_sources_total=n_sources[0])
 
         reference_sources = init_reference_sources(
             source_points,
-            n_sources,
+            n_sources[0],
             geometry_source_type,
             gmc.problem_config.stf_type,
             event=gmc.event,
