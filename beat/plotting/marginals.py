@@ -679,9 +679,14 @@ def correlation_plot_hist(
     figs = []
     axes = []
 
+    print(source_param_dicts)
+    # min_source_ixs = {
+    #    varname: int(min(idxs)) for varname, idxs in source_param_dicts.items()}
+
     for source_i, param_dict in enumerate(source_param_dicts):
         logger.info("for variables of source %i ..." % source_i)
         hist_ylims = []
+        print(source_i, param_dict)
         source_varnames = list(param_dict.keys())
         weeded_source_varnames = [
             varname for varname in source_varnames if varname in varnames
@@ -706,8 +711,14 @@ def correlation_plot_hist(
 
         for i_k in range(nvar):
             v_namea = weeded_source_varnames[i_k]
-            source_i_a = param_dict[v_namea]
-            a = d[v_namea][:, source_i_a]
+            source_i_a = int(param_dict[v_namea]) #  - min_source_ixs[v_namea]
+            print("source_i_a", source_i_a, v_namea)
+            try:
+                a = d[v_namea][:, source_i_a]
+            except IndexError:
+                source_i_a -= 1
+                a = d[v_namea][:, source_i_a]
+
 
             for i_l in range(i_k, nvar):
                 ax = axs[i_l, i_k]
@@ -742,8 +753,13 @@ def correlation_plot_hist(
                     xlim = ax.get_xlim()
                     hist_ylims.append(ax.get_ylim())
                 else:
-                    source_i_b = param_dict[v_namea]
-                    b = d[v_nameb][:, source_i_b]
+                    source_i_b = int(param_dict[v_namea])
+                    print("v_nameb", v_nameb, source_i_b)
+                    try:
+                        b = d[v_nameb][:, source_i_b]
+                    except IndexError:
+                        source_i_b -= 1
+                        b = d[v_nameb][:, source_i_b]
 
                     kde2plot(a, b, grid=grid, ax=ax, cmap=cmap, aspect="auto")
 
@@ -804,9 +820,9 @@ def correlation_plot_hist(
 
         if unify:
             varnames_repeat_x = [
-                var_reap for varname in varnames for var_reap in (varname,) * nvar
+                var_reap for varname in weeded_source_varnames for var_reap in (varname,) * nvar
             ]
-            varnames_repeat_y = varnames * nvar
+            varnames_repeat_y = weeded_source_varnames * nvar
             unitiesx = unify_tick_intervals(
                 axs, varnames_repeat_x, ntickmarks_max=ntickmarks_max, axis="x"
             )
@@ -987,14 +1003,14 @@ def draw_correlation_hist(problem, plot_options):
     if "seismic" in problem.config.problem_config.datatypes:
         datatype = "seismic"
     else:
-        datatype = problem.config.problem_config.data_types[0]
+        datatype = problem.config.problem_config.datatypes[0]
 
-    mapping = problem.composite[datatype]
+    mapping = problem.composites[datatype].mapping
     point_to_sources = mapping.point_to_sources_mapping()
     source_param_dicts = utility.split_point(
         point_to_sources,
-        mapping=mapping,
-        weed_params=True,
+        point_to_sources=point_to_sources,
+        n_sources_total=2,
     )
 
     figs, _ = correlation_plot_hist(
