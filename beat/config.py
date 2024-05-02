@@ -119,7 +119,7 @@ derived_variables_mapping = {
 }
 
 derived_variables_mapping.update(
-    {source_name: ["magnitude"] for source_name in bem_source_catalog.keys()}
+    {source_name: ["magnitude", "slip"] for source_name in bem_source_catalog.keys()}
 )
 
 

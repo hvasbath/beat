@@ -105,7 +105,7 @@ class BEMResponse(Object):
         for source, slips in zip(self.discretized_sources, total_slips):
             moments = source.get_areas_triangles() * slips * shear_modulus
             derived.append(
-                num.hstack([moment_to_magnitude(moments.sum()), slips.sum()])
+                num.hstack([moment_to_magnitude(moments.sum()), slips.mean()])
             )
 
         return derived
