@@ -33,6 +33,8 @@ transforms = {
     "sigma": ("rake", num.rad2deg),
     "major_axis": ("a_half_axis", do_nothing),
     "minor_axis": ("b_half_axis", do_nothing),
+    "major_axis_bottom": ("a_half_axis_bottom", do_nothing),
+    "minor_axis_bottom": ("b_half_axis_bottom", do_nothing),
     "tensile_traction": ("normal_traction", do_nothing),
 }
 

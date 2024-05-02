@@ -32,7 +32,7 @@ from pyrocko.guts import (
     dump,
     load,
 )
-from pytensor import config as tconfig
+from theano import config as tconfig
 
 from beat import utility
 from beat.covariance import available_noise_structures, available_noise_structures_2d
@@ -1200,8 +1200,8 @@ class BoundaryConditions(Object):
 
 
 class BEMConfig(MediumConfig):
-    poissons_ratio = Float.T(default=0.25, help="Poisson's ratio")
-    shear_modulus = Float.T(default=33e9, help="Shear modulus [Pa]")
+    nu = Float.T(default=0.25, help="Poisson's ratio")
+    mu = Float.T(default=33e9, help="Shear modulus [Pa]")
     earth_model_name = String.T(default="homogeneous-elastic-halfspace")
     mesh_size = Float.T(
         default=0.5,

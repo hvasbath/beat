@@ -679,10 +679,13 @@ def correlation_plot_hist(
     axes = []
 
     point_to_sources = mapping.point_to_sources_mapping()
+    if "magnitude" in varnames:
+        point_to_sources["magnitude"] = range(mapping.n_sources)
+    print(mapping.n_sources)
     source_param_dicts = utility.split_point(
         point_to_sources,
         point_to_sources=point_to_sources,
-        n_sources_total=sum(mapping.n_sources),
+        n_sources_total=mapping.n_sources,
     )
     min_source_ixs = {
         varname: int(min(idxs)) for varname, idxs in point_to_sources.items()
@@ -696,6 +699,7 @@ def correlation_plot_hist(
         weeded_source_varnames = [
             varname for varname in varnames if varname in source_varnames
         ]
+
         nvar = len(weeded_source_varnames)
 
         if figsize is None:
@@ -707,7 +711,7 @@ def correlation_plot_hist(
         fig, axs = plt.subplots(nrows=nvar, ncols=nvar, figsize=figsize)
 
         if hist_color is None:
-            if nvar_elements == 1:
+            if mapping.n_sources == 1:
                 pcolor = "orange"
             else:
                 pcolor = mpl_graph_color(source_i)
