@@ -881,7 +881,7 @@ def plot_covariances(datasets, covariances):
                 if i_l == 0:
                     ax.set_ylabel("Sample idx")
                     ax.set_xlabel("Sample idx")
-                    ax.set_title(dataset.name)
+                    ax.set_title(dataset.id)
 
                     cbaxes = fig.add_axes([cbl, cbb, cbw, cbh])
                     cblabel = "Covariance [m²]"
@@ -896,7 +896,7 @@ def plot_covariances(datasets, covariances):
                     cbs.set_label(cblabel, fontsize=fontsize)
             else:
                 logger.info(
-                    'Did not find "%s" covariance component for %s', attr, dataset.name
+                    'Did not find "%s" covariance component for %s', attr, dataset.id
                 )
                 fig.delaxes(ax)
 

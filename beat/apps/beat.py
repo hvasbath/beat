@@ -2184,7 +2184,7 @@ def command_check(args):
             except (UserIOWarning, KeyError):
                 raise ImportError("Full resolution data could not be loaded!")
         elif isinstance(dataset, heart.GNSSCompoundComponent):
-            logger.info("Found GNSS Compound %s, importing to kite..." % dataset.name)
+            logger.info("Found GNSS Compound %s, importing to kite..." % dataset.id)
             scene = dataset.to_kite_scene()
             # scene.spool()
             sandbox.setReferenceScene(scene)

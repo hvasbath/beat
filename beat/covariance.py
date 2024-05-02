@@ -187,7 +187,7 @@ class GeodeticNoiseAnalyser(object):
             return dataset.covariance.data
         else:
             raise ValueError(
-                "Data covariance for dataset %s needs to be defined!" % dataset.name
+                "Data covariance for dataset %s needs to be defined!" % dataset.id
             )
 
     def do_non_toeplitz(self, dataset, result):
@@ -204,7 +204,7 @@ class GeodeticNoiseAnalyser(object):
         if num.isnan(scaling).any():
             raise ValueError(
                 "Estimated Non-Toeplitz covariance matrix for dataset %s contains Nan! "
-                "Please increase 'max_dist_perc'!" % dataset.name
+                "Please increase 'max_dist_perc'!" % dataset.id
             )
 
         return scaling

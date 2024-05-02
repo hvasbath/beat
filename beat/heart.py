@@ -1074,6 +1074,10 @@ class GeodeticDataset(gf.meta.MultiLocation):
         self.corrections = None
         super(GeodeticDataset, self).__init__(**kwargs)
 
+    @property
+    def id(self):
+        return self.name
+
     def get_corrections(self, hierarchicals, point=None):
         """
         Needs to be specified on inherited dataset classes.
@@ -1176,6 +1180,10 @@ class GNSSCompoundComponent(GeodeticDataset):
     def __init__(self, **kwargs):
         self._station2index = None
         super(GNSSCompoundComponent, self).__init__(**kwargs)
+
+    @property
+    def id(self):
+        return "%s_%s" % (self.name, self.component)
 
     def update_los_vector(self):
         if self.component == "east":

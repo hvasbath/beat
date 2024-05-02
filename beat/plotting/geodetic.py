@@ -218,11 +218,11 @@ def gnss_fits(problem, stage, plot_options):
         bvar_reductions_comp = {}
         for dataset in dataset_to_result.keys():
             target_var_reds = []
-            target_bvar_red = bvar_reductions[dataset.name]
+            target_bvar_red = bvar_reductions[dataset.id]
             target_var_reds.append(target_bvar_red)
             bvar_reductions_comp[dataset.component] = target_bvar_red * 100.0
             for var_reds in ens_var_reductions:
-                target_var_reds.append(var_reds[dataset.name])
+                target_var_reds.append(var_reds[dataset.id])
 
             all_var_reductions[dataset.component] = num.array(target_var_reds) * 100.0
 
@@ -387,7 +387,7 @@ def gnss_fits(problem, stage, plot_options):
             Z = 0
 
             out_filename = "/tmp/histbounds.txt"
-            in_rows = num.atleast_2d(all_var_reductions[dataset.component]).T
+            in_rows = num.atleast_2d(var_reductions_ens).T
 
             m.gmt.pshistogram(
                 in_rows=in_rows,
@@ -543,7 +543,7 @@ def scene_fits(problem, stage, plot_options):
 
     if po.plot_projection == "individual":
         for result, dataset in zip(bresults_tmp, composite.datasets):
-            result.processed_res = stdz_residuals[dataset.name]
+            result.processed_res = stdz_residuals[dataset.id]
 
     bvar_reductions = composite.get_variance_reductions(
         bpoint, weights=composite.weights, results=bresults_tmp
@@ -599,11 +599,11 @@ def scene_fits(problem, stage, plot_options):
         all_var_reductions = {}
         for dataset in dataset_to_result.keys():
             target_var_reds = []
-            target_var_reds.append(bvar_reductions[dataset.name])
+            target_var_reds.append(bvar_reductions[dataset.id])
             for var_reds in ens_var_reductions:
-                target_var_reds.append(var_reds[dataset.name])
+                target_var_reds.append(var_reds[dataset.id])
 
-            all_var_reductions[dataset.name] = num.array(target_var_reds) * 100.0
+            all_var_reductions[dataset.id] = num.array(target_var_reds) * 100.0
 
     figures = []
     axes = []
@@ -892,7 +892,7 @@ def scene_fits(problem, stage, plot_options):
                 vmin = -dcolims[tidx]
                 vmax = dcolims[tidx]
                 logger.debug(
-                    "Variance of residual for %s is: %f", dataset.name, datavec.var()
+                    "Variance of residual for %s is: %f", dataset.id, datavec.var()
                 )
             else:
                 vmin = -colims[tidx]
@@ -956,8 +956,8 @@ def scene_fits(problem, stage, plot_options):
         if po.nensemble > 1:
             in_ax = plot_inset_hist(
                 axs[2],
-                data=num.atleast_2d(all_var_reductions[dataset.name]),
-                best_data=bvar_reductions[dataset.name] * 100.0,
+                data=num.atleast_2d(all_var_reductions[dataset.id]),
+                best_data=bvar_reductions[dataset.id] * 100.0,
                 linewidth=1.0,
                 bbox_to_anchor=(0.75, 0.775, 0.25, 0.225),
                 labelsize=6,

@@ -131,24 +131,11 @@ class GeodeticComposite(Composite):
     def n_t(self):
         return len(self.datasets)
 
-    def get_all_dataset_names(self, hp_name):
+    def get_all_dataset_ids(self, hp_name):
         """
         Return unique GNSS stations and radar acquisitions.
         """
-        names = []
-        for dataset in self.datasets:
-            if dataset.typ == hp_name.split("_")[1]:
-                if isinstance(dataset, heart.DiffIFG):
-                    names.append(dataset.name)
-                elif isinstance(dataset, heart.GNSSCompoundComponent):
-                    names.append(dataset.component)
-                else:
-                    TypeError(
-                        'Geodetic Dataset of class "%s" not '
-                        "supported" % dataset.__class__.__name__
-                    )
-
-        return names
+        return [dataset.id for dataset in self.datasets]
 
     def analyse_noise(self, tpoint=None):
         """
@@ -166,7 +153,7 @@ class GeodeticComposite(Composite):
         for dataset, result in zip(self.datasets, results):
             logger.info(
                 'Retrieving geodetic data-covariances with structure "%s" '
-                "for %s ..." % (self.config.noise_estimator.structure, dataset.name)
+                "for %s ..." % (self.config.noise_estimator.structure, dataset.id)
             )
 
             cov_d_geodetic = self.noise_analyser.get_data_covariance(
@@ -196,7 +183,7 @@ class GeodeticComposite(Composite):
         -------
         int
         """
-        n_datasets = len(self.get_all_dataset_names(hp_name))
+        n_datasets = len(self.get_all_dataset_ids(hp_name))
         if n_datasets == 0:
             raise ConfigInconsistentError(
                 'Found no data for hyperparameter "%s". Please either load'
@@ -276,7 +263,7 @@ class GeodeticComposite(Composite):
             return os.path.join(
                 results_path,
                 "{}_{}_{}.{}".format(
-                    os.path.splitext(dataset.name)[0], attr, stage_number, ending
+                    os.path.splitext(dataset.id)[0], attr, stage_number, ending
                 ),
             )
 
@@ -506,7 +493,7 @@ class GeodeticComposite(Composite):
             logger.debug("nom %f, denom %f" % (float(nom), float(denom)))
             var_red = 1 - (nom / denom)
 
-            logger.debug("Variance reduction for %s is %f" % (dataset.name, var_red))
+            logger.debug("Variance reduction for %s is %f" % (dataset.id, var_red))
 
             if 0:
                 from matplotlib import pyplot as plt
@@ -516,7 +503,7 @@ class GeodeticComposite(Composite):
                 plt.colorbar(im)
                 plt.show()
 
-            var_reds[dataset.name] = var_red
+            var_reds[dataset.id] = var_red
 
         return var_reds
 
@@ -548,7 +535,7 @@ class GeodeticComposite(Composite):
                 point, dataset, counter, hp_specific=hp_specific
             )
             choli = num.linalg.inv(dataset.covariance.chol(num.exp(hp * 2.0)))
-            stdz_residuals[dataset.name] = choli.dot(result.processed_res)
+            stdz_residuals[dataset.id] = choli.dot(result.processed_res)
 
         return stdz_residuals
 
