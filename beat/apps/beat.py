@@ -1288,7 +1288,7 @@ def command_summarize(args):
                     # BEAT sources calculate derived params
                     if options.calc_derived:
                         composite.point2sources(point)
-                        if options.mode == geometry_mode_str:
+                        if options.mode in [geometry_mode_str, ffi_mode_str]:
                             for source in sources:
                                 if hasattr(source, "get_derived_parameters"):
                                     deri = source.get_derived_parameters(
