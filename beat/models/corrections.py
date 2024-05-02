@@ -135,7 +135,7 @@ class EulerPoleCorrection(Correction):
                 kwargs = self.get_point_rvs(hierarchicals)
 
             vels = velocities_from_pole(self.lats, self.lons, **kwargs)
-            if self.data_mask.size > 0:
+            if self.data_mask.any():
                 vels[self.data_mask] = 0.0
             return (vels * self.los_vector).sum(axis=1)
 
@@ -162,14 +162,15 @@ class StrainRateCorrection(Correction):
         )
 
     def get_station_coordinates(self, mask=None):
+        """Return masked coordinates of stations"""
         if mask is None:
             mask = self.data_mask
 
-        return array(self.lats)[mask], array(self.lons)[mask]
+        return array(self.lats)[~mask], array(self.lons)[~mask]
 
     def get_displacements(self, hierarchicals, point=None):
         """
-        Get synthetic correction velocity due to Euler pole rotation.
+        Get synthetic correction velocity due to Strain Rate Tensor.
         """
         if not self.correction_names:
             raise ValueError("Requested correction, but is not setup or configured!")
@@ -198,7 +199,7 @@ class StrainRateCorrection(Correction):
             array(self.lats), array(self.lons), **kwargs
         )
 
-        if self.data_mask.size > 0:
+        if self.data_mask.any():
             v_xyz[self.data_mask, :] = 0.0
 
         return (v_xyz * self.los_vector).sum(axis=1)
