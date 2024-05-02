@@ -7,7 +7,7 @@ from matplotlib import pyplot as plt
 from pyrocko.gf import StaticResult
 from pyrocko.guts import List, Object
 from pyrocko.guts_array import Array
-from pyrocko.moment_tensor import symmat6, moment_to_magnitude
+from pyrocko.moment_tensor import moment_to_magnitude, symmat6
 
 from .sources import DiscretizedBEMSource, check_intersection, slip_comp_to_idx
 
@@ -85,16 +85,30 @@ class BEMResponse(Object):
                 slips.append(None)
         return slips
 
-    def get_source_magnitudes(self, shear_modulus):
+    def get_derived_parameters(self, shear_modulus: float) -> list[num.ndarray]:
+        """
+        Calculate derived source parameters magnitude[Mw]
+        and average slip amplitude[m]
+
+        Parameters
+        ----------
+            shear_modulus: float
+
+        Returns
+        -------
+            list of derived parameters, each entry is for each source
+        """
         inverted_slips = self.source_slips()
         total_slips = [num.linalg.norm(slips, axis=1) for slips in inverted_slips]
 
-        magnitudes = []
+        derived = []
         for source, slips in zip(self.discretized_sources, total_slips):
             moments = source.get_areas_triangles() * slips * shear_modulus
-            magnitudes.append(moment_to_magnitude(moments.sum()))
+            derived.append(
+                num.hstack([moment_to_magnitude(moments.sum()), slips.sum()])
+            )
 
-        return magnitudes
+        return derived
 
 
 class BEMEngine(object):

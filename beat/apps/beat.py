@@ -1313,7 +1313,7 @@ def command_summarize(args):
                             response = composite.engine.process(
                                 sources=composite.sources, targets=composite.targets
                             )
-                            derived = response.get_source_magnitudes(
+                            derived = response.get_derived_parameters(
                                 composite.engine.config.shear_modulus
                             )
 
