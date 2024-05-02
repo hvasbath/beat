@@ -373,14 +373,25 @@ def gnss_fits(problem, stage, plot_options):
 
             # get resulting bounds no plotting
             vmin, vmax = var_reductions_ens.min(), var_reductions_ens.max()
+            vspread = num.abs(vmax - vmin)
+            if vspread < 1e-4:
+                logger.warning(
+                    "Spread in Variance Reduction is too small: %f, "
+                    "skipping histogram plot!" % vspread
+                )
+                figs.append(m)
+                continue
+            # axis bounds
             imin, imax, sinc = get_nice_plot_bounds(vmin, vmax)
-            nbins = 50
+            # hist bins
             Z = 0
 
             out_filename = "/tmp/histbounds.txt"
+            in_rows = num.atleast_2d(all_var_reductions[dataset.component]).T
+
             m.gmt.pshistogram(
-                in_rows=num.atleast_2d(all_var_reductions[dataset.component]).T,
-                W=(imax - imin) / nbins,
+                in_rows=in_rows,
+                W=1.5,
                 out_filename=out_filename,
                 Z=Z,
                 I="o",
@@ -403,8 +414,8 @@ def gnss_fits(problem, stage, plot_options):
             ] + jxyr
 
             m.gmt.pshistogram(
-                in_rows=num.atleast_2d(all_var_reductions[dataset.component]),
-                W=(imax - imin) / nbins,
+                in_rows=in_rows,
+                W=1.5,
                 G="lightorange",
                 Z=Z,
                 F=True,
