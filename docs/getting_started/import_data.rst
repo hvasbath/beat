@@ -14,9 +14,10 @@ should consider to subsample it and to calculate the data-error-variance-covaria
 Once you are satisfied with your specifications please store the kite scenes in its native format as "numpy-npz containers".
 
 In the $project_dir you find the config_geometry.yaml, where the geodetic_config variable 'datadir' points to the location where the data are stored.
-Under the 'names' variable, the names of the files of interest have to be entered (without the .npz and .yml suffixes). Afterwards, the following command has to be executed to import the data::
+Under the 'names' variable, the names of the files of interest have to be entered (without the .npz and .yml suffixes).
+Afterwards, the following command has to be executed to import the data::
 
-    beat import $project_dir
+  beat import $project_dir --datatypes=geodetic --geodetic_format=kite
 
 The data are now accessible to beat as the file geodetic_data.pkl. In case it turns out the pre-processing (subsampling, covariance estimation) had to be repeated, the existing 'geodetic_data.pkl' file can be overwritten by adding the --force option to the import command above.
 
@@ -35,6 +36,17 @@ From that file the following columns are imported: Longitude, Latitude, velocity
 The units for the location and the measurements are [decimal deg] and [mm/yr], respectively.
 
 .. note:: This is the native GAMMIT-GLOBK output file, and the number of header-lines (first three commented lines) is important. In case some of those lines are missing the first entries might be skipped during import!
+
+The following command has to be executed to import the data::
+
+  beat import $project_dir --datatypes=geodetic --geodetic_format=ascii
+
+GNSS and InSAR
+==============
+The dataformats specified above apply.
+To import both, the GNSS and InSAR data into a beat project run::
+
+  beat import $project_dir --datatypes=geodetic --geodetic_format=ascii,kite
 
 seismic data
 ^^^^^^^^^^^^
