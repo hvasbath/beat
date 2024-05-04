@@ -430,8 +430,8 @@ def gnss_fits(problem, stage, plot_options):
             # plot vertical line on hist with best solution
             m.gmt.psxy(
                 in_rows=(
-                    [bvar_reductions_comp[dataset.component], 0],
-                    [bvar_reductions_comp[dataset.component], po.nensemble],
+                    [var_reductions_ens[0], 0],
+                    [var_reductions_ens[0], po.nensemble],
                 ),
                 W="1.5p,red",
                 *jxyr,
