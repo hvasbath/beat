@@ -10,7 +10,7 @@ from setuptools import Extension, setup
 op = os.path
 
 packname = "beat"
-version = "2.0.0"
+version = "2.0.1"
 
 
 try:

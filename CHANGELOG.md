@@ -4,6 +4,23 @@ All notable changes to BEAT will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [2.0.1] 04 May 2024
+Bugfix release! Many fixes for GNSS related functionality.
+
+Contributors: Hannes Vasyura-Bathke @hvasbath, Semih Ergintav @sergintav
+
+### Added
+- bem.base: add average slip to derived parameters for BEMSources
+
+### Fixes
+- plotting.geodetic.gnss_fits fix VR histogram
+- heart.GNSSCompoundComponent: fix masking, add id property
+- models.geodetic.GeodeticComposite: use dataset id for VR export
+- beat.summarize: enable calc_derived argument for FFI mode
+
+### Changes:
+- bem.Response: change get_derived_magnitudes to get_derived_parameters
+
 ## [2.0.0] 24 March 2024
 Major new release! Previous project setups are not back-compatible. Supports python3.9+.
 
