@@ -385,18 +385,21 @@ def gnss_fits(problem, stage, plot_options):
             imin, imax, sinc = get_nice_plot_bounds(vmin, vmax)
             # hist bins
             Z = 0
+            W = (imax - imin) / 30
+            # T = "%s/%s/%s+i" % (imin, imax, 0.1) this is buggy
 
             out_filename = "/tmp/histbounds.txt"
             in_rows = num.atleast_2d(var_reductions_ens).T
 
             m.gmt.pshistogram(
                 in_rows=in_rows,
-                W=1.5,
+                # T=T,
+                W=W,
                 out_filename=out_filename,
                 Z=Z,
                 I="o",
             )
-            bin_bounds = num.loadtxt(out_filename).max(0)
+            bin_bounds = num.atleast_2d(num.loadtxt(out_filename)).max(0)
             bmin, bmax, binc = get_nice_plot_bounds(0, bin_bounds[1])
 
             # set data region
@@ -415,7 +418,8 @@ def gnss_fits(problem, stage, plot_options):
 
             m.gmt.pshistogram(
                 in_rows=in_rows,
-                W=1.5,
+                W=W,
+                # T=T,
                 G="lightorange",
                 Z=Z,
                 F=True,
