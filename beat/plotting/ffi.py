@@ -1,5 +1,6 @@
 import logging
 import os
+from copy import deepcopy
 
 import numpy as num
 import pyrocko.moment_tensor as mt
@@ -145,7 +146,7 @@ def draw_moment_rate(problem, po):
             store=sc.engine.get_store(target.store_id),
         )
 
-        if plot_exists(outpath, po.force):
+        if plot_exists(outpath, po.outformat, po.force):
             return
 
         fig, ax = plt.subplots(
@@ -369,17 +370,19 @@ def fuzzy_rupture_fronts(
         ),
         dtype="float64",
     )
+
     for rupture_front in rupture_fronts:
         for level in rupture_front:
             for line in level:
-                draw_line_on_array(
-                    line[:, 0],
-                    line[:, 1],
-                    grid=grid,
-                    extent=extent,
-                    grid_resolution=grid.shape,
-                    linewidth=linewidth,
-                )
+                if len(line) > 0:
+                    draw_line_on_array(
+                        line[:, 0],
+                        line[:, 1],
+                        grid=grid,
+                        extent=extent,
+                        grid_resolution=grid.shape,
+                        linewidth=linewidth,
+                    )
 
     # increase contrast reduce high intense values
     truncate = len(rupture_fronts) / 2
@@ -600,7 +603,8 @@ def fault_slip_distribution(
                 idxs = num.floor(num.arange(0, nchains, csteps)).astype("int32")
                 logger.info("Rendering rupture fronts ...")
                 for i in tqdm(idxs):
-                    point = mtrace.point(idx=i)
+                    point = deepcopy(reference)  # asure fixed variables exist
+                    point.update(mtrace.point(idx=i))
                     sts = fault.point2starttimes(point, index=ns)
 
                     contours = dummy_ax.contour(xgr, ygr, sts)
