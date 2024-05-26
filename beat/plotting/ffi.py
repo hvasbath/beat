@@ -843,7 +843,8 @@ def draw_3d_slip_distribution(problem, po):
         mtrace = None
 
     datatype, cconf = list(problem.composites.items())[0]
-    fault = cconf.load_fault_geometry()
+    if mode == ffi_mode_str:
+        fault = cconf.load_fault_geometry()
 
     if po.plot_projection in ["local", "latlon"]:
         perspective = "135/30"
