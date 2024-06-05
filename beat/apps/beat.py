@@ -2356,15 +2356,16 @@ def command_export(args):
     dump(rpoint, filename=outpoint_name)
     logger.info("Dumped %s solution to %s" % (options.post_llk, outpoint_name))
 
-    if options.mode == ffi_mode_str:
-        if "seismic" in problem.config.problem_config.datatypes:
-            datatype = "seismic"
-        elif "geodetic" in problem.config.problem_config.datatypes:
-            datatype = "geodetic"
-        else:
-            logger.info("Rupture geometry only available for static / kinematic data.")
+    # get geometry
+    if "seismic" in problem.config.problem_config.datatypes:
+        datatype = "seismic"
+    elif "geodetic" in problem.config.problem_config.datatypes:
+        datatype = "geodetic"
+    else:
+        logger.info("Rupture geometry only available for static / kinematic data.")
 
-        comp = problem.composites[datatype]
+    comp = problem.composites[datatype]
+    if options.mode == ffi_mode_str:
         engine = LocalEngine(store_superdirs=[comp.config.gf_config.store_superdir])
 
         target = comp.targets[0]
@@ -2394,6 +2395,19 @@ def command_export(args):
                 "Exporting finite rupture evolution" " to %s" % ffi_rupture_table_path
             )
             dump(geom, filename=ffi_rupture_table_path)
+
+    elif options.mode == bem_mode_str:
+
+        comp.point2sources(point)
+        response = composite.engine.process(
+            sources=composite.sources, targets=composite.targets
+        )
+
+        geoms = response.get_geometry(problem.event)
+        for k, geom in enumerate(geoms):
+            bem_geometry_path = pjoin(
+                results_path, "rupture_evolution_{}_{}.yaml".format(options.post_llk, k))
+            dump(geom, filename=bem_geometry_path)
 
     for datatype, composite in problem.composites.items():
         logger.info(

@@ -98,6 +98,44 @@ class BEMResponse(Object):
 
         return magnitudes
 
+    def get_geometry(self, event):
+        """Returns list of geometries of sources for plotting in the pyrocko.sparrow"""
+        def duplicate_property(array):
+            ndims = len(array.shape)
+            if ndims == 1:
+                return num.hstack((array, array))
+            elif ndims == 2:
+                return num.vstack((array, array))
+            else:
+                raise TypeError("Only 1-2d data supported!")
+
+        from pyrocko.model import Geometry
+        ncorners = 3
+
+        geoms = []
+        sources_slips = self.source_slips()
+        times = num.zeros(1)
+        for dsource, source_slips in zip(self.discretized_sources, sources_slips):
+            n_nodes = ncorners * dsource.n_vertices
+            latlon = num.ones((n_nodes, 2)) * num.array([event.lat, event.lon])
+            vertices = num.hstack([latlon, dsource.triangles_xyz.reshape((n_nodes, 3))])
+            geom = Geometry(times=times, event=event)
+
+            faces1 = num.arange(n_nodes, dtype="int64").reshape(
+                dsource.n_vertices, ncorners
+            )
+            faces2 = num.fliplr(faces1)
+            faces = num.vstack((faces1, faces2))
+
+            geom.setup(vertices, faces)
+            for slip_comp in ["strike", "dip", "normal"]:
+                slips = source_slips[slip_comp_to_idx[slip_comp]]
+                geom.add_property(((slip_comp, "float64", [])), duplicate_property(slips))
+
+            geoms.append(geom)
+
+        return geoms
+
 
 class BEMEngine(object):
     def __init__(self, config) -> None:
