@@ -116,20 +116,23 @@ class BEMResponse(Object):
         sources_slips = self.source_slips()
         times = num.zeros(1)
         for dsource, source_slips in zip(self.discretized_sources, sources_slips):
-            n_nodes = ncorners * dsource.n_vertices
+            n_nodes = ncorners * dsource.n_triangles
             latlon = num.ones((n_nodes, 2)) * num.array([event.lat, event.lon])
-            vertices = num.hstack([latlon, dsource.triangles_xyz.reshape((n_nodes, 3))])
+            nodes_xyz = dsource.triangles_xyz.reshape((n_nodes, 3))
+            nodes_xyz[:, 2] *= -1.
+            nodes_xyz[:, 0:2] = num.fliplr(nodes_xyz[:, 0:2])
+            vertices = num.hstack([latlon, nodes_xyz])
             geom = Geometry(times=times, event=event)
 
             faces1 = num.arange(n_nodes, dtype="int64").reshape(
-                dsource.n_vertices, ncorners
+                dsource.n_triangles, ncorners
             )
             faces2 = num.fliplr(faces1)
             faces = num.vstack((faces1, faces2))
 
             geom.setup(vertices, faces)
             for slip_comp in ["strike", "dip", "normal"]:
-                slips = source_slips[slip_comp_to_idx[slip_comp]]
+                slips = source_slips[:, slip_comp_to_idx[slip_comp]].ravel()
                 geom.add_property(((slip_comp, "float64", [])), duplicate_property(slips))
 
             geoms.append(geom)

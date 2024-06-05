@@ -37,7 +37,7 @@ def slip_distribution_3d(
     min_limits = num.floor(sources_coord_limits.min(2).min(1)) * km
     max_limits = num.ceil(sources_coord_limits.max(2).max(1)) * km
     for j, comp in enumerate(slip_comps):
-        cmap = plt.get_cmap("hot") if comp == "normal" else plt.get_cmap("seismic")
+        cmap = plt.get_cmap("hot_r") if comp == "normal" else plt.get_cmap("seismic")
         ax = fig.add_subplot(
             1, len(slip_comps), j + 1, projection="3d", computed_zorder=False
         )
@@ -54,7 +54,8 @@ def slip_distribution_3d(
                 if k == 1:
                     cbounds = [-0.3, 0.3]
             else:
-                cbounds = [cb_round(a.min()), cb_round(a.max())]
+                #cbounds = [cb_round(a.min()), cb_round(a.max())]
+                cbounds = [0.3, 1.1]
 
             assert a.size == dsource.n_triangles
 
@@ -86,7 +87,11 @@ def slip_distribution_3d(
                     cax=cbaxes,
                     orientation="horizontal",
                 )
+
                 cbs.set_label(f"{comp}-slip [m]", fontsize=fontsize)
+                if comp == "normal":
+                    cbs.set_label(f"Sill opening [m]", fontsize=fontsize)
+
                 cbs.ax.tick_params(labelsize=fontsize)
 
                 unit_vectors = getattr(dsource, f"unit_{comp}_vectors")

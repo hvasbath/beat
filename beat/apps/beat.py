@@ -2399,8 +2399,8 @@ def command_export(args):
     elif options.mode == bem_mode_str:
 
         comp.point2sources(point)
-        response = composite.engine.process(
-            sources=composite.sources, targets=composite.targets
+        response = comp.engine.process(
+            sources=comp.sources, targets=comp.targets
         )
 
         geoms = response.get_geometry(problem.event)
