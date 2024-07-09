@@ -577,7 +577,7 @@ def command_import(args):
             )
 
             point = plotting.get_result_point(stage.mtrace, "max")
-            summarydf = read_csv(pjoin(problem.outfolder, "summary.txt"), sep="\s+")
+            summarydf = read_csv(pjoin(problem.outfolder, "summary.txt"), sep=r"\s+")
 
         else:
             # load kite model
