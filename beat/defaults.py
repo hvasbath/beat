@@ -320,5 +320,4 @@ def get_defaults(force=True):
     return defaults
 
 
-defaults = get_defaults()
-defaults = get_defaults()
+defaults = get_defaults(force=False)

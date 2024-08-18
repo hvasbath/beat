@@ -730,10 +730,9 @@ def command_import(args):
 
         elif options.mode == geometry_mode_str:
             if options.import_from_mode == geometry_mode_str:
-                # TODO update for n_sources refactoring
-                n_sources = problem.config.problem_config.n_sources
                 logger.info("Importing non-linear source geometry results!")
-
+                mapping = problem.config.problem_config.get_variables_mapping()
+                vars2sizes = mapping.unique_variables_sizes()
                 new_source_params = set(list(c.problem_config.priors.keys()))
                 old_source_params = set(source_params)
 
@@ -747,7 +746,7 @@ def command_import(args):
                         new_bounds[param] = extract_bounds_from_summary(
                             summarydf,
                             varname=param,
-                            shape=(n_sources,),
+                            shape=(vars2sizes[param],),
                             roundto=0,
                             alpha=0.06,
                         )
