@@ -91,7 +91,7 @@ usage = (
 BEAT: Bayesian earthquake analysis tool
  Version %(version)s
 author: Hannes Vasyura-Bathke
-email: hannes.vasyura-bathke@kaust.edu.sa
+email: hannes.bathke@gmx.net
 
 Subcommands:
 

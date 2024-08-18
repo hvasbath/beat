@@ -4,6 +4,19 @@ All notable changes to BEAT will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [2.0.2] 19 August 2024
+Bugfix release!
+
+Contributors: Hannes Vasyura-Bathke @hvasbath
+
+### Added
+- plotting.3d_slip_distribution: working for BEM mode inferences
+
+### Fixed
+- beat.import: import results from geometry inference, broken after MixedSourceTypes
+- beat.defaults: do not always re-init such that intended edits in .beat/defaults.pf are possible
+- use new syntax for some classes to silence warnings from pymc and python
+
 ## [2.0.1] 04 May 2024
 Bugfix release! Many fixes for GNSS related functionality.
 
@@ -18,7 +31,7 @@ Contributors: Hannes Vasyura-Bathke @hvasbath, Semih Ergintav @sergintav
 - models.geodetic.GeodeticComposite: use dataset id for VR export
 - beat.summarize: enable calc_derived argument for FFI mode
 
-### Changes:
+### Changed
 - bem.Response: change get_derived_magnitudes to get_derived_parameters
 
 ## [2.0.0] 24 March 2024
