@@ -36,38 +36,6 @@ hvasbath@uni-potsdam.de
 Andreas Steinberg
 andreas.steinberg@ifg.uni-kiel.de
 
-
-## Changelog
-14 February 2023
-Version 1.2.4 is released. Details in the [changelog](https://github.com/hvasbath/beat/blob/master/CHANGELOG.md).
-
-20 November 2022
-Version 1.2.3 is released. Bugfix-release.
-
-28 October 2022
-Version 1.2.2 is released. Details in the [changelog](https://github.com/hvasbath/beat/blob/master/CHANGELOG.md).
-
-14 September 2022
-Version 1.2.1 is released, improvements on the stage_posterior plot. Updated [Example 8](https://pyrocko.org/beat/docs/current/examples/MTQT_polarity.html#plotting) to show-case its use.
-
-21 August 2022
-Version 1.2.0 is released introducing waveform polarity inversion and inversion in spectral domain for seismic data.
-Checkout the [changelog](https://github.com/hvasbath/beat/blob/master/CHANGELOG.md) for all the details.
-New [tutorial](https://pyrocko.org/beat/docs/current/examples/MTQT_polarity.html) on moment tensor inversion with P wave polarity picks.
-Now PyPI packages are provided and the installation via pip is recommended.
-
-6 January 2022
-A new version 1.1.1 is released vastly improving resolution based fault discretization. Minor changes.
-Checkout the [changelog](https://github.com/hvasbath/beat/blob/master/CHANGELOG.md) for all the details.
-New [tutorial](https://pyrocko.org/beat/docs/current/examples/FFI_static_resolution.html) on resolution based discretization of the fault surface.
-
-12 April 2021
-A new version 1.1.0 is released adding support for multi-segmented fault setups and tensile dislocations.
-Checkout the [changelog](https://github.com/hvasbath/beat/blob/master/CHANGELOG.md) for all the details.
-
-
-New [tutorial](https://pyrocko.org/beat/docs/current/examples/Rectangular_tensile.html) on tensile dislocation modeling.
-
 **HELP wanted!**
 
 The new release contains a lot of undocumented features a list of these can be found here:
