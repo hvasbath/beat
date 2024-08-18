@@ -415,7 +415,7 @@ class Problem(object):
                         upper=num.repeat(hyperpar.upper, ndata),
                         initval=num.repeat(hyperpar.testvalue, ndata),
                         dtype=tconfig.floatX,
-                        transform=None,
+                        default_transform=None,
                     )
 
                     hyperparams[hp_name] = init_uniform_random(kwargs)

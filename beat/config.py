@@ -1529,7 +1529,7 @@ class ProblemConfig(Object):
                     lower=param.get_lower(size),
                     upper=param.get_upper(size),
                     initval=param.get_testvalue(size),
-                    transform=None,
+                    default_transform=None,
                     dtype=tconfig.floatX,
                 )
                 rvs[param.name] = kwargs

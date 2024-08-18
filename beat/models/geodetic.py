@@ -386,7 +386,7 @@ class GeodeticComposite(Composite):
                                     lower=param.lower,
                                     upper=param.upper,
                                     initval=param.testvalue,
-                                    transform=None,
+                                    default_transform=None,
                                     dtype=tconfig.floatX,
                                 )
 
