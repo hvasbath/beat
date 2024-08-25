@@ -42,7 +42,11 @@ def init_uniform_random(kwargs):
     except TypeError:
         kwargs.pop("name")
         kwargs.pop("initval")
-        kwargs.pop("transform")
+        try:
+            kwargs.pop("transform")
+        except KeyError:
+            kwargs.pop("default_transform")
+
         dist = Uniform.dist(**kwargs)
 
     return dist
