@@ -1046,7 +1046,7 @@ def write_fault_to_pscmp(
 #     [km]    [km]     [m]     [m]     [m]
 #-------------------------------------------------------------------------------
 """
-        return (template % nsubfaults).encode('ascii')
+        return (template % nsubfaults).encode("ascii")
 
     # get slip components from result point
     uparr = point["uparr"]
