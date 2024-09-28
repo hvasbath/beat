@@ -22,7 +22,7 @@ jobs:
           CIBW_ARCHS_MACOS: x86_64 universal2
           CIBW_SKIP: "{pp*,*musllinux*}"
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4.1.7
         with:
           path: ./wheelhouse/*.whl
 
@@ -35,7 +35,7 @@ jobs:
       - name: Build sdist
         run: pipx run build --sdist
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4.1.7
         with:
           path: dist/*.tar.gz
 
