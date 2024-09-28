@@ -72,3 +72,26 @@ NameError: global name 'exc' is not defined
 | add:
 | export LC_ALL=en_AU.utf8
 | to your .bashrc
+
+| **10. How can I load the sampling data?**
+
+Please use the following script and update your paths and the variable names that you like to have loaded.::
+
+    from beat import backend
+    from os import path as op
+
+    varnames=['strike', 'dip', 'rake']   # put any variable name there (naming needs to be identical as in for example stage_-1.pdf plot)
+    projectdir = '/path/to/project'      # path to your BEAT project
+
+    # this assumes you have run beat export first
+    mtrace = backend.load_multitrace(
+        dirname=op.join(projectdir, 'ffi', 'results'),
+        chains=[-1], varnames=varnames, backend='bin')
+
+    sampling_variables = {}
+    for varname in varnames:
+        sampling_variables[varname] = mtrace.get_values(
+            varname, combine=True, squeeze=True)
+
+    # this will give you a dictionary with numpy arrays with the variable name as keys
+    # you can plot these than using familiar plotting libraries like matplotlib or seaborn

@@ -4,6 +4,11 @@ All notable changes to BEAT will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [2.0.3] 28 September 2024
+Bugfix release!
+
+Contributors: Hannes Vasyura-Bathke @hvasbath
+
 ## [2.0.2] 19 August 2024
 Bugfix release!
 
