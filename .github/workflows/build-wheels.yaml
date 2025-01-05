@@ -8,7 +8,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-20.04, ubuntu-22.04, ubuntu-24.04, macOS-12, macOS-13]
+        os: [ubuntu-20.04, ubuntu-22.04, ubuntu-24.04, macOS-13, macOS-14]
         # Exclude windows-2019
 
     steps:
