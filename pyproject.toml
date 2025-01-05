@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "beat"
-version = "2.0.3"
+version = "2.0.4"
 requires-python = ">=3.9"
 license = {text = "GPLv3"}
 description = "'Bayesian Earthquake Analysis Tool'"
@@ -28,7 +28,7 @@ dependencies = [
     "numpy",
     "scipy",
     "pytensor>=2.18.4",
-    "pymc>=5.10.0",
+    "pymc>=5.10.0,<=5.16.2",
     "tqdm>=4.64.0",
     "matplotlib>=3.1.1",
     "psutil>=5.9.0",
