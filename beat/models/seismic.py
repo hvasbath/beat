@@ -558,7 +558,7 @@ class SeismicComposite(Composite):
             )
             ydata = result.processed_res.get_ydata()
             choli = num.linalg.inv(dataset.covariance.chol(num.exp(hp * 2.0)))
-            stdz_residuals[target.nslcd_id_str] = choli.dot(ydata)
+            stdz_residuals[target] = choli.dot(ydata)
         return stdz_residuals
 
     def get_variance_reductions(
@@ -603,7 +603,7 @@ class SeismicComposite(Composite):
         hp_specific = self.config.dataset_specific_residual_noise_estimation
 
         var_reds = OrderedDict()
-        for result, tr in zip(results, self.datasets):
+        for result, tr, target in zip(results, self.datasets, self.targets):
             nslcd_id_str = result.processed_obs.nslcd_id_str
 
             hp = get_hypervalue_from_point(point, tr, counter, hp_specific=hp_specific)
@@ -617,13 +617,13 @@ class SeismicComposite(Composite):
 
             logger.debug("nom %f, denom %f" % (float(nom), float(denom)))
 
-            var_reds[nslcd_id_str] = float(1 - (nom / denom))
+            var_reds[target] = float(1 - (nom / denom))
 
             logger.debug(
                 "Variance reduction for %s is %f"
-                % (nslcd_id_str, var_reds[nslcd_id_str])
+                % (nslcd_id_str, var_reds[target])
             )
-
+            #breakpoint()
             if 0:
                 from matplotlib import pyplot as plt
 
@@ -868,6 +868,7 @@ class SeismicGeometryComposite(SeismicComposite):
         obs = []
         for i, wmap in enumerate(self.wavemaps):
             wc = wmap.config
+            #print(wc)
             if not wmap.is_prepared or force:
                 wmap.prepare_data(
                     source=self.events[wc.event_idx],
@@ -901,6 +902,8 @@ class SeismicGeometryComposite(SeismicComposite):
                 )
                 sources = [self.sources[wc.event_idx]]
 
+            # print(sources[0])
+            #breakpoint()
             synthetics, _ = heart.seis_synthetics(
                 engine=self.engine,
                 sources=sources,
@@ -917,6 +920,7 @@ class SeismicGeometryComposite(SeismicComposite):
                 **kwargs,
             )
 
+            #breakpoint()
             if self.config.station_corrections and wc.domain == "time":
                 # set tmin to data tmin
                 for tr, dtr in zip(synthetics, wmap._prepared_data):
