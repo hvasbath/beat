@@ -23,6 +23,7 @@ from pyrocko.guts import (
     Object,
     String,
     StringChoice,
+    StringUnion,
     Tuple,
 )
 from pyrocko.guts_array import Array
@@ -425,6 +426,60 @@ class FrequencyFilter(FilterBase):
         trace.set_ydata(new_trace.ydata)
 
 
+class DynamicTarget(gf.Target):
+    response = trace.PoleZeroResponse.T(default=None, optional=True)
+    domain = StringChoice.T(
+        default="time",
+        choices=_domain_choices,
+        help="Domain for signal processing and likelihood calculation.",
+    )
+
+    @property
+    def nslcd_id(self):
+        return tuple(list(self.codes) + [self.domain])
+
+    @property
+    def nslcd_id_str(self):
+        return utility.list2string(self.nslcd_id)
+
+    def update_response(self, magnification, damping, period):
+        z, p, k = proto2zpk(magnification, damping, period, quantity="displacement")
+        # b, a = zpk2tf(z, p, k)
+
+        if self.response:
+            self.response.zeros = z
+            self.response.poles = p
+            self.response.constant = k
+        else:
+            logger.debug("Initializing new response!")
+            self.response = trace.PoleZeroResponse(zeros=z, poles=p, constant=k)
+
+    def update_target_times(self, sources=None, taperer=None):
+        """
+        Update the target attributes tmin and tmax to do the stacking
+        only in this interval. Adds twice taper fade in time to each taper
+        side.
+
+        Parameters
+        ----------
+        source : list
+            containing :class:`pyrocko.gf.seismosizer.Source` Objects
+        taperer : :class:`pyrocko.trace.CosTaper`
+        """
+
+        if sources is None or taperer is None:
+            self.tmin = None
+            self.tmax = None
+        else:
+            tolerance = 2 * (taperer.b - taperer.a)
+            self.tmin = taperer.a - tolerance
+            self.tmax = taperer.d + tolerance
+
+
+class TargetUnion(StringUnion):
+    members = [DynamicTarget.T(), String.T()]
+
+
 class ResultPoint(Object):
     """
     Containing point in solution space.
@@ -442,7 +497,7 @@ class ResultPoint(Object):
         help="Point in Solution space for which result is produced.",
     )
     variance_reductions = Dict.T(
-        String.T(),
+        TargetUnion.T(),
         Float.T(),
         default={},
         optional=True,
@@ -1007,56 +1062,6 @@ class SpectrumDataset(SeismicDataset):
             raise Exception()
 
         return num.arange(len(self.ydata), dtype=num.float64) * self.deltaf + self.fmin
-
-
-class DynamicTarget(gf.Target):
-    response = trace.PoleZeroResponse.T(default=None, optional=True)
-    domain = StringChoice.T(
-        default="time",
-        choices=_domain_choices,
-        help="Domain for signal processing and likelihood calculation.",
-    )
-
-    @property
-    def nslcd_id(self):
-        return tuple(list(self.codes) + [self.domain])
-
-    @property
-    def nslcd_id_str(self):
-        return utility.list2string(self.nslcd_id)
-
-    def update_response(self, magnification, damping, period):
-        z, p, k = proto2zpk(magnification, damping, period, quantity="displacement")
-        # b, a = zpk2tf(z, p, k)
-
-        if self.response:
-            self.response.zeros = z
-            self.response.poles = p
-            self.response.constant = k
-        else:
-            logger.debug("Initializing new response!")
-            self.response = trace.PoleZeroResponse(zeros=z, poles=p, constant=k)
-
-    def update_target_times(self, sources=None, taperer=None):
-        """
-        Update the target attributes tmin and tmax to do the stacking
-        only in this interval. Adds twice taper fade in time to each taper
-        side.
-
-        Parameters
-        ----------
-        source : list
-            containing :class:`pyrocko.gf.seismosizer.Source` Objects
-        taperer : :class:`pyrocko.trace.CosTaper`
-        """
-
-        if sources is None or taperer is None:
-            self.tmin = None
-            self.tmax = None
-        else:
-            tolerance = 2 * (taperer.b - taperer.a)
-            self.tmin = taperer.a - tolerance
-            self.tmax = taperer.d + tolerance
 
 
 class GeodeticDataset(gf.meta.MultiLocation):
