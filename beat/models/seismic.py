@@ -623,7 +623,7 @@ class SeismicComposite(Composite):
                 "Variance reduction for %s is %f"
                 % (nslcd_id_str, var_reds[target])
             )
-            #breakpoint()
+
             if 0:
                 from matplotlib import pyplot as plt
 
@@ -810,7 +810,8 @@ class SeismicGeometryComposite(SeismicComposite):
                 engine=self.engine,
                 sources=sources,
                 targets=wmap.targets,
-                event=self.events[wc.event_idx],
+                events=self.events,
+                event_idx=wc.event_idx,
                 arrival_taper=wc.arrival_taper,
                 arrival_times=wmap._arrival_times,
                 wavename=wmap.name,
@@ -902,8 +903,6 @@ class SeismicGeometryComposite(SeismicComposite):
                 )
                 sources = [self.sources[wc.event_idx]]
 
-            # print(sources[0])
-            #breakpoint()
             synthetics, _ = heart.seis_synthetics(
                 engine=self.engine,
                 sources=sources,
@@ -920,7 +919,6 @@ class SeismicGeometryComposite(SeismicComposite):
                 **kwargs,
             )
 
-            #breakpoint()
             if self.config.station_corrections and wc.domain == "time":
                 # set tmin to data tmin
                 for tr, dtr in zip(synthetics, wmap._prepared_data):

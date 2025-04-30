@@ -1061,7 +1061,6 @@ def command_sample(args):
     problem = load_model(project_dir, options.mode, options.hypers)
 
     step = problem.init_sampler(hypers=options.hypers)
-
     if options.hypers:
         estimate_hypers(step, problem)
     else:

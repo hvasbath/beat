@@ -845,7 +845,7 @@ def seismic_fits(problem, stage, plot_options):
         bresults=bresults,
         bvar_reductions=bvar_reductions,
     )
-    # breakpoint()
+
     # collecting time-shifts:
     station_corr = composite.config.station_corrections
     time_shift_bounds = [0, 0]
@@ -909,7 +909,6 @@ def seismic_fits(problem, stage, plot_options):
         cgs = cg_to_target_codes.keys()
         # target_domains = list(utility.gather(event_targets, lambda t: t.domain).keys())
 
-        #breakpoint()
         channel_index = dict((channel, i) for (i, channel) in enumerate(cgs))
 
         figs = []

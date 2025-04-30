@@ -469,6 +469,17 @@ def traceplot(
                             except KeyError:
                                 pass
 
+                            except TypeError:
+                                # likelihood returns a single scalar
+                                line = lines[v]
+                                ax.axvline(x=line, color="white", lw=1.0)
+                                ax.axvline(
+                                    x=line,
+                                    color="black",
+                                    linestyle="dashed",
+                                    lw=1.0,
+                                )
+
                         if posterior != "None":
                             if posterior == "all":
                                 for k, idx in posterior_idxs.items():
