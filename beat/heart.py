@@ -3570,7 +3570,7 @@ def seis_synthetics(
     filterer=None,
     reference_taperer=None,
     plot=False,
-    nprocs=1,
+    nthreads=1,
     outmode="array",
     pre_stack_cut=False,
     taper_tolerance_factor=0.0,
@@ -3597,9 +3597,8 @@ def seis_synthetics(
     filterer : :class:`Filterer`
     plot : boolean
         flag for looking at traces
-    nprocs : int
-        number of processors to use for synthetics calculation
-        --> currently no effect !!!
+    nthreads : int
+        number of threads to use for synthetics calculation
     outmode : string
         output format of synthetics can be 'array', 'stacked_traces',
         'data' returns traces unstacked including post-processing,
@@ -3656,7 +3655,7 @@ def seis_synthetics(
 
     t_2 = time()
     try:
-        response = engine.process(sources=sources, targets=targets, nprocs=nprocs)
+        response = engine.process(sources=sources, targets=targets, nthreads=nthreads)
         t_1 = time()
     except IndexError:
         for source in sources:
@@ -4157,7 +4156,7 @@ def fft_transforms(
 
 
 def geo_synthetics(
-    engine, targets, sources, outmode="stacked_array", plot=False, nprocs=1
+    engine, targets, sources, outmode="stacked_array", plot=False, nthreads=1
 ):
     """
     Calculate synthetic displacements for a given static fomosto Greens
@@ -4173,9 +4172,8 @@ def geo_synthetics(
         containing :class:`pyrocko.gf.seismosizer.Target` Objects
     plot : boolean
         flag for looking at synthetics - not implemented yet
-    nprocs : int
-        number of processors to use for synthetics calculation
-        --> currently no effect !!!
+    nthreads : int
+        number of threads to use for synthetics calculation
     outmode : string
         output format of synthetics can be: 'array', 'arrays',
         'stacked_array','stacked_arrays'
@@ -4199,7 +4197,7 @@ def geo_synthetics(
         for target in targets:
             print(target)
 
-    response = engine.process(sources, targets)
+    response = engine.process(sources, targets, nthreads=nthreads)
 
     ns = len(sources)
     nt = len(targets)

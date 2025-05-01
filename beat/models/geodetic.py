@@ -716,6 +716,7 @@ class GeodeticGeometryComposite(GeodeticSourceComposite):
             targets=self.targets,
             sources=self.sources,
             outmode="stacked_arrays",
+            nthreads=4,
         )
 
         synths = []

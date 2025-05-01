@@ -465,7 +465,7 @@ def model_prediction_sensitivity(engine, *args, **kwargs):
         kwargs["source_params"] = args[2]
 
     request = kwargs.pop("request", None)
-    nprocs = kwargs.pop("nprocs", 1)
+    nthreads = kwargs.pop("nthreads", 1)
     source_params = kwargs.pop("source_params", None)
     h = kwargs.pop("h", None)
 
@@ -505,7 +505,7 @@ def model_prediction_sensitivity(engine, *args, **kwargs):
             ]
 
             response = engine.process(
-                sources=calc_sources, targets=request.targets, nprocs=nprocs
+                sources=calc_sources, targets=request.targets, nthreads=nthreads
             )
 
             for i_k in range(len(request.targets)):

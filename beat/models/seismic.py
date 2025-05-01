@@ -859,7 +859,7 @@ class SeismicGeometryComposite(SeismicComposite):
         outmode = kwargs.pop("outmode", "stacked_traces")
         chop_bounds = kwargs.pop("chop_bounds", ["a", "d"])
         order = kwargs.pop("order", "list")
-        nprocs = kwargs.pop("nprocs", 4)
+        nthreads = kwargs.pop("nthreads", 4)
         force = kwargs.pop("force", False)
 
         self.point2sources(point)
@@ -914,7 +914,7 @@ class SeismicGeometryComposite(SeismicComposite):
                 arrival_times=arrival_times,
                 outmode=outmode,
                 chop_bounds=chop_bounds,
-                nprocs=nprocs,
+                nthreads=nthreads,
                 # plot=True,
                 **kwargs,
             )
