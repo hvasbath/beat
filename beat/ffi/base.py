@@ -451,11 +451,12 @@ filename: %s""" % (
         if len(entries.shape) < 2:
             raise ValueError("Entries have to be 2d arrays!")
 
-        if entries.shape[1] != self.nsamples:
+        synthetics_nsamples = entries.shape[1]
+        if synthetics_nsamples != self.nsamples:
             raise GFLibraryError(
                 "Trace length of entries is not consistent with the library"
                 " to be filled! Entries length: %i Library: %i."
-                % (entries.shape[0], self.nsamples)
+                % (synthetics_nsamples, self.nsamples)
             )
 
         self._check_setup()
