@@ -427,7 +427,7 @@ def rotate_traces_and_stations(datatraces, stations, event):
             traces = station2traces[station.station]
         except KeyError:
             logger.warning(
-                'Did not find data traces for station "%s"' % stations.station
+                'Did not find data traces for station "%s"' % station.station
             )
             continue
 

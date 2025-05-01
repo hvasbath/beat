@@ -261,7 +261,9 @@ class Metropolis(backend.ArrayStepSharedLLK):
             tps = num.zeros((n_points))
             for i in range(n_points):
                 point = self.population[i]
-                point = {val_var.name: point[val_var.name] for val_var in self.value_vars}
+                point = {
+                    val_var.name: point[val_var.name] for val_var in self.value_vars
+                }
                 q = self.bij.map(point)
 
                 t0 = time()

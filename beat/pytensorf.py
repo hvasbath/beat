@@ -150,7 +150,8 @@ class SeisSynthesizer(tt.Op):
         "sources",
         "mapping",
         "targets",
-        "event",
+        "events",
+        "event_idx",
         "arrival_taper",
         "arrival_times",
         "wavename",
@@ -166,7 +167,8 @@ class SeisSynthesizer(tt.Op):
         sources,
         mapping,
         targets,
-        event,
+        events,
+        event_idx,
         arrival_taper,
         arrival_times,
         wavename,
@@ -178,7 +180,8 @@ class SeisSynthesizer(tt.Op):
         self.engine = engine
         self.sources = tuple(sources)
         self.targets = tuple(targets)
-        self.event = event
+        self.events = tuple(events)
+        self.event_idx = event_idx
         self.arrival_taper = arrival_taper
         self.arrival_times = tuple(arrival_times.tolist())
         self.wavename = wavename
@@ -190,6 +193,8 @@ class SeisSynthesizer(tt.Op):
             self.targets[0].store_id
         ).config.sample_rate
         self.mapping = mapping
+
+        self.nevents = len(self.events)
 
         if self.domain == "spectrum":
             nsamples = nextpow2(self.arrival_taper.nsamples(self.sample_rate))
@@ -264,9 +269,13 @@ class SeisSynthesizer(tt.Op):
             weed_params=True,
         )
 
+        # need to subset point as well for multievent setup otherwise always only first updated
+        if self.nevents > 1:
+            source_points = [source_points[self.event_idx]]
+
         for i, source in enumerate(self.sources):
             utility.update_source(source, **source_points[i])
-            source.time += self.event.time
+            source.time += self.events[self.event_idx].time
 
         synthetics, tmins[0] = heart.seis_synthetics(
             engine=self.engine,

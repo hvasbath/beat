@@ -433,10 +433,10 @@ def form_result_ensemble(
 
         i = target_index[target]
 
-        nslcd_id_str = target.nslcd_id_str
+        # nslcd_id_str = target.nslcd_id_str
         target_results.append(bresults[i])
         target_synths.append(bresults[i].processed_syn)
-        target_var_reductions.append(bvar_reductions[nslcd_id_str])
+        target_var_reductions.append(bvar_reductions[target])
 
         if nensemble > 0:
             for results, var_reductions in zip(ens_results, ens_var_reductions):
@@ -444,7 +444,7 @@ def form_result_ensemble(
 
                 target_results.append(results[i])
                 target_synths.append(results[i].processed_syn)
-                target_var_reductions.append(var_reductions[nslcd_id_str])
+                target_var_reductions.append(var_reductions[target])
 
         all_syn_trs_target[target] = target_synths
         all_var_reductions[target] = num.array(target_var_reductions) * 100.0
@@ -897,6 +897,9 @@ def seismic_fits(problem, stage, plot_options):
 
         target_codes_to_targets = utility.gather(event_targets, lambda t: t.codes)
 
+        # multi-event source
+        source = composite.sources[event_idx]
+
         # gather unique target codes
         unique_target_codes = list(target_codes_to_targets.keys())
         ns_id_to_target_codes = utility.gather(
@@ -1010,7 +1013,7 @@ def seismic_fits(problem, stage, plot_options):
                             axes2=axes2,
                             po=po,
                             result=result,
-                            stdz_residual=stdz_residuals[target.nslcd_id_str],
+                            stdz_residual=stdz_residuals[target],
                             target=target,
                             traces=syn_traces,
                             source=source,
@@ -1036,7 +1039,7 @@ def seismic_fits(problem, stage, plot_options):
                             target=target,
                             traces=syn_traces,
                             result=result,
-                            stdz_residual=stdz_residuals[target.nslcd_id_str],
+                            stdz_residual=stdz_residuals[target],
                             synth_plot_flag=synth_plot_flag,
                             only_spectrum=only_spectrum,
                             var_reductions=all_var_reductions[target],
