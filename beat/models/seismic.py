@@ -620,8 +620,7 @@ class SeismicComposite(Composite):
             var_reds[target] = float(1 - (nom / denom))
 
             logger.debug(
-                "Variance reduction for %s is %f"
-                % (nslcd_id_str, var_reds[target])
+                "Variance reduction for %s is %f" % (nslcd_id_str, var_reds[target])
             )
 
             if 0:
@@ -869,7 +868,7 @@ class SeismicGeometryComposite(SeismicComposite):
         obs = []
         for i, wmap in enumerate(self.wavemaps):
             wc = wmap.config
-            #print(wc)
+            # print(wc)
             if not wmap.is_prepared or force:
                 wmap.prepare_data(
                     source=self.events[wc.event_idx],

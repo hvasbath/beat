@@ -136,7 +136,9 @@ class GeodeticComposite(Composite):
         Return unique GNSS stations and radar acquisitions for a hyperparameter.
         """
         hp_dataset_typ = hp_name.split("_")[1]
-        return [dataset.id for dataset in self.datasets if dataset.typ == hp_dataset_typ]
+        return [
+            dataset.id for dataset in self.datasets if dataset.typ == hp_dataset_typ
+        ]
 
     def analyse_noise(self, tpoint=None):
         """
