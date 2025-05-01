@@ -242,7 +242,7 @@ parameter_info = {
         physical_bounds=(-10.0, 10.0), default_bounds=(-2.0, 6.0), unit=u_hyp
     ),
     "ramp": Bounds(
-        physical_bounds=(-0.005, 0.005), default_bounds=(-0.005, 0.005), unit=u_rad
+        physical_bounds=(-0.1, 0.1), default_bounds=(-0.005, 0.005), unit=u_rad
     ),
     "offset": Bounds(
         physical_bounds=(-0.05, 0.05), default_bounds=(-0.05, 0.05), unit=u_m
