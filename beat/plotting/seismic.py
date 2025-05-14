@@ -800,12 +800,11 @@ def seismic_fits(problem, stage, plot_options):
 
     try:
         composite.point2sources(best_point)
-        source = composite.sources[0]
+        sources = composite.sources
         chop_bounds = ["a", "d"]
     except AttributeError:
         logger.info("FFI waveform fit, using reference source ...")
-        source = composite.config.gf_config.reference_sources[0]
-        source.time = composite.event.time
+        sources = composite.config.gf_config.reference_sources
         chop_bounds = ["b", "c"]
 
     if best_point:  # for source individual contributions
@@ -898,7 +897,7 @@ def seismic_fits(problem, stage, plot_options):
         target_codes_to_targets = utility.gather(event_targets, lambda t: t.codes)
 
         # multi-event source
-        source = composite.sources[event_idx]
+        source = sources[event_idx]
 
         # gather unique target codes
         unique_target_codes = list(target_codes_to_targets.keys())
