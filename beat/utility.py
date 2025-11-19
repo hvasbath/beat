@@ -51,7 +51,7 @@ degtypes = {"strike", "dip", "rake"}
 nucleationtypes = {"nucleation_x", "nucleation_y"}
 patch_anchor_points = {"center", "bottom_depth", "bottom_left"}
 
-patypes = {"traction", "strike_traction", "dip_traction", "tensile_traction"}
+patypes = {"traction", "strike_traction", "dip_traction", "normal_traction"}
 kmtypes = set.union(locationtypes, dimensiontypes, patch_anchor_points)
 grouped_vars = set.union(kmtypes, mttypes, degtypes, nucleationtypes)
 
