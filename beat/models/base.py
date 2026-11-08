@@ -14,13 +14,13 @@ logger = getLogger("models.base")
 
 
 __all__ = [
-    "ConfigInconsistentError",
     "Composite",
-    "sample",
+    "ConfigInconsistentError",
     "Stage",
-    "load_stage",
     "estimate_hypers",
     "get_hypervalue_from_point",
+    "load_stage",
+    "sample",
 ]
 
 
@@ -55,7 +55,7 @@ def init_uniform_random(kwargs):
 class ConfigInconsistentError(Exception):
     def __init__(self, errmess="", params="hierarchicals"):
         self.default = (
-            "\n Please run: " '"beat update <project_dir> --parameters=%s' % params
+            "\n Please run: " f'"beat update <project_dir> --parameters={params}'
         )
         self.errmess = errmess
 
@@ -68,7 +68,7 @@ class FaultGeometryNotFoundError(Exception):
         return "Fault geometry does not exist please run" ' "beat build_gfs ..." first!'
 
 
-class Composite(object):
+class Composite:
     """
     Class that comprises the rules to formulate the problem. Has to be
     used by an overarching problem object.
@@ -153,9 +153,8 @@ class Composite(object):
         update=False,
     ):
         logger.warning(
-            "Export method needs to be implemented for " "%s composite!" % self.name
+            "Export method needs to be implemented for " f"{self.name} composite!"
         )
-        pass
 
     def get_standardized_residuals(self, point):
         """
@@ -170,9 +169,8 @@ class Composite(object):
         None
         """
         logger.warning(
-            "Standardized residuals " "not implemented for %s composite!" % self.name
+            "Standardized residuals " f"not implemented for {self.name} composite!"
         )
-        return None
 
     def get_variance_reductions(self, point):
         """
@@ -187,7 +185,7 @@ class Composite(object):
         None
         """
         logger.warning(
-            "Variance reductions " "not implemented for %s composite!" % self.name
+            "Variance reductions " f"not implemented for {self.name} composite!"
         )
         return {}
 
@@ -225,9 +223,9 @@ def sample(step, problem):
             start = []
             for i in tqdm(range(step.n_chains)):
                 point = problem.get_random_point()
-                #print(point)
+                # print(point)
                 lsq_point = problem.lsq_solution(point, plot=False)
-                #print("lsq", lsq_point)
+                # print("lsq", lsq_point)
                 start.append(lsq_point)
     else:
         start = None
@@ -298,7 +296,7 @@ def sample(step, problem):
         )
 
     else:
-        logger.error('Sampler "%s" not implemented.' % sc.name)
+        logger.error(f'Sampler "{sc.name}" not implemented.')
 
 
 def estimate_hypers(step, problem):
@@ -320,7 +318,7 @@ def estimate_hypers(step, problem):
     ensuredir(name)
 
     stage_handler = SampleStage(problem.outfolder, backend=sc.backend)
-    chains, step, update = init_stage(
+    chains, step, _update = init_stage(
         stage_handler=stage_handler,
         step=step,
         stage=0,
@@ -365,8 +363,7 @@ def estimate_hypers(step, problem):
         lower = num.floor(d.min()) - 2.0
         upper = num.ceil(d.max()) + 2.0
         logger.info(
-            "Updating hyperparameter %s from %f, %f to %f, %f"
-            % (v, i.lower, i.upper, lower, upper)
+            f"Updating hyperparameter {v} from {i.lower:f}, {i.upper:f} to {lower:f}, {upper:f}"
         )
         pc.hyperparameters[v].lower = num.atleast_1d(lower)
         pc.hyperparameters[v].upper = num.atleast_1d(upper)
@@ -379,7 +376,7 @@ def estimate_hypers(step, problem):
     bconfig.dump(problem.config, filename=conf_out)
 
 
-class Stage(object):
+class Stage:
     """
     Stage, containing sampling results and intermediate sampler
     parameters.
@@ -432,8 +429,8 @@ class Stage(object):
             stage_number = self.handler.highest_sampled_stage()
 
             logger.info(
-                "Stage results %s do not exist! Loading last completed"
-                " stage %s" % (self.path, stage_number)
+                f"Stage results {self.path} do not exist! Loading last completed"
+                f" stage {stage_number}"
             )
             self.path = self.handler.stage_path(stage_number)
 
@@ -459,7 +456,9 @@ class Stage(object):
                 raise ValueError("To load sampler params model is required!")
 
 
-def load_stage(problem, stage_number, load="trace", chains=[-1]):
+def load_stage(problem, stage_number, load="trace", chains=None):
+    if chains is None:
+        chains = [-1]
     stage = Stage(
         homepath=problem.outfolder,
         stage_number=stage_number,
