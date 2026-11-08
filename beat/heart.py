@@ -1314,7 +1314,7 @@ class GNSSCompoundComponent(GeodeticDataset):
                     components.append(st.components[comp])
                     comp_stations.append(st)
                 except KeyError:
-                    logger.warngin("No data for GNSS station: {}".format(st.code))
+                    logger.warning("No data for GNSS station: {}".format(st.code))
 
             lats, lons = num.array([loc.effective_latlon for loc in comp_stations]).T
             vs = num.array([c.shift for c in components])
@@ -1331,7 +1331,7 @@ class GNSSCompoundComponent(GeodeticDataset):
                     east_shifts=num.zeros_like(lats),
                     north_shifts=num.zeros_like(lats),
                     component=comp,
-                    odw=num.ones_like(lats.size),
+                    odw=num.ones_like(lats),
                 )
             )
 

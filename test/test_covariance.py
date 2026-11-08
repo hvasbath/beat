@@ -6,8 +6,7 @@ from numpy.testing import assert_allclose
 
 from beat.covariance import non_toeplitz_covariance, non_toeplitz_covariance_2d
 from beat.heart import Covariance
-from beat.models import load_model
-from beat.utility import get_random_uniform
+from beat.utility import get_random_uniform, load_objects
 
 
 def assert_valid_covariance(cov, n):
@@ -46,9 +45,22 @@ def test_non_toeplitz_2d():
     plt.colorbar(im)
 
 
+def test_non_toeplitz_2d_synthetic_sar(geodetic_project):
+    from beat import config
+
+    datasets = load_objects(
+        f"{geodetic_project.project_dir}/{config.geodetic_data_name}"
+    )
+    d = datasets[0]
+    assert d.typ == "SAR"
+    d.update_local_coords(geodetic_project.config.event)
+    coords = num.vstack([d.east_shifts, d.north_shifts]).T
+    cov = non_toeplitz_covariance_2d(coords, d.displacement, max_dist_perc=0.2)
+    assert_valid_covariance(cov, d.displacement.size)
+
+
 def test_non_toeplitz_2d_data():
     from beat import config
-    from beat.utility import load_objects
 
     home = require_external("BEATS", "PeaceRiver", "Alberta2022joint")
     data = load_objects(str(home / "geodetic_data.pkl"))
@@ -74,14 +86,32 @@ def test_covariance_chol_inverse():
     assert_allclose(cov.chol().dot(cov.chol().T), C_d, rtol=0.0, atol=1e-10)
 
 
-@pytest.mark.slow
-def test_linear_velmod_covariance():
-    project_dir = require_external("BEATS", "LaquilaJointPonlyUPDATE_wide_cov")
-    problem = load_model(str(project_dir), mode="ffi", build=False)
+@pytest.fixture(scope="module")
+def ffi_velmod_project(geodetic_project, tmp_path_factory):
+    """
+    Geodetic finite fault project with linear GFs for 7 velocity models,
+    velocity model prediction covariances are calculated for more than 5.
+    """
+    from synthetic import make_ffi_project
+
+    return make_ffi_project(
+        geodetic_project, tmp_path_factory.mktemp("ffi_velmod"), n_variations=7
+    )
+
+
+def test_linear_velmod_covariance(ffi_velmod_project):
+    problem = ffi_velmod_project.load_problem(build=False)
     gc = problem.composites["geodetic"]
     point = problem.get_random_point()
-    gc.update_weights(point)
 
     for ds in gc.datasets:
-        assert num.isfinite(ds.covariance.pred_v).all()
-        assert ds.covariance.pred_v.shape == ds.covariance.data.shape
+        assert ds.covariance.pred_v is None or not ds.covariance.pred_v.any()
+
+    gc.update_weights(point)
+
+    for ds, weight in zip(gc.datasets, gc.weights):
+        pred_v = ds.covariance.pred_v
+        assert pred_v.shape == ds.covariance.data.shape
+        assert_valid_covariance(pred_v + ds.covariance.data, ds.samples)
+        assert num.abs(pred_v).max() > 0
+        assert_allclose(weight.get_value(), ds.covariance.chol_inverse)

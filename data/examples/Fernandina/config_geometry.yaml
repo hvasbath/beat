@@ -89,7 +89,9 @@ geodetic_config: !beat.GeodeticConfig
     SAR: !beat.SARDatasetConfig
       datadir: /home/vasyurhm/BEATS/Fernandina/data
       names: ['S1_dsc']
-  calc_data_cov: true
+  noise_estimator: !beat.GeodeticNoiseAnalyserConfig
+    structure: import
+    max_dist_perc: 0.2
   interpolation: multilinear
   corrections_config: !beat.GeodeticCorrectionsConfig
     euler_poles:
