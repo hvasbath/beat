@@ -2,6 +2,7 @@
 """
 Parallel Tempering algorithm - TOYEXAMPLE with mpi4py
 """
+
 from mpi4py import MPI
 from numpy import random
 

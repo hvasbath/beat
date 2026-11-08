@@ -115,7 +115,7 @@ class MPIRunner(object):
 
         if interrupted:
             logger.warning(
-                "Got Ctrl + C, collecting and " "shutting down child processes ..."
+                "Got Ctrl + C, collecting and shutting down child processes ..."
             )
             import psutil
 

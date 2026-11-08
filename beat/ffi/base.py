@@ -912,9 +912,7 @@ def geo_construct_gf_linear(
         outpath = os.path.join(outdirectory, gfs.filename + ".npz")
 
         if os.path.exists(outpath) and not force:
-            logger.info(
-                "Library exists: %s. " "Please use --force to override!" % outpath
-            )
+            logger.info("Library exists: %s. Please use --force to override!" % outpath)
 
         else:
             if nworkers < 2:
@@ -1219,9 +1217,7 @@ def seis_construct_gf_linear(
         outpath = os.path.join(outdirectory, gfs.filename + ".npz")
 
         if os.path.exists(outpath) and not force:
-            logger.info(
-                "Library exists: %s. " "Please use --force to override!" % outpath
-            )
+            logger.info("Library exists: %s. Please use --force to override!" % outpath)
         else:
             if nworkers < 2:
                 allocate = True

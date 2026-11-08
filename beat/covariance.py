@@ -125,7 +125,7 @@ def import_data_covariance(data_trace, arrival_taper, sample_rate, domain="time"
         with size of given arrival taper
     """
 
-    logger.info("No data-covariance estimation, using imported" " covariances...\n")
+    logger.info("No data-covariance estimation, using imported covariances...\n")
 
     at = arrival_taper
     n_samples = at.nsamples(sample_rate)
@@ -135,7 +135,7 @@ def import_data_covariance(data_trace, arrival_taper, sample_rate, domain="time"
         n_samples = int(n_samples // 2) + 1
 
     if data_trace.covariance is None:
-        logger.warn("No data covariance given/estimated! " "Setting default: eye")
+        logger.warn("No data covariance given/estimated! Setting default: eye")
         return num.eye(n_samples)
     else:
         data_cov = data_trace.covariance.data
@@ -307,7 +307,7 @@ class SeismicNoiseAnalyser(object):
     def do_non_toeplitz(self, wmap, results):
         if results is None:
             ValueError(
-                "Results need(s) to be given for non-toeplitz" " covariance estimates!"
+                "Results need(s) to be given for non-toeplitz covariance estimates!"
             )
         else:
             scalings = []
@@ -388,9 +388,7 @@ class SeismicNoiseAnalyser(object):
                 logger.info("Variance estimate of %s = %g" % (nslc_id_str, scaling))
                 scalings.append(scaling)
             else:
-                raise ValueError(
-                    "Pre P-trace of %s contains Inf or" " NaN!" % nslc_id_str
-                )
+                raise ValueError("Pre P-trace of %s contains Inf or NaN!" % nslc_id_str)
 
         return scalings
 

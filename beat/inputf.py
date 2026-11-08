@@ -4,7 +4,6 @@ import os
 from glob import glob
 
 import numpy as num
-import scipy.io
 from pyrocko import io, model
 
 from beat import heart, utility
@@ -48,63 +47,6 @@ def setup_stations(lats, lons, names, networks, event, rotate=True):
         stations.append(s)
 
     return stations
-
-
-def load_matfile(datapath, **kwargs):
-    try:
-        return scipy.io.loadmat(datapath, **kwargs)
-    except IOError:
-        logger.warn("File %s does not exist." % datapath)
-        return None
-
-
-def load_SAR_data(datadir, names):
-    """
-    Load SAR data in given directory and filenames.
-    Returns Diff_IFG objects.
-    """
-    diffgs = []
-    tobeloaded_names = set(copy.deepcopy(names))
-
-    for k in names:
-        # open matlab.mat files
-
-        data = load_matfile(
-            datadir + "quad_" + k + ".mat", squeeze_me=True, struct_as_record=False
-        )
-
-        covs = load_matfile(
-            datadir + "CovMatrix_" + k + ".mat", squeeze_me=True, struct_as_record=False
-        )
-
-        if data is not None and covs is not None:
-            utmx = data["cfoc"][:, 0]
-            utmy = data["cfoc"][:, 1]
-            lons, lats = utility.utm_to_lonlat(utmx, utmy, 36)
-            Lv = data["lvQT"]
-            covariance = heart.Covariance(data=covs["Cov"])
-
-            diffgs.append(
-                heart.DiffIFG(
-                    name=k,
-                    displacement=data["sqval"],
-                    utme=utmx,
-                    utmn=utmy,
-                    lons=lons,
-                    lats=lats,
-                    covariance=covariance,
-                    incidence=Lv.inci,
-                    heading=Lv.head,
-                    odw=data["ODW_sub"],
-                )
-            )
-            tobeloaded_names.discard(k)
-
-        else:
-            logger.info("File %s was no SAR data?!" % datadir)
-
-    names = list(tobeloaded_names)
-    return diffgs
 
 
 def load_kite_scenes(datadir, names):

@@ -637,7 +637,7 @@ total number of patches: %i """ % (
         except KeyError:
             rv = num.zeros(self.npatches)
             logger.debug(
-                "Variable %s is not contained in point returning" " zeros!" % varname
+                "Variable %s is not contained in point returning zeros!" % varname
             )
 
         if index is not None:
@@ -1059,7 +1059,7 @@ def write_fault_to_pscmp(
     # open file and write header
     if not os.path.exists(filename) or force:
         logger.info(
-            "Writing fault geometry to pscmp formatted text" " under: \n %s" % filename
+            "Writing fault geometry to pscmp formatted text under: \n %s" % filename
         )
         with open(filename, "wb") as fh:
             header = (
@@ -2137,9 +2137,7 @@ def optimize_damping(
                 debug=False,
             )
 
-            logger.info(
-                "Storing discretized fault geometry to: " "%s" % fault_discr_path
-            )
+            logger.info("Storing discretized fault geometry to: %s" % fault_discr_path)
             dump_objects(fault_discr_path, [dfault])
 
             # overwrite again with original value

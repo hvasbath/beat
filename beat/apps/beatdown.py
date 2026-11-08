@@ -269,7 +269,7 @@ def main():
         dest="dry_run",
         action="store_true",
         default=False,
-        help="show available stations/channels and exit " "(do not download waveforms)",
+        help="show available stations/channels and exit (do not download waveforms)",
     )
 
     parser.add_option(
@@ -441,7 +441,7 @@ def main():
 
     if options.local_responses_pz and options.local_responses_resp:
         logger.critical(
-            "cannot use local responses in PZ and RESP " "format at the same time"
+            "cannot use local responses in PZ and RESP format at the same time"
         )
         sys.exit(1)
 
@@ -464,7 +464,7 @@ def main():
 
     if options.local_responses_resp and not options.local_stations:
         logger.critical(
-            "--local-responses-resp can only be used " "when --stations is also given."
+            "--local-responses-resp can only be used when --stations is also given."
         )
         sys.exit(1)
 

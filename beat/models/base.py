@@ -55,7 +55,7 @@ def init_uniform_random(kwargs):
 class ConfigInconsistentError(Exception):
     def __init__(self, errmess="", params="hierarchicals"):
         self.default = (
-            "\n Please run: " f'"beat update <project_dir> --parameters={params}'
+            f'\n Please run: "beat update <project_dir> --parameters={params}'
         )
         self.errmess = errmess
 
@@ -65,7 +65,7 @@ class ConfigInconsistentError(Exception):
 
 class FaultGeometryNotFoundError(Exception):
     def __str__(self):
-        return "Fault geometry does not exist please run" ' "beat build_gfs ..." first!'
+        return 'Fault geometry does not exist please run "beat build_gfs ..." first!'
 
 
 class Composite:
@@ -153,7 +153,7 @@ class Composite:
         update=False,
     ):
         logger.warning(
-            "Export method needs to be implemented for " f"{self.name} composite!"
+            f"Export method needs to be implemented for {self.name} composite!"
         )
 
     def get_standardized_residuals(self, point):
@@ -169,7 +169,7 @@ class Composite:
         None
         """
         logger.warning(
-            "Standardized residuals " f"not implemented for {self.name} composite!"
+            f"Standardized residuals not implemented for {self.name} composite!"
         )
 
     def get_variance_reductions(self, point):
@@ -185,7 +185,7 @@ class Composite:
         None
         """
         logger.warning(
-            "Variance reductions " f"not implemented for {self.name} composite!"
+            f"Variance reductions not implemented for {self.name} composite!"
         )
         return {}
 

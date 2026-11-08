@@ -183,8 +183,20 @@ class TestProblem:
 
         vrs = num.array(list(problem.get_variance_reductions(project.point).values()))
         assert vrs.size > 0
-        assert num.median(vrs) > 0.8
-        assert vrs.min() > 0.5
+
+        # VR = 1 - |r|^2 / |d|^2 with residuals r of the white noise of std
+        # sigma (at most, the seismic data are filtered), i.e. E(|r|^2) <= n sigma^2
+        n_sigma2 = []
+        for datatype, composite in problem.composites.items():
+            sigma = project.noise_sigmas[datatype]
+            if datatype == "geodetic":
+                data = [d.displacement for d in composite.datasets]
+            else:
+                results = composite.assemble_results(project.point)
+                data = [r.processed_obs.ydata for r in results]
+            n_sigma2.extend(d.size * sigma**2 / (d**2).sum() for d in data)
+
+        assert (vrs > 1 - 3 * num.array(n_sigma2)).all()
 
         perturbed = deepcopy(project.point)
         perturbed["north_shift"] = perturbed["north_shift"] + 1.0

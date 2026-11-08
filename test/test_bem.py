@@ -3,7 +3,10 @@ import pytest
 from matplotlib import pyplot as plt
 from pyrocko.gf.targets import StaticTarget
 
-from beat.bem import (
+pytest.importorskip("pygmsh")
+pytest.importorskip("cutde")
+
+from beat.bem import (  # noqa: E402
     BEMEngine,
     CurvedBEMSource,
     DiskBEMSource,
@@ -12,8 +15,8 @@ from beat.bem import (
     TriangleBEMSource,
     check_intersection,
 )
-from beat.config import BEMConfig
-from beat.plotting.bem import slip_distribution_3d
+from beat.config import BEMConfig  # noqa: E402
+from beat.plotting.bem import slip_distribution_3d  # noqa: E402
 
 km = 1.0e3
 pi = num.pi

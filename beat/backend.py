@@ -17,6 +17,7 @@ index labels.  For example, the heading
 represents two variables, x and y, where x is a scalar and y has a
 shape of (3, 2).
 """
+
 import copy
 import itertools
 import json
@@ -647,7 +648,7 @@ class TextChain(FileChain):
             return vals[burn::thin]
         except KeyError:
             raise ValueError(
-                'Did not find varname "%s" in sampling ' "results! Fixed?" % varname
+                'Did not find varname "%s" in sampling results! Fixed?' % varname
             )
 
     def _slice(self, idx):
@@ -876,7 +877,7 @@ class NumpyChain(FileChain):
                 self.__data_structure = self.construct_data_structure()
             except json.decoder.JSONDecodeError:
                 logger.warning(
-                    "File header of %s is corrupted!" " Resampling!" % self.filename
+                    "File header of %s is corrupted! Resampling!" % self.filename
                 )
                 self.corrupted_flag = True
 
@@ -900,7 +901,7 @@ class NumpyChain(FileChain):
             return vals[burn::thin]
         except ValueError:
             raise ValueError(
-                'Did not find varname "%s" in sampling ' "results! Fixed?" % varname
+                'Did not find varname "%s" in sampling results! Fixed?' % varname
             )
 
     def point(self, idx):
@@ -1156,7 +1157,7 @@ class SampleStage(object):
                 prev_stage_path = self.stage_path(prev)
 
             logger.info(
-                "Loading end points of last completed stage: " "%s" % prev_stage_path
+                "Loading end points of last completed stage: %s" % prev_stage_path
             )
             mtrace = load_multitrace(
                 dirname=prev_stage_path, varnames=varnames, backend=self.backend

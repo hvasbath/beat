@@ -1062,7 +1062,7 @@ def seismic_fits(problem, stage, plot_options):
                     dist = source.distance_to(target)
                     azi = source.azibazi_to(target)[0]
                     infos.append(str_dist(dist))
-                    infos.append("%.0f\u00B0" % azi)
+                    infos.append("%.0f\u00b0" % azi)
                     # infos.append('%.3f' % gcms[itarget])
                     axes2.annotate(
                         "\n".join(infos),
@@ -1474,7 +1474,7 @@ def plot_fuzzy_beachball_mpl_pixmap(
 
     if size_units == "points":
         raise beachball.BeachballError(
-            'size_units="points" not supported in ' "plot_fuzzy_beachball_mpl_pixmap"
+            'size_units="points" not supported in plot_fuzzy_beachball_mpl_pixmap'
         )
 
     transform, position, size = beachball.choose_transform(

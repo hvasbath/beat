@@ -212,7 +212,7 @@ class Problem(object):
 
             else:
                 raise ValueError(
-                    'Sampler "%s" not supported! ' " Typo in config file?" % sc.name
+                    'Sampler "%s" not supported!  Typo in config file?' % sc.name
                 )
 
         return step
@@ -431,8 +431,7 @@ class Problem(object):
                     n_hyp += dimension
                     self._hypernames.append(hyperpar.name)
                     logger.info(
-                        "Initialised hyperparameter %s with "
-                        "size %i " % (hp_name, ndata)
+                        "Initialised hyperparameter %s with size %i " % (hp_name, ndata)
                     )
                 else:
                     logger.info(
@@ -846,7 +845,7 @@ class DistributionOptimizer(Problem):
 
         if len(Gs) == 0:
             raise ValueError(
-                "No Greens Function matrix available!" " (needs geodetic datatype!)"
+                "No Greens Function matrix available! (needs geodetic datatype!)"
             )
 
         G = num.vstack(Gs)
@@ -913,9 +912,7 @@ def load_model(project_dir, mode, hypers=False, build=True):
     pc = config.problem_config
 
     if hypers and len(pc.hyperparameters) == 0:
-        raise ValueError(
-            "No hyperparameters specified!" " option --hypers not applicable"
-        )
+        raise ValueError("No hyperparameters specified! option --hypers not applicable")
 
     if pc.mode in problem_catalog.keys():
         problem = problem_catalog[pc.mode](config, hypers)

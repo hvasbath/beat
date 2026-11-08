@@ -227,8 +227,7 @@ class GFConfig(MediumConfig):
 
     store_superdir = String.T(
         default="./",
-        help="Absolute path to the directory where Greens Function"
-        " stores are located",
+        help="Absolute path to the directory where Greens Function stores are located",
     )
     earth_model_name = String.T(
         default="ak135-f-continental.f",
@@ -277,7 +276,7 @@ class NonlinearGFConfig(GFConfig):
     )
     source_distance_spacing = Float.T(
         default=1.0,
-        help="Distance spacing [km] for GF function grid w.r.t" " reference_location.",
+        help="Distance spacing [km] for GF function grid w.r.t reference_location.",
     )
     error_depth = Float.T(
         default=0.1,
@@ -308,17 +307,17 @@ class SeismicGFConfig(NonlinearGFConfig):
 
     reference_location = ReferenceLocation.T(
         default=None,
-        help="Reference location for the midpoint of the Green's Function " "grid.",
+        help="Reference location for the midpoint of the Green's Function grid.",
         optional=True,
     )
     code = String.T(
         default="qssp",
-        help="Modeling code to use. (qssp, qseis, coming soon: " "qseis2d)",
+        help="Modeling code to use. (qssp, qseis, coming soon: qseis2d)",
     )
     sample_rate = Float.T(default=2.0, help="Sample rate for the Greens Functions.")
     rm_gfs = Bool.T(
         default=True,
-        help="Flag for removing modeling module GF files after" " completion.",
+        help="Flag for removing modeling module GF files after completion.",
     )
 
 
@@ -329,7 +328,7 @@ class GeodeticGFConfig(NonlinearGFConfig):
 
     code = String.T(
         default="psgrn",
-        help="Modeling code to use. (psgrn, ... others need to be" "implemented!)",
+        help="Modeling code to use. (psgrn, ... others need to beimplemented!)",
     )
     sample_rate = Float.T(
         default=1.0 / (3600.0 * 24.0),
@@ -338,7 +337,7 @@ class GeodeticGFConfig(NonlinearGFConfig):
     )
     sampling_interval = Float.T(
         default=1.0,
-        help="Distance dependent sampling spacing coefficient." "1. - equidistant",
+        help="Distance dependent sampling spacing coefficient.1. - equidistant",
     )
     medium_depth_spacing = Float.T(
         default=1.0, help="Depth spacing [km] for GF medium grid."
@@ -447,12 +446,12 @@ class ResolutionDiscretizationConfig(DiscretizationConfig):
     patch_lengths_min = List.T(
         Float.T(),
         default=[1.0],
-        help="Patch length [km] for min final discretization of" " patches.",
+        help="Patch length [km] for min final discretization of patches.",
     )
     patch_lengths_max = List.T(
         Float.T(),
         default=[5.0],
-        help="Patch length [km] for max initial discretization of" " patches.",
+        help="Patch length [km] for max initial discretization of patches.",
     )
 
     def get_patch_dimensions(self):
@@ -508,7 +507,7 @@ class SeismicLinearGFConfig(LinearGFConfig):
 
     reference_location = ReferenceLocation.T(
         default=None,
-        help="Reference location for the midpoint of the Green's Function " "grid.",
+        help="Reference location for the midpoint of the Green's Function grid.",
         optional=True,
     )
     duration_sampling = Float.T(
@@ -529,7 +528,7 @@ class SeismicLinearGFConfig(LinearGFConfig):
 
         if self.discretization == "resolution":
             raise ValueError(
-                "Resolution based discretization only available " "for geodetic data!"
+                "Resolution based discretization only available for geodetic data!"
             )
 
 
@@ -597,7 +596,7 @@ class SeismicNoiseAnalyserConfig(Object):
     )
     pre_arrival_time = Float.T(
         default=5.0,
-        help="Time [s] before synthetic P-wave arrival until " "variance is estimated",
+        help="Time [s] before synthetic P-wave arrival until variance is estimated",
     )
 
 
@@ -628,7 +627,7 @@ class SeismicConfig(Object):
     responses_path = String.T(default=None, optional=True, help="Path to response file")
     pre_stack_cut = Bool.T(
         default=True,
-        help="Cut the GF traces before stacking around the specified arrival" " taper",
+        help="Cut the GF traces before stacking around the specified arrival taper",
     )
     station_corrections = Bool.T(
         default=False, help="If set, optimize for time shift for each station."
@@ -707,7 +706,7 @@ class PolarityGFConfig(NonlinearGFConfig):
     )
     reference_location = ReferenceLocation.T(
         default=None,
-        help="Reference location for the midpoint of the " "Green's Function 'grid.",
+        help="Reference location for the midpoint of the Green's Function 'grid.",
         optional=True,
     )
     sample_rate = Float.T(
@@ -1366,7 +1365,7 @@ class ProblemConfig(Object):
     decimation_factors = Dict.T(
         default=None,
         optional=True,
-        help="Determines the reduction of discretization of an extended" " source.",
+        help="Determines the reduction of discretization of an extended source.",
     )
     n_sources = List.T(
         Int.T(), default=[1], help="List of number of sub-sources for each source-type"
@@ -1374,8 +1373,7 @@ class ProblemConfig(Object):
     datatypes = List.T(default=["geodetic"])
     hyperparameters = Dict.T(
         default=OrderedDict(),
-        help="Hyperparameters to estimate the noise in different"
-        " types of datatypes.",
+        help="Hyperparameters to estimate the noise in different types of datatypes.",
     )
     priors = Dict.T(default=OrderedDict(), help="Priors of the variables in question.")
     hierarchicals = Dict.T(
@@ -1706,7 +1704,7 @@ class SamplerParameters(Object):
     )
     check_bnd = Bool.T(
         default=True,
-        help="Flag for checking whether proposed step lies within" " variable bounds.",
+        help="Flag for checking whether proposed step lies within variable bounds.",
     )
 
     rm_flag = Bool.T(default=False, help="Remove existing results prior to sampling.")
@@ -1751,8 +1749,7 @@ class ParallelTemperingConfig(SamplerParameters):
     )
     thin = Int.T(
         default=3,
-        help='Thinning parameter of the sampled trace. Every "thin"th sample'
-        " is taken.",
+        help='Thinning parameter of the sampled trace. Every "thin"th sample is taken.',
     )
     burn = Float.T(
         default=0.5,
@@ -1781,8 +1778,7 @@ class MetropolisConfig(SamplerParameters):
     n_chains = Int.T(default=20, help="Number of Metropolis chains for sampling.")
     thin = Int.T(
         default=2,
-        help='Thinning parameter of the sampled trace. Every "thin"th sample'
-        " is taken.",
+        help='Thinning parameter of the sampled trace. Every "thin"th sample is taken.',
     )
     burn = Float.T(
         default=0.5,
@@ -1822,7 +1818,7 @@ class SMCConfig(SamplerParameters):
 
     update_covariances = Bool.T(
         default=False,
-        help="Update model prediction covariance matrixes in transition " "stages.",
+        help="Update model prediction covariance matrixes in transition stages.",
     )
 
 
@@ -1854,11 +1850,11 @@ class SamplerConfig(Object):
     progressbar = Bool.T(default=True, help="Display progressbar(s) during sampling.")
     buffer_size = Int.T(
         default=5000,
-        help="number of samples after which the result " "buffer is written to disk",
+        help="number of samples after which the result buffer is written to disk",
     )
     buffer_thinning = Int.T(
         default=1,
-        help="Factor by which the result trace is thinned before " "writing to disc.",
+        help="Factor by which the result trace is thinned before writing to disc.",
     )
     parameters = SamplerParameters.T(
         default=SMCConfig.D(), help="Sampler tependend Parameters"
@@ -1999,7 +1995,7 @@ class BEATconfig(Object, Cloneable):
         if self.geodetic_config is not None:
             if self.geodetic_config.corrections_config.has_enabled_corrections:
                 logger.info(
-                    "Loading geodetic data to resolve " "correction dependencies..."
+                    "Loading geodetic data to resolve correction dependencies..."
                 )
                 geodetic_data_path = os.path.join(self.project_dir, geodetic_data_name)
 
@@ -2185,7 +2181,7 @@ def init_config(
 
         if "RectangularSource" not in source_types:
             raise TypeError(
-                "Distributed slip is so far only supported" " for RectangularSource(s)"
+                "Distributed slip is so far only supported for RectangularSource(s)"
             )
 
         try:

@@ -790,9 +790,7 @@ def update_source(source, **point):
                 except (KeyError, TypeError):
                     logger.warning("Not updating source with %s" % k)
             else:
-                raise AttributeError(
-                    "Please set a STF before updating its" " parameters."
-                )
+                raise AttributeError("Please set a STF before updating its parameters.")
         else:
             source[k] = float(v)
 
@@ -1050,7 +1048,7 @@ def ensure_cov_psd(cov):
     try:
         num.linalg.cholesky(cov)
     except num.linalg.LinAlgError:
-        logger.debug("Cov_pv not positive definite!" " Finding nearest psd matrix...")
+        logger.debug("Cov_pv not positive definite! Finding nearest psd matrix...")
         cov = repair_covariance(cov)
 
     return cov
@@ -1663,8 +1661,7 @@ class StencilOperator(Object):
         stencil_order = kwargs["order"]
         if stencil_order not in [3, 5]:
             raise ValueError(
-                "Only stencil orders 3 and 5 implemented."
-                " Requested: %i" % stencil_order
+                "Only stencil orders 3 and 5 implemented. Requested: %i" % stencil_order
             )
 
         self._coeffs = {3: num.array([1.0, -1.0]), 5: num.array([1.0, 8.0, -8.0, -1.0])}

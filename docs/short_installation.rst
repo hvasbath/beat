@@ -4,7 +4,7 @@
 Short Installation instructions
 *******************************
 
-Starting BEAT v2.0.0 can be installed on any Unix based system with python>=3.9 that supports its prerequisites.
+BEAT can be installed on any Unix based system with python>=3.11 that supports its prerequisites.
 Earlier versions must be installed on python3.8!
 
 Please consider to use `virtual environments <https://docs.python.org/3/tutorial/venv.html>`__ to lower the risk of package conflicts.
@@ -22,7 +22,7 @@ Create a directory *virtualenvs* where you want to keep your virtual environment
     mkdir virtualenvs
     cd virtualenvs
 
-Create new environment e.g. *beat_env* using python3.11 (for other version just change the number e.g.: python3.9) and activate it::
+Create new environment e.g. *beat_env* using python3.11 (for other version just change the number e.g.: python3.12) and activate it::
 
     python3.11 -m venv beat_env
     source ~/virtualenvs/beat_env/bin/activate

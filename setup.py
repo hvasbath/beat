@@ -18,8 +18,7 @@ try:
 except ImportError:
 
     class numpy:
-        def __init__(self):
-            ...
+        def __init__(self): ...
 
         @classmethod
         def get_include(cls):

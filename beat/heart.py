@@ -150,7 +150,7 @@ class Covariance(Object):
                 cov_mat = num.zeros_like(self.data, dtype=tconfig.floatX)
             else:
                 raise ValueError(
-                    "%s covariances defined but size " "inconsistent!" % cov_mat_str
+                    "%s covariances defined but size inconsistent!" % cov_mat_str
                 )
 
         setattr(self, cov_mat_str, cov_mat)
@@ -611,8 +611,7 @@ def results_for_export(results, datatype=None, attributes=None):
 
         except AttributeError:
             raise AttributeError(
-                "Result object does not have the attribute "
-                '"%s" to export!' % attribute
+                'Result object does not have the attribute "%s" to export!' % attribute
             )
 
         yield data, attribute
@@ -625,8 +624,9 @@ def list_repeat(arr, repeat=1):
     if isinstance(repeat, list):
         if len(repeat) != arr.size:
             raise ValueError(
-                "Inconsistent requested dimensions! "
-                "repeat: {}, {} array size".format(repeat, arr.size)
+                "Inconsistent requested dimensions! repeat: {}, {} array size".format(
+                    repeat, arr.size
+                )
             )
         else:
             out_values = []
@@ -646,7 +646,7 @@ class Parameter(Object):
     name = String.T(default="depth")
     form = String.T(
         default="Uniform",
-        help="Type of prior distribution to use. Options:" ' "Uniform", ...',
+        help='Type of prior distribution to use. Options: "Uniform", ...',
     )
     lower = Array.T(
         shape=(None,),
@@ -680,7 +680,7 @@ class Parameter(Object):
                 name = "time_shift"
             else:
                 raise TypeError(
-                    'The parameter "%s" cannot' " be optimized for!" % self.name
+                    'The parameter "%s" cannot be optimized for!' % self.name
                 )
         else:
             name = self.name
@@ -762,7 +762,7 @@ class Parameter(Object):
             return (self.get_upper(shape) - lower) * rands + lower
         except ValueError:
             raise ValueError(
-                "Value inconsistency shapes: {} parameter " "dimension {}".format(
+                "Value inconsistency shapes: {} parameter dimension {}".format(
                     shape, self.dimension
                 )
             )
@@ -895,7 +895,7 @@ class PolarityTarget(gf.meta.Receiver):
 
             except gf.StoreError:
                 logger.warning(
-                    "Could not find takeoff-angle table," " falling back to cake..."
+                    "Could not find takeoff-angle table, falling back to cake..."
                 )
                 self.takeoff_angle_rad = (
                     self.get_takeoff_angle_cake(source, store) * d2r
@@ -974,6 +974,8 @@ class SeismicDataset(trace.Trace):
             self.covariance,
         ) = state
 
+        # extra code of pyrocko traces (since pyrocko v2024), not pickled
+        self.extra = ""
         self._growbuffer = None
         self._update_ids()
 
@@ -1283,7 +1285,7 @@ class GNSSCompoundComponent(GeodeticDataset):
                     station_blacklist_idxs.append(s2idx[code])
                 except KeyError:
                     logger.warning(
-                        "Blacklisted station %s not in dataset," " skipping ..." % code
+                        "Blacklisted station %s not in dataset, skipping ..." % code
                     )
 
         elif corr_config.station_whitelist:
@@ -1362,8 +1364,7 @@ class ResultReport(Object):
     mean_point = Dict.T(
         optional=True,
         default=None,
-        help="mean of distributions, used for model"
-        " prediction covariance calculation.",
+        help="mean of distributions, used for model prediction covariance calculation.",
     )
 
 
@@ -1461,7 +1462,7 @@ class DiffIFG(IFG):
 
         with open(filename, mode="w") as f:
             f.write(
-                "lat[deg], lon[deg], incidence[deg], heading[deg], " "displacement[m]\n"
+                "lat[deg], lon[deg], incidence[deg], heading[deg], displacement[m]\n"
             )
             for lat, lon, inci, head, dis in zip(
                 self.lats, self.lons, self.incidence, self.heading, displacement
@@ -2578,7 +2579,7 @@ def get_phase_arrival_time(engine, source, target, wavename=None, snap=True):
     if wavename is None:
         wavename = store.config.tabulated_phases[0].id
         logger.debug(
-            "Wavename not specified using " "first tabulated phase! %s" % wavename
+            "Wavename not specified using first tabulated phase! %s" % wavename
         )
 
     logger.debug(
@@ -2674,7 +2675,7 @@ class BaseMapping(object):
                     self._phase_markers.append(marker)
                 else:
                     logger.warning(
-                        "Marker is not of class PhaseMarker skipping: \n " "%s ",
+                        "Marker is not of class PhaseMarker skipping: \n %s ",
                         marker.__str__(),
                     )
 
@@ -3030,7 +3031,7 @@ class WaveformMapping(BaseMapping):
             return int(nhyp)
         else:
             raise ValueError(
-                "hyperparameter size is not integer " "for wavemap %s" % self._mapid
+                "hyperparameter size is not integer for wavemap %s" % self._mapid
             )
 
     def get_marker_arrival_times(self):
@@ -3067,7 +3068,7 @@ class WaveformMapping(BaseMapping):
                 'Found %i custom arrival times for "%s"' % (ncustom_times, self._mapid)
             )
         else:
-            logger.info("Using theoretical arrival times for " '"%s"' % self._mapid)
+            logger.info('Using theoretical arrival times for "%s"' % self._mapid)
 
         for i, target in enumerate(self.targets):
             try:
@@ -3156,8 +3157,7 @@ class WaveformMapping(BaseMapping):
             )
         else:
             logger.info(
-                "Consistent number of "
-                "datasets and targets in %s wavemap!" % self._mapid
+                "Consistent number of datasets and targets in %s wavemap!" % self._mapid
             )
 
 
@@ -3339,7 +3339,7 @@ class DataWaveformCollection(object):
                     target.update_response(*self._responses[nslc_id])
                 except KeyError:
                     logger.warn(
-                        "No response for target %s in " "the collection!" % str(nslc_id)
+                        "No response for target %s in the collection!" % str(nslc_id)
                     )
 
         targets = utility.weed_targets(
@@ -4304,8 +4304,7 @@ def taper_filter_traces(
             taper = None
 
         logger.debug(
-            "Filtering, tapering, chopping ... "
-            "trace_samples: %i" % cut_trace.ydata.size
+            "Filtering, tapering, chopping ... trace_samples: %i" % cut_trace.ydata.size
         )
 
         cut_trace = post_process_trace(

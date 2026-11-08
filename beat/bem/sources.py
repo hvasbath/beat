@@ -29,6 +29,26 @@ except ImportError:
 
 logger = logging.getLogger("bem.sources")
 
+
+def add_surface(geom, curve_loop):
+    """
+    Add surface filling the curve loop to the pygmsh geometry.
+
+    pygmsh (<= 7.1.17) passes a list of wire tags to addSurfaceFilling, which
+    the OpenCASCADE kernel of gmsh does not accept, it expects a single tag.
+    """
+    try:
+        return geom.add_surface(curve_loop)
+    except TypeError:
+        surface = pygmsh.common.surface.Surface.__new__(pygmsh.common.surface.Surface)
+        surface.curve_loop = curve_loop
+        surface.num_edges = len(curve_loop)
+        surface._id = geom.env.addSurfaceFilling(curve_loop._id)
+        surface.dim_tag = (2, surface._id)
+        surface.dim_tags = [surface.dim_tag]
+        return surface
+
+
 origintypes = {"east_shift", "north_shift", "depth"}
 
 
@@ -286,7 +306,7 @@ class TriangleBEMSource(BEMSource):
         l3 = geom.add_line(gp3, gp1)
 
         edge = geom.add_curve_loop([l1, l2, l3])
-        return [geom.add_surface(edge)]
+        return [add_surface(geom, edge)]
 
     def get_tractions(self):
         return (
@@ -438,7 +458,7 @@ class DiskBEMSource(EllipseBEMSource):
             self.strike,
             cs=cs,
             npoints=npoints,
-            )
+        )
 
     def get_source_surface(self, geom, mesh_size):
         self._init_points_geometry(
@@ -469,7 +489,7 @@ class DiskBEMSource(EllipseBEMSource):
 
         ellipse = geom.add_curve_loop([t_arch_ul, t_arch_ur, t_arch_lr, t_arch_ll])
 
-        return [geom.add_surface(ellipse)]
+        return [add_surface(geom, ellipse)]
 
 
 class RingfaultBEMSource(EllipseBEMSource):
@@ -636,7 +656,7 @@ class RingfaultBEMSource(EllipseBEMSource):
         m_bottom_right = geom.add_curve_loop([t_arch_lr, c_lmin, -b_arch_lr, -c_rmaj])
         m_bottom_left = geom.add_curve_loop([t_arch_ll, c_lmaj, -b_arch_ll, -c_lmin])
         mantle = [
-            geom.add_surface(quadrant)
+            add_surface(geom, quadrant)
             for quadrant in (m_top_left, m_top_right, m_bottom_right, m_bottom_left)
         ]
         return mantle
@@ -822,7 +842,7 @@ class RectangularBEMSource(BEMSource):
         left = geom.add_bezier(self.get_left_edge())
 
         rectangle = geom.add_curve_loop([-top, left, bottom, -right])
-        rectangle_surface = geom.add_surface(rectangle)
+        rectangle_surface = add_surface(geom, rectangle)
 
         rotations = (-self.dip, self.strike)
         axes = ((0.0, 1.0, 0.0), (0.0, 0.0, 1.0))
@@ -912,7 +932,7 @@ class CurvedBEMSource(RectangularBEMSource):
         left = geom.add_bezier(self.get_left_edge())
 
         quadrangle = geom.add_curve_loop([top, right, -bottom, -left])
-        quad_surface = geom.add_surface(quadrangle)
+        quad_surface = add_surface(geom, quadrangle)
 
         rotations = (-self.dip, self.strike)
         axes = ((0.0, 1.0, 0.0), (0.0, 0.0, 1.0))
@@ -947,7 +967,7 @@ def get_ellipse_points(
     ring = num.linspace(0, 2 * num.pi, npoints)
     ellipse = num.array(
         [a_half_axis_rot * num.sin(ring), b_half_axis_rot * num.cos(ring)]
-    )   # y, x | lat, lon
+    )  # y, x | lat, lon
 
     strike_rad = -(strike + 90) * DEG2RAD
     rot_strike = num.array(
@@ -962,7 +982,7 @@ def get_ellipse_points(
     points[:, 0] += ellipse_rot[0, :] + north_shift
     points[:, 1] += ellipse_rot[1, :] + east_shift
 
-   # breakpoint()
+    # breakpoint()
     if cs == "xy":
         return points
     elif cs in ("latlon", "lonlat"):

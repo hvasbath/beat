@@ -82,9 +82,9 @@ def assert_posterior_near_truth(project, varnames, fraction=0.25):
         samples = mtrace.get_values(varname, combine=True, squeeze=True)
         prior = priors[varname]
         width = float(prior.upper[0] - prior.lower[0])
-        assert (
-            abs(samples.mean() - project.point[varname][0]) < fraction * width
-        ), varname
+        assert abs(samples.mean() - project.point[varname][0]) < fraction * width, (
+            varname
+        )
 
 
 def run_plot(problem, plotname, **kwargs):
@@ -108,6 +108,7 @@ def main_path(tmp_path_factory):
 
 @pytest.fixture(scope="module")
 def geodetic_run(main_path, synthetic_dir):
+    pytest.importorskip("kite")
     from synthetic import make_project, write_raw_data
 
     name = "geodetic"
