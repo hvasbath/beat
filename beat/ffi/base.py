@@ -238,6 +238,7 @@ filename: %s""" % (
         if allocate:
             logger.info("Allocating GF Library")
             self._gfmatrix = num.zeros(self.dimensions)
+            self._stack_switch["numpy"] = self._gfmatrix
 
         self.set_stack_mode(mode="numpy")
 
@@ -381,6 +382,7 @@ filename: %s""" % (
             logger.info("Allocating GF Library")
             self._gfmatrix = num.zeros(self.dimensions)
             self._tmins = num.zeros([ntargets])
+            self._stack_switch["numpy"] = self._gfmatrix
 
         self.set_stack_mode(mode="numpy")
 

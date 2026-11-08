@@ -1,23 +1,14 @@
-import logging
-import unittest
-from importlib.util import find_spec
-
 import numpy as num
 import pyrocko.moment_tensor as mtm
+import pytest
 from numpy.testing import assert_allclose
-from pyrocko import util
-from pytest import mark
 
 from beat.sources import MTQTSource
 
 pi = num.pi
-logger = logging.getLogger("test_sources")
 
 
-class TestSources(unittest.TestCase):
-    def __init__(self, *args, **kwargs):
-        unittest.TestCase.__init__(self, *args, **kwargs)
-
+class TestSources:
     def test_MTSourceQT(self):
         # from Tape & Tape 2015 Appendix A:
         (u, v, kappa, sigma, h) = (
@@ -56,23 +47,10 @@ class TestSources(unittest.TestCase):
         assert_allclose(mt.lune_lambda, reference_lambda, atol=1e-3, rtol=0.0)
         assert_allclose(mt.m9_nwu, reference_m9_nwu, atol=1e-3, rtol=0.0)
         assert_allclose(mt.m9, reference_m9_ned, atol=1e-3, rtol=0.0)
-        print("M9 NEED", mt.m9)
-        print("M9 NWU", mt.m9_nwu)
 
-    @mark.skipif(
-        (find_spec("mtpar") is None), reason="Test needs 'mtpar' to be installed"
-    )
     def test_vs_mtpar(self):
-        try:
-            import mtpar
-        except ImportError:
-            logger.warning(
-                "This test needs mtpar to be installed: "
-                "https://github.com/rmodrak/mtpar/"
-            )
-            import sys
-
-            sys.exit()
+        # https://github.com/rmodrak/mtpar/
+        mtpar = pytest.importorskip("mtpar")
 
         reference = {
             "magnitude": 4.8,
@@ -114,17 +92,6 @@ class TestSources(unittest.TestCase):
         # convert from USE to NEED
         mt_TT_ned = mtpar.change_basis(mt_TT, 1, 2)
 
-        print("MTQTSource NEED: \n", mtqt.m6)
-        print(mtqt)
-        print("TT15, USE: \n", mt_TT)
-        print("Input NEED: \n", m6ned)
-        print("MTTT15: \n", mt_TT_ned)
-
         assert_allclose(mt_TT_ned, m6ned, atol=1e-3, rtol=0.0)
         assert_allclose(mtqt.m6, m6ned, atol=1e-3, rtol=0.0)
         assert_allclose(mt_TT_ned, mtqt.m6, atol=1e-3, rtol=0.0)
-
-
-if __name__ == "__main__":
-    util.setup_logging("test_sources", "info")
-    unittest.main()

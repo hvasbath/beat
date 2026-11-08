@@ -3,7 +3,7 @@ import os
 import shutil
 import sys
 import time
-from distutils.sysconfig import get_python_inc
+from sysconfig import get_paths
 
 from setuptools import Extension, setup
 
@@ -131,14 +131,14 @@ setup(
             "fast_sweep_ext",
             language="c",
             sources=[op.join("beat/fast_sweeping", "fast_sweep_ext.c")],
-            include_dirs=[numpy.get_include(), get_python_inc()],
+            include_dirs=[numpy.get_include(), get_paths()["include"]],
         ),
         Extension(
             "voronoi_ext",
             extra_compile_args=["-lm"],
             language="c",
             sources=[op.join("beat/voronoi", "voronoi_ext.c")],
-            include_dirs=[numpy.get_include(), get_python_inc()],
+            include_dirs=[numpy.get_include(), get_paths()["include"]],
         ),
     ]
 )

@@ -1,28 +1,26 @@
-import logging
-import unittest
-from time import time
-
 import numpy as num
+import pytest
 import scipy
 from numpy.testing import assert_allclose
-from pyrocko import util
 from pytensor import config as tconfig
 from pytensor import function, shared
 from pytensor import sparse as ts
 from pytensor import tensor as tt
-from pytensor.printing import Print
 
 from beat.heart import Covariance, SeismicDataset
-from beat.info import project_root
 from beat.models.distributions import (
     log_2pi,
     multivariate_normal,
     multivariate_normal_chol,
 )
 
-tconfig.compute_test_value = "off"
 
-logger = logging.getLogger("test_models")
+@pytest.fixture(autouse=True)
+def _no_test_values():
+    # graphs are built from symbolic inputs without test values
+    with tconfig.change_flags(compute_test_value="off"):
+        yield
+
 
 n_datasets = 2
 n_samples = 10
@@ -65,7 +63,7 @@ def multivariate_normal_nohypers(datasets, weights, hyperparams, residuals):
     for idx, data in enumerate(datasets):
         M = tt.cast(shared(data.samples, name="nsamples", borrow=True), "int16")
         maha = residuals[idx].dot(weights[idx]).dot(residuals[idx].T)
-        slogpdet = Print("pytensor logpdet")(data.covariance.slog_pdet)
+        slogpdet = data.covariance.slog_pdet
         logpts = tt.set_subtensor(
             logpts[idx : idx + 1], (-0.5) * (M * log_2pi + slogpdet + maha)
         )
@@ -119,11 +117,8 @@ def make_weights(datasets, wtype, make_shared=False, sparse=False):
     return weights
 
 
-class TestModels(unittest.TestCase):
-    def __init__(self, *args, **kwargs):
-        unittest.TestCase.__init__(self, *args, **kwargs)
-        self.beatpath = project_root
-
+class TestModels:
+    def setup_method(self):
         self.hyperparams = {"h_any_P_T": shared(0.0)}
 
         self.hyperparams_incl = {"h_any_P_T": 1.0}
@@ -200,20 +195,10 @@ class TestModels(unittest.TestCase):
         )
         fnorm_nohyp = function([res], llk_normal_nohyp)
 
-        t0 = time()
         a = fichol(self.residuals)
-        t1 = time()
         b = ficov_chol(self.residuals)
-        t2 = time()
         c = fnorm(self.residuals)
-        t3 = time()
         d = fnorm_nohyp(self.residuals)
-        t4 = time()
-
-        logger.info("Ichol %f [s]" % (t1 - t0))
-        logger.info("Icov_chol %f [s]" % (t2 - t1))
-        logger.info("Icov %f [s]" % (t3 - t2))
-        logger.info("Icov_nohyp %f [s]" % (t4 - t3))
 
         assert_allclose(a, c, rtol=0.0, atol=1e-6)
         assert_allclose(b, c, rtol=0.0, atol=1e-6)
@@ -247,18 +232,7 @@ class TestModels(unittest.TestCase):
         )
         ficov_chol = function([res], llk_icov_chol)
 
-        t0 = time()
         a = fichol(self.residuals)
-        t1 = time()
         b = ficov_chol(self.residuals)
-        t2 = time()
-
-        logger.info("Sparse Ichol %f [s]" % (t1 - t0))
-        logger.info("Sparse Icov_chol %f [s]" % (t2 - t1))
 
         assert_allclose(a, b, rtol=0.0, atol=1e-6)
-
-
-if __name__ == "__main__":
-    util.setup_logging("test_models", "info")
-    unittest.main()

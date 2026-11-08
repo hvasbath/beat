@@ -1,27 +1,20 @@
 from os.path import join as pjoin
-from pathlib import Path
 
 import numpy as num
-from pyrocko import gf, trace, util
+import pytest
+from conftest import require_external
+from pyrocko import gf, trace
 from pytensor import config as tconfig
-from pytest import mark
 
 from beat import ffi, heart, models
-
-tconfig.compute_test_value = "off"
-
-util.setup_logging("test_ffi_stacking", "info")
-
-
-# set random seed for reproducible station locations
-num.random.seed(10)
 
 km = 1000.0
 nuc_dip = 5.0
 nuc_strike = 2.0
 time_shift = -10.0  # from previous inversion
 
-project_dir = Path("/home/vasyurhm/BEATS/LaquilaJointPonlyUPDATE_wide_kin3_v2")
+PROJECT = ("BEATS", "LaquilaJointPonlyUPDATE_wide_kin3_v2")
+GF_STORES = ("GF", "Laquila")
 
 
 def array_to_traces(synthetics, reference_times, deltat, targets, location_tag=None):
@@ -41,8 +34,6 @@ def array_to_traces(synthetics, reference_times, deltat, targets, location_tag=N
 def get_max_relative_and_absolute_errors(a, b):
     abs_err = num.abs(a - b).max()
     rel_err = (num.abs((a - b) / b).max(),)
-    print("absolute", abs_err)
-    print("relative", rel_err)
     return abs_err, rel_err
 
 
@@ -58,10 +49,16 @@ def assert_traces(ref_traces, test_traces):
         )
 
 
-@mark.skipif(project_dir.is_dir() is False, reason="Needs project dir")
-def test_gf_stacking():
-    # general
-    store_superdirs = ["/home/vasyurhm/GF/Laquila"]
+@pytest.fixture
+def no_test_values():
+    with tconfig.change_flags(compute_test_value="off"):
+        yield
+
+
+@pytest.mark.slow
+def test_gf_stacking(no_test_values):
+    project_dir = str(require_external(*PROJECT))
+    store_superdirs = [str(require_external(*GF_STORES))]
 
     problem = models.load_model(project_dir, mode="ffi", build=False)
     event = problem.config.event
@@ -145,17 +142,7 @@ def test_gf_stacking():
     )
 
     targetidxs = num.atleast_2d(num.arange(ntargets)).T
-
-    if False:
-        # for station corrections maybe in the future?
-        station_corrections = num.zeros(len(ref_traces))
-        starttimes = (
-            num.tile(starttimes, ntargets)
-            + num.repeat(station_corrections, fault.npatches)
-        ).reshape(ntargets, fault.npatches)
-        targetidxs = num.atleast_2d(num.arange(ntargets)).T
-    elif True:
-        starttimes = num.tile(starttimes, ntargets).reshape((ntargets, uparr.size))
+    starttimes = num.tile(starttimes, ntargets).reshape((ntargets, uparr.size))
 
     durations_dim2 = num.atleast_2d(durations.ravel())
     patchidxs = num.arange(uparr.size, dtype="int")
@@ -199,7 +186,6 @@ def test_gf_stacking():
         interpolation="multilinear",
     ).eval()
 
-    all_synth_traces = []
     for test_synthetics, location_tag in zip(
         [synthetics_nn, synthetics_ml, synthetics_nn_t, synthetics_ml_t],
         ["nn", "ml", "nn_t", "ml_t"],
@@ -213,12 +199,3 @@ def test_gf_stacking():
         )
 
         assert_traces(ref_traces, test_traces)
-        all_synth_traces.extend(test_traces)
-
-    if False:
-        # display to check
-        trace.snuffle(
-            ref_traces + all_synth_traces,
-            stations=sc.wavemaps[0].stations,
-            events=[event],
-        )

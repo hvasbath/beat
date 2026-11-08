@@ -3,6 +3,7 @@ from os.path import join as pjoin
 
 import numpy as num
 import pytest
+from conftest import require_external
 from pyrocko import model, util
 from pyrocko import orthodrome as otd
 from pyrocko.gf.seismosizer import LocalEngine
@@ -14,8 +15,6 @@ from beat.ffi import discretize_sources, optimize_discretization
 from beat.heart import DiffIFG, init_geodetic_targets
 from beat.plotting import source_geometry
 from beat.sources import RectangularSource
-
-util.setup_logging("R-based subsampling", "info")
 
 km = 1000.0
 nworkers = 4
@@ -170,10 +169,11 @@ def get_test_synth(source_params, event, data_dist="uniform"):
     return config, sources, data_yloc, data_xloc, los
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize("data_dist", ["uniform", "half"])
 @pytest.mark.parametrize("data_source", [get_test_synth, get_test_real_metzger])
 def test_resolution_subsampling(data_source, data_dist):
-    store_superdirs = "/home/vasyurhm/GF/Marmara"
+    store_superdirs = str(require_external("GF", "Marmara"))
     varnames = ["uparr"]
 
     event = model.Event(
@@ -248,5 +248,8 @@ def test_resolution_subsampling(data_source, data_dist):
         values=R,
         title="Resolution",
         datasets=datasets,
-        show=True,
+        show=False,
     )
+
+    assert num.isfinite(R).all()
+    assert fig is not None

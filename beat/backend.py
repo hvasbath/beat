@@ -190,6 +190,7 @@ class BaseChain(object):
         self, model=None, value_vars=None, buffer_size=5000, buffer_thinning=1
     ):
         self.var_shapes = None
+        self._varnames = None
         self.chain = None
 
         self.buffer_size = buffer_size
@@ -216,6 +217,37 @@ class BaseChain(object):
                 self.varnames.append(var.name)
         else:
             logger.debug("No model or variables given!")
+
+    @property
+    def varnames(self):
+        """
+        Names of the variables stored in the chain. For chains loaded from
+        file without a model they are read from the file on first access.
+        """
+        varnames = getattr(self, "_varnames", None)
+        if varnames is None:
+            # chains pickled before varnames became a property
+            varnames = self.__dict__.get("varnames", None)
+
+        if (
+            varnames is None
+            and getattr(self, "filename", None) is not None
+            and not self.__dict__.get("_loading_varnames", False)
+        ):
+            # guard against recursion if _load_df accesses varnames
+            self._loading_varnames = True
+            try:
+                self._load_df()
+            finally:
+                self._loading_varnames = False
+
+            varnames = getattr(self, "_varnames", None)
+
+        return varnames
+
+    @varnames.setter
+    def varnames(self, varnames):
+        self._varnames = varnames
 
     def __getitem__(self, idx):
         if isinstance(idx, slice):

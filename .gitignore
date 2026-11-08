@@ -128,7 +128,6 @@ dmypy.json
 *.sublime-*
 gh-pages
 *swp
-test/
 beat.git/
 .idea
 .vscode

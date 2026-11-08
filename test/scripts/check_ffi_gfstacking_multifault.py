@@ -1,3 +1,11 @@
+"""
+Manual visual check (not collected by pytest): compare GF library stacking
+for a multi-subfault FFI setup, including station time-shifts, against
+synthetics from the seismosizer engine and open the traces in snuffler.
+
+Needs the project directory and GF stores configured below.
+"""
+
 import numpy as num
 from pyrocko import gf, trace, util
 
