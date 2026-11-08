@@ -477,7 +477,21 @@ class DynamicTarget(gf.Target):
 
 
 class TargetUnion(StringUnion):
+    """
+    Dataset identifier: either a :class:`DynamicTarget` (seismic) or a
+    string (geodetic dataset id).
+    """
+
     members = [DynamicTarget.T(), String.T()]
+
+    class __T(StringUnion.T):
+        def validate(self, val, regularize=False, depth=-1):
+            # regularizing a string to a DynamicTarget raises a TypeError,
+            # which is not caught by StringUnion
+            if isinstance(val, str):
+                return self.members[1].validate(val, regularize, depth=depth)
+
+            return self.members[0].validate(val, regularize, depth=depth)
 
 
 class ResultPoint(Object):
@@ -1793,7 +1807,7 @@ def vary_model(
                     logger.debug("Velocity error: %f ", error_velocities)
 
             deltavp = float(
-                num.random.normal(0, layer.mtop.vp * error_velocities / 3.0, 1)
+                num.random.normal(0, layer.mtop.vp * error_velocities / 3.0)
             )
 
             if layer.ztop == 0:
@@ -1837,9 +1851,7 @@ def vary_model(
 
         while repeat:
             # ensure that bottom of layer is not shallower than the top
-            deltaz = float(
-                num.random.normal(0, layer.zbot * factor_d / 3.0, 1)
-            )  # 3 sigma
+            deltaz = float(num.random.normal(0, layer.zbot * factor_d / 3.0))  # 3 sigma
             layer.zbot += deltaz
             if layer.zbot < layer.ztop:
                 layer.zbot -= deltaz
@@ -2557,10 +2569,11 @@ def get_phase_arrival_time(engine, source, target, wavename=None, snap=True):
     try:
         store = engine.get_store(target.store_id)
     except gf.seismosizer.NoSuchStore:
-        raise gf.seismosizer.NoSuchStore(
+        logger.error(
             "No such store with ID %s found, distance [deg] to event: %f "
             % (target.store_id, cake.m2d * dist)
         )
+        raise
 
     if wavename is None:
         wavename = store.config.tabulated_phases[0].id
@@ -4182,7 +4195,7 @@ def geo_synthetics(
     -------
     depends on outmode:
     'stacked_array'
-    :class:`numpy.ndarray` (n_observations; ux-North, uy-East, uz-Down)
+    :class:`numpy.ndarray` (n_observations; ux-North, uy-East, uz-Up)
     'stacked_arrays'
     or list of
     :class:`numpy.ndarray` (target.samples; ux-North, uy-East, uz-Down)
@@ -4438,6 +4451,11 @@ class StrainRateTensor(Object):
         return float(0.5 * r2d * num.arctan(2 * self.exy / (self.exx - self.exy)))
 
 
+def _to_float(value):
+    """Scalar or size one array to float."""
+    return float(num.asarray(value).squeeze())
+
+
 def velocities_from_strain_rate_tensor(
     lats, lons, exx=0.0, eyy=0.0, exy=0.0, rotation=0.0
 ):
@@ -4471,8 +4489,8 @@ def velocities_from_strain_rate_tensor(
     D = (
         num.array(
             [
-                [float(exx), 0.5 * float(exy + rotation)],
-                [0.5 * float(exy - rotation), float(eyy)],
+                [_to_float(exx), 0.5 * _to_float(exy + rotation)],
+                [0.5 * _to_float(exy - rotation), _to_float(eyy)],
             ]
         )
         * nanostrain

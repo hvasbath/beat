@@ -75,7 +75,9 @@ def n_model_plot(models, axes=None, draw_bg=True, highlightidx=[]):
         axes.plot(vp, z, color=vp_c, lw=lw)
         axes.plot(vs, z, color=vs_c, lw=lw)
 
-    cp.labelspace(axes)
+    if hasattr(cp, "labelspace"):  # removed in newer pyrocko versions
+        cp.labelspace(axes)
+
     cp.labels_model(axes=axes)
     if draw_bg:
         cp.sketch_model(models[0], axes=axes)
@@ -1211,9 +1213,17 @@ def extract_mt_components(problem, po, include_magnitude=False):
 
                     except ValueError:  # if fixed value add that to the ensemble
                         rpoint = source_points[running_source_idx]
+                        if varname in rpoint:
+                            value = rpoint[varname]
+                        else:
+                            # not a parameter, e.g. magnitude for polarities
+                            value = getattr(
+                                composite.sources[running_source_idx], varname
+                            )
+                            rpoint[varname] = value
+
                         mtfield = num.full_like(
-                            num.empty((n_mts), dtype=num.float64),
-                            rpoint[varname],
+                            num.empty((n_mts), dtype=num.float64), value
                         )
                         m6s[:, i] = mtfield
 
@@ -2306,6 +2316,9 @@ def draw_hudson(problem, po):
                 "skipping drawing ..."
             )
 
+        if po.outformat == "display":
+            plt.show()
+        else:
             logger.info("saving figure to %s" % outpath)
             fig.savefig(outpath, dpi=po.dpi)
 

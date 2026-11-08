@@ -135,11 +135,13 @@ class Metropolis(backend.ArrayStepSharedLLK):
                 "ignore", category=UserWarning, message="The effect of Potentials"
             )
             var_names = [value_var.name for value_var in self.value_vars]
+            # seed from the global numpy random state for reproducibility
             prior_draws = sample_prior_predictive(
-                samples=self.n_chains,
+                draws=self.n_chains,
                 var_names=var_names,
                 model=model,
                 return_inferencedata=False,
+                random_seed=num.random.randint(2**31 - 1),
             )
 
         self.array_population = num.zeros(self.n_chains)

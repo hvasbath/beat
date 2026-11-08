@@ -363,7 +363,7 @@ def estimate_hypers(step, problem):
         lower = num.floor(d.min()) - 2.0
         upper = num.ceil(d.max()) + 2.0
         logger.info(
-            f"Updating hyperparameter {v} from {i.lower:f}, {i.upper:f} to {lower:f}, {upper:f}"
+            f"Updating hyperparameter {v} from {i.lower}, {i.upper} to {lower:f}, {upper:f}"
         )
         pc.hyperparameters[v].lower = num.atleast_1d(lower)
         pc.hyperparameters[v].upper = num.atleast_1d(upper)

@@ -965,7 +965,7 @@ class GNSSDatasetConfig(DatasetConfig):
                     f"GNSS of file {filename} not conform with ascii format!"
                 )
 
-            return all_targets
+        return all_targets
 
 
 class GeodeticConfig(Object):

@@ -60,6 +60,14 @@ distributer_composite_catalog = {
 }
 
 
+def _draw_seed():
+    """
+    Seed for pymc.draw from the global numpy random state, such that sampling
+    is reproducible with numpy.random.seed.
+    """
+    return num.random.randint(2**31 - 1)
+
+
 class Problem(object):
     """
     Overarching class for the optimization problems to be solved.
@@ -306,7 +314,7 @@ class Problem(object):
         if "hierarchicals" in include:
             for name, param in self.hierarchicals.items():
                 if not isinstance(param, num.ndarray):
-                    point[name] = draw(param)
+                    point[name] = draw(param, random_seed=_draw_seed())
 
         if "priors" in include:
             for param in pc.priors.values():
@@ -318,7 +326,7 @@ class Problem(object):
                 self.init_hyperparams()
 
             hps = {
-                hp_name: draw(param)
+                hp_name: draw(param, random_seed=_draw_seed())
                 for hp_name, param in self.hyperparams.items()
                 if not isinstance(param, num.ndarray)
             }

@@ -306,7 +306,7 @@ total number of patches: %i """ % (
             if slips is not None:
                 rs.update(slip=slips[i])
 
-            if slips[i] != 0.0:
+            if rs.slip != 0.0:
                 pm = rs.get_moment(target=target, store=store)
             else:
                 pm = 0.0
@@ -1281,7 +1281,9 @@ def initialise_fault_geometry(
                 param_mod["rake"] += s.rake
                 if var == "utens":
                     if s.opening_fraction == 0:
-                        raise ValueError("Tensile source configured, but reference source has zero opening fraction! Please adjust!")
+                        raise ValueError(
+                            "Tensile source configured, but reference source has zero opening fraction! Please adjust!"
+                        )
                     param_mod["opening_fraction"] *= s.opening_fraction
                 s.update(**param_mod)
                 patch_length_m = patch_lengths[i] * km
