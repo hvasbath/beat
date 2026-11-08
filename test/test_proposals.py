@@ -1,31 +1,26 @@
-import logging
-import unittest
-
 import numpy as num
-from pyrocko import util
+import pytest
 
 from beat.sampler import available_proposals, choose_proposal
 from beat.sampler.base import multivariate_proposals
 
-logger = logging.getLogger("test_proposals")
+N_DRAWS = 10
 
 
-class TestProposals(unittest.TestCase):
-    def __init__(self, *args, **kwargs):
-        unittest.TestCase.__init__(self, *args, **kwargs)
-        self.draws = 10
+@pytest.mark.parametrize("proposal", available_proposals())
+def test_proposals(proposal):
+    if proposal in multivariate_proposals:
+        scale = num.eye(2) * 0.5
+    else:
+        scale = 1
 
-    def test_proposals(self):
-        for proposal in available_proposals():
-            if proposal in multivariate_proposals:
-                scale = num.eye(2) * 0.5
-            else:
-                scale = 1
+    draw = choose_proposal(proposal, scale=scale)
+    samples = num.asarray(draw(N_DRAWS))
 
-            draw = choose_proposal(proposal, scale=scale)
-            print((proposal, draw(self.draws)))
+    assert N_DRAWS in samples.shape
+    assert num.isfinite(samples).all()
 
 
-if __name__ == "__main__":
-    util.setup_logging("test_proposals", "info")
-    unittest.main()
+def test_unknown_proposal():
+    with pytest.raises(Exception):
+        choose_proposal("NotAProposal", scale=1)

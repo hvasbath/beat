@@ -106,7 +106,7 @@ class PolarityComposite(Composite):
         self.fixed_rvs = fixed_rvs
 
         logger.info(
-            "Polarity optimization on: \n " " %s" % ", ".join(self.input_rvs.keys())
+            "Polarity optimization on: \n  %s" % ", ".join(self.input_rvs.keys())
         )
 
         self.input_rvs.update(fixed_rvs)

@@ -17,6 +17,7 @@ index labels.  For example, the heading
 represents two variables, x and y, where x is a scalar and y has a
 shape of (3, 2).
 """
+
 import copy
 import itertools
 import json
@@ -190,6 +191,7 @@ class BaseChain(object):
         self, model=None, value_vars=None, buffer_size=5000, buffer_thinning=1
     ):
         self.var_shapes = None
+        self._varnames = None
         self.chain = None
 
         self.buffer_size = buffer_size
@@ -216,6 +218,37 @@ class BaseChain(object):
                 self.varnames.append(var.name)
         else:
             logger.debug("No model or variables given!")
+
+    @property
+    def varnames(self):
+        """
+        Names of the variables stored in the chain. For chains loaded from
+        file without a model they are read from the file on first access.
+        """
+        varnames = getattr(self, "_varnames", None)
+        if varnames is None:
+            # chains pickled before varnames became a property
+            varnames = self.__dict__.get("varnames", None)
+
+        if (
+            varnames is None
+            and getattr(self, "filename", None) is not None
+            and not self.__dict__.get("_loading_varnames", False)
+        ):
+            # guard against recursion if _load_df accesses varnames
+            self._loading_varnames = True
+            try:
+                self._load_df()
+            finally:
+                self._loading_varnames = False
+
+            varnames = getattr(self, "_varnames", None)
+
+        return varnames
+
+    @varnames.setter
+    def varnames(self, varnames):
+        self._varnames = varnames
 
     def __getitem__(self, idx):
         if isinstance(idx, slice):
@@ -615,7 +648,7 @@ class TextChain(FileChain):
             return vals[burn::thin]
         except KeyError:
             raise ValueError(
-                'Did not find varname "%s" in sampling ' "results! Fixed?" % varname
+                'Did not find varname "%s" in sampling results! Fixed?' % varname
             )
 
     def _slice(self, idx):
@@ -844,7 +877,7 @@ class NumpyChain(FileChain):
                 self.__data_structure = self.construct_data_structure()
             except json.decoder.JSONDecodeError:
                 logger.warning(
-                    "File header of %s is corrupted!" " Resampling!" % self.filename
+                    "File header of %s is corrupted! Resampling!" % self.filename
                 )
                 self.corrupted_flag = True
 
@@ -868,7 +901,7 @@ class NumpyChain(FileChain):
             return vals[burn::thin]
         except ValueError:
             raise ValueError(
-                'Did not find varname "%s" in sampling ' "results! Fixed?" % varname
+                'Did not find varname "%s" in sampling results! Fixed?' % varname
             )
 
     def point(self, idx):
@@ -1124,7 +1157,7 @@ class SampleStage(object):
                 prev_stage_path = self.stage_path(prev)
 
             logger.info(
-                "Loading end points of last completed stage: " "%s" % prev_stage_path
+                "Loading end points of last completed stage: %s" % prev_stage_path
             )
             mtrace = load_multitrace(
                 dirname=prev_stage_path, varnames=varnames, backend=self.backend

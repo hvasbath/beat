@@ -6,6 +6,7 @@ Far future:
     include a 'def grad:' -method to each Op in order to enable the use of
     gradient based optimization algorithms
 """
+
 import logging
 from collections import OrderedDict
 

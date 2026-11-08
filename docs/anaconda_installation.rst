@@ -10,7 +10,7 @@ A general advice when dealing with anaconda is that the "sudo" command must NOT 
 instead of the respective anaconda environment.
 Below are a series of commands that might be able to get you up and running using anaconda3 (thanks to Rebecca Salvage).
 
-Create and activate a new conda environment e.g. called "beatenv" using python3.11 (minimum required is 3.9)::
+Create and activate a new conda environment e.g. called "beatenv" using python3.11 (minimum required is 3.11)::
 
   conda create -n beatenv python=3.11
   conda activate beatenv

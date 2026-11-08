@@ -38,7 +38,7 @@ def drop_attribute(old, newclass=None):
                     obj.drop_attribute(old)
                 else:
                     logger.debug(
-                        'Not updating "%s" attribute, it already meets' " new class.",
+                        'Not updating "%s" attribute, it already meets new class.',
                         old,
                     )
             else:

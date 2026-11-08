@@ -15,10 +15,29 @@ from beat.heart import DiffIFG, init_geodetic_targets
 from beat.plotting import source_geometry
 from beat.sources import RectangularSource
 
-util.setup_logging("R-based subsampling", "info")
-
 km = 1000.0
-nworkers = 4
+nworkers = 2
+
+
+@pytest.fixture(scope="module")
+def store_superdir(tmp_path_factory):
+    """
+    Coarse static GF store (homogeneous full-space) covering the data extent
+    and the fault geometries of the Marmara test data.
+    """
+    from synthetic import build_store, geodetic_store_id
+
+    superdir = tmp_path_factory.mktemp("marmara_gf")
+    build_store(
+        superdir,
+        geodetic_store_id(),
+        distance_max=440.0,
+        sample_rate=0.5,
+        depth_min=0.0,
+        depth_max=64.0,
+        spacing=4.0,
+    )
+    return str(superdir)
 
 
 # load data and setup
@@ -172,8 +191,7 @@ def get_test_synth(source_params, event, data_dist="uniform"):
 
 @pytest.mark.parametrize("data_dist", ["uniform", "half"])
 @pytest.mark.parametrize("data_source", [get_test_synth, get_test_real_metzger])
-def test_resolution_subsampling(data_source, data_dist):
-    store_superdirs = "/home/vasyurhm/GF/Marmara"
+def test_resolution_subsampling(store_superdir, data_source, data_dist):
     varnames = ["uparr"]
 
     event = model.Event(
@@ -215,7 +233,7 @@ def test_resolution_subsampling(data_source, data_dist):
         tolerance=0.5,
     )
 
-    engine = LocalEngine(store_superdirs=[store_superdirs])
+    engine = LocalEngine(store_superdirs=[store_superdir])
 
     targets = init_geodetic_targets(
         datasets,
@@ -248,5 +266,8 @@ def test_resolution_subsampling(data_source, data_dist):
         values=R,
         title="Resolution",
         datasets=datasets,
-        show=True,
+        show=False,
     )
+
+    assert num.isfinite(R).all()
+    assert fig is not None

@@ -55,6 +55,33 @@ def _init_shared(gfstofill, tminstofill):
     parallel.tmins = tminstofill
 
 
+def _release_shared():
+    for name in ("gfmatrix", "tmins"):
+        if hasattr(parallel, name):
+            delattr(parallel, name)
+
+
+def _process_shared(function, work, shared_gflibrary, shared_times, nworkers):
+    """
+    Process work packages filling the shared GF matrix (and times) arrays.
+
+    For serial processing (nworkers=1) the shared arrays are set in the main
+    process, so they are released afterwards, as they would be used by any
+    GF library created later on.
+    """
+    try:
+        for _ in parallel.paripool(
+            function,
+            work,
+            initializer=_init_shared,
+            initargs=(shared_gflibrary, shared_times),
+            nprocs=nworkers,
+        ):
+            pass
+    finally:
+        _release_shared()
+
+
 class GFLibraryError(Exception):
     pass
 
@@ -238,6 +265,7 @@ filename: %s""" % (
         if allocate:
             logger.info("Allocating GF Library")
             self._gfmatrix = num.zeros(self.dimensions)
+            self._stack_switch["numpy"] = self._gfmatrix
 
         self.set_stack_mode(mode="numpy")
 
@@ -381,6 +409,7 @@ filename: %s""" % (
             logger.info("Allocating GF Library")
             self._gfmatrix = num.zeros(self.dimensions)
             self._tmins = num.zeros([ntargets])
+            self._stack_switch["numpy"] = self._gfmatrix
 
         self.set_stack_mode(mode="numpy")
 
@@ -883,9 +912,7 @@ def geo_construct_gf_linear(
         outpath = os.path.join(outdirectory, gfs.filename + ".npz")
 
         if os.path.exists(outpath) and not force:
-            logger.info(
-                "Library exists: %s. " "Please use --force to override!" % outpath
-            )
+            logger.info("Library exists: %s. Please use --force to override!" % outpath)
 
         else:
             if nworkers < 2:
@@ -910,16 +937,9 @@ def geo_construct_gf_linear(
                 for patchidx, patch in enumerate(patches)
             ]
 
-            p = parallel.paripool(
-                _process_patch_geodetic,
-                work,
-                initializer=_init_shared,
-                initargs=(shared_gflibrary, None),
-                nprocs=nworkers,
+            _process_shared(
+                _process_patch_geodetic, work, shared_gflibrary, None, nworkers
             )
-
-            for res in p:
-                pass
 
             # collect and store away
             gfs._gfmatrix = num.frombuffer(shared_gflibrary).reshape(gfs.dimensions)
@@ -974,16 +994,7 @@ def geo_construct_gf_linear_patches(
         for patchidx, patch in enumerate(patches)
     ]
 
-    p = parallel.paripool(
-        _process_patch_geodetic,
-        work,
-        initializer=_init_shared,
-        initargs=(shared_gflibrary, None),
-        nprocs=nworkers,
-    )
-
-    for res in p:
-        pass
+    _process_shared(_process_patch_geodetic, work, shared_gflibrary, None, nworkers)
 
     # collect and store away
     gfmatrix = num.frombuffer(shared_gflibrary).reshape((npatches, nsamples))
@@ -1206,9 +1217,7 @@ def seis_construct_gf_linear(
         outpath = os.path.join(outdirectory, gfs.filename + ".npz")
 
         if os.path.exists(outpath) and not force:
-            logger.info(
-                "Library exists: %s. " "Please use --force to override!" % outpath
-            )
+            logger.info("Library exists: %s. Please use --force to override!" % outpath)
         else:
             if nworkers < 2:
                 allocate = True
@@ -1233,16 +1242,9 @@ def seis_construct_gf_linear(
                 )
             ]
 
-            p = parallel.paripool(
-                _process_patch_seismic,
-                work,
-                initializer=_init_shared,
-                initargs=(shared_gflibrary, shared_times),
-                nprocs=nworkers,
+            _process_shared(
+                _process_patch_seismic, work, shared_gflibrary, shared_times, nworkers
             )
-
-            for res in p:
-                pass
 
             # collect and store away
             gfs._gfmatrix = num.frombuffer(shared_gflibrary).reshape(gfs.dimensions)

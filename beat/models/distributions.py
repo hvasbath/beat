@@ -52,7 +52,7 @@ def multivariate_normal(datasets, weights, hyperparams, residuals):
     logpts = tt.zeros((n_t), tconfig.floatX)
 
     for i_l, data in enumerate(datasets):
-        M = tt.cast(shared(data.samples, name="nsamples", borrow=True), "int16")
+        M = tt.cast(shared(data.samples, name="nsamples", borrow=True), "int32")
         hp_name = get_hyper_name(data)
         norm = M * (2 * hyperparams[hp_name] + log_2pi)
         logpts = tt.set_subtensor(
@@ -117,7 +117,7 @@ def multivariate_normal_chol(
     count = Counter()
 
     for i_l, data in enumerate(datasets):
-        M = tt.cast(shared(data.samples, name="nsamples", borrow=True), "int16")
+        M = tt.cast(shared(data.samples, name="nsamples", borrow=True), "int32")
         hp_name = get_hyper_name(data)
 
         if hp_specific:

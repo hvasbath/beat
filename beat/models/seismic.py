@@ -192,7 +192,7 @@ class SeismicComposite(Composite):
 
                 if int(trc.covariance.data.sum()) == trc.data_len():
                     logger.warning(
-                        "Data covariance is identity matrix!" " Please double check!!!"
+                        "Data covariance is identity matrix! Please double check!!!"
                     )
 
     def init_hierarchicals(self, problem_config):
@@ -253,8 +253,7 @@ class SeismicComposite(Composite):
 
                     if hierarchical_name in hierarchicals:
                         logger.info(
-                            "Using wavemap specific imported:"
-                            " %s " % hierarchical_name
+                            "Using wavemap specific imported: %s " % hierarchical_name
                         )
                         param = hierarchicals[hierarchical_name]
                     else:
@@ -760,7 +759,7 @@ class SeismicGeometryComposite(SeismicComposite):
         self.fixed_rvs = fixed_rvs
 
         logger.info(
-            "Seismic optimization on: \n " " %s" % ", ".join(self.input_rvs.keys())
+            "Seismic optimization on: \n  %s" % ", ".join(self.input_rvs.keys())
         )
 
         self.input_rvs.update(fixed_rvs)
@@ -898,7 +897,7 @@ class SeismicGeometryComposite(SeismicComposite):
                 sources = self.sources
             else:
                 logger.debug(
-                    "Using individual sources based on event index " "for each wavemap!"
+                    "Using individual sources based on event index for each wavemap!"
                 )
                 sources = [self.sources[wc.event_idx]]
 
@@ -1223,7 +1222,7 @@ class SeismicDistributerComposite(SeismicComposite):
         self.fixed_rvs = fixed_rvs
 
         logger.info(
-            "Seismic optimization on: \n " " %s" % ", ".join(self.input_rvs.keys())
+            "Seismic optimization on: \n  %s" % ", ".join(self.input_rvs.keys())
         )
 
         t2 = time()
@@ -1408,7 +1407,7 @@ class SeismicDistributerComposite(SeismicComposite):
             # station corrections
             if self.config.station_corrections:
                 logger.debug(
-                    "Applying station corrections " "for wmap {}".format(wmap._mapid)
+                    "Applying station corrections for wmap {}".format(wmap._mapid)
                 )
                 try:
                     corrections = point[wmap.time_shifts_id]

@@ -1,124 +1,51 @@
-import logging
 import multiprocessing as mp
-import shutil
-import unittest
-from tempfile import mkdtemp
 
 import numpy as num
-import pymc as pm
-import pytensor.tensor as tt
-from pyrocko import util
-from pytensor import config as tconfig
+import pytest
+from toy_models import MU1, two_gaussians_model
 
 from beat import backend, utility
 from beat.sampler import smc
 
-logger = logging.getLogger("test_smc")
+N_CHAINS = 100
+N_STEPS = 100
+TUNE_INTERVAL = 25
 
-tconfig.compute_test_value = "pdb"
 
+@pytest.mark.parametrize(
+    "n_jobs",
+    [1, utility.biggest_common_divisor(N_CHAINS, mp.cpu_count())],
+    ids=["one_core", "multicore"],
+)
+def test_smc_two_gaussians(n_jobs, tmp_path):
+    model = two_gaussians_model()
 
-class TestSMC(unittest.TestCase):
-    def __init__(self, *args, **kwargs):
-        unittest.TestCase.__init__(self, *args, **kwargs)
-
-        self.test_folder_one = mkdtemp(prefix="SMC_TEST")
-        self.test_folder_multi = mkdtemp(prefix="SMC_TEST")
-
-        logger.info(
-            "Test result in: \n %s, \n %s "
-            % (self.test_folder_one, self.test_folder_multi)
+    with model:
+        step = smc.SMC(
+            n_chains=N_CHAINS,
+            tune_interval=TUNE_INTERVAL,
+            likelihood_name=model.deterministics[0].name,
         )
 
-        self.n_cpu = mp.cpu_count()
-        self.n_chains = 100
-        self.n_steps = 100
-        self.tune_interval = 25
+    smc.smc_sample(
+        n_steps=N_STEPS,
+        step=step,
+        n_jobs=n_jobs,
+        progressbar=False,
+        stage=0,
+        homepath=str(tmp_path),
+        model=model,
+        rm_flag=False,
+    )
 
-    def _test_sample(self, n_jobs, test_folder):
-        logger.info("Running on %i cores..." % n_jobs)
+    stage_handler = backend.SampleStage(str(tmp_path))
+    mtrace = stage_handler.load_multitrace(-1, varnames=model.value_vars)
 
-        n = 4
+    d = mtrace.get_values("X", combine=True, squeeze=True)
+    last_samples = d[(N_STEPS - 1) :: N_STEPS]
+    assert last_samples.shape == (N_CHAINS, MU1.size)
 
-        mu1 = num.ones(n) * (1.0 / 2)
-        mu2 = -mu1
-
-        stdev = 0.1
-        sigma = num.power(stdev, 2) * num.eye(n)
-        isigma = num.linalg.inv(sigma)
-        dsigma = num.linalg.det(sigma)
-
-        w1 = stdev
-        w2 = 1 - stdev
-
-        def last_sample(x):
-            return x[(self.n_steps - 1) :: self.n_steps]
-
-        def two_gaussians(x):
-            log_like1 = (
-                -0.5 * n * tt.log(2 * num.pi)
-                - 0.5 * tt.log(dsigma)
-                - 0.5 * (x - mu1).T.dot(isigma).dot(x - mu1)
-            )
-            log_like2 = (
-                -0.5 * n * tt.log(2 * num.pi)
-                - 0.5 * tt.log(dsigma)
-                - 0.5 * (x - mu2).T.dot(isigma).dot(x - mu2)
-            )
-            return tt.log(w1 * tt.exp(log_like1) + w2 * tt.exp(log_like2))
-
-        with pm.Model() as SMC_test:
-            X = pm.Uniform(
-                "X",
-                shape=n,
-                lower=-2.0 * num.ones_like(mu1),
-                upper=2.0 * num.ones_like(mu1),
-                initval=-1.0 * num.ones_like(mu1),
-                transform=None,
-            )
-            _ = pm.Deterministic("like", two_gaussians(X))
-
-        with SMC_test:
-            step = smc.SMC(
-                n_chains=self.n_chains,
-                tune_interval=self.tune_interval,
-                likelihood_name=SMC_test.deterministics[0].name,
-            )
-
-        smc.smc_sample(
-            n_steps=self.n_steps,
-            step=step,
-            n_jobs=n_jobs,
-            progressbar=True,
-            stage=0,
-            homepath=test_folder,
-            model=SMC_test,
-            rm_flag=False,
-        )
-
-        stage_handler = backend.SampleStage(test_folder)
-
-        mtrace = stage_handler.load_multitrace(-1, varnames=SMC_test.value_vars)
-
-        d = mtrace.get_values("X", combine=True, squeeze=True)
-        x = last_sample(d)
-        mu1d = num.abs(x).mean(axis=0)
-
-        num.testing.assert_allclose(mu1, mu1d, rtol=0.0, atol=0.03)
-
-    def test_one_core(self):
-        n_jobs = 1
-        self._test_sample(n_jobs, self.test_folder_one)
-
-    def test_multicore(self):
-        n_jobs = utility.biggest_common_divisor(self.n_chains, self.n_cpu)
-        self._test_sample(n_jobs, self.test_folder_multi)
-
-    def tearDown(self):
-        shutil.rmtree(self.test_folder_one)
-        shutil.rmtree(self.test_folder_multi)
-
-
-if __name__ == "__main__":
-    util.setup_logging("test_smc", "info")
-    unittest.main()
+    # both modes are at +-0.5
+    num.testing.assert_allclose(
+        num.abs(last_samples).mean(axis=0), MU1, rtol=0.0, atol=0.03
+    )

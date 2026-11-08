@@ -315,8 +315,7 @@ class GeodeticComposite(Composite):
                             scene = Scene.load(scene_path)
                         except UserIOWarning:
                             logger.warning(
-                                "Full resolution data could not be"
-                                " loaded! Skipping ..."
+                                "Full resolution data could not be loaded! Skipping ..."
                             )
                             continue
 
@@ -393,9 +392,9 @@ class GeodeticComposite(Composite):
                                     dtype=tconfig.floatX,
                                 )
 
-                                self.hierarchicals[
-                                    hierarchical_name
-                                ] = init_uniform_random(kwargs)
+                                self.hierarchicals[hierarchical_name] = (
+                                    init_uniform_random(kwargs)
+                                )
 
                                 self._hierarchicalnames.append(hierarchical_name)
                             else:
@@ -629,7 +628,7 @@ class GeodeticSourceComposite(GeodeticComposite):
         self.fixed_rvs = fixed_rvs
 
         logger.info(
-            "Geodetic optimization on: \n " "%s" % ", ".join(self.input_rvs.keys())
+            "Geodetic optimization on: \n %s" % ", ".join(self.input_rvs.keys())
         )
 
         self.input_rvs.update(fixed_rvs)

@@ -3,6 +3,7 @@ Module that contains customized sources that can be used by the
 pyrocko.gf.seismosizer.Engine.
 Other specialized sources may be implemented here.
 """
+
 import copy
 import logging
 import math
@@ -329,7 +330,7 @@ class RectangularSource(gf.RectangularSource):
         top_center = s.center2top_depth(orig_center)
 
         if top_center[2] < 0.0:
-            logger.info("Fault would intersect surface!" " Setting top center to 0.!")
+            logger.info("Fault would intersect surface! Setting top center to 0.!")
             trace_center = s.trace_center()
             s.update(
                 east_shift=float(trace_center[0]),
@@ -439,7 +440,7 @@ class MTQTSource(gf.SourceWithMagnitude):
 
     h = Float.T(
         default=0.0,
-        help="Dip angle equivalent of moment tensor plane." "Defined: 0 <= h <= 1",
+        help="Dip angle equivalent of moment tensor plane.Defined: 0 <= h <= 1",
     )
 
     def __init__(self, **kwargs):

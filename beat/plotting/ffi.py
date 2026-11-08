@@ -876,7 +876,7 @@ def draw_3d_slip_distribution(problem, po):
                     slip_units = "m/yr"
             else:
                 logger.info(
-                    "Did not find Euler pole correction-assuming " "co-seismic slip ..."
+                    "Did not find Euler pole correction-assuming co-seismic slip ..."
                 )
                 slip_units = "m"
 

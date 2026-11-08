@@ -2,6 +2,7 @@
 """
 Parallel Tempering algorithm with mpi4py
 """
+
 import os
 import sys
 
@@ -287,9 +288,7 @@ class TemperingManager(object):
         """
         Returns acceptance rate for swapping states between chains.
         """
-        logger.info(
-            "Counting accepted swaps of " "posterior chains with beta == %f", beta
-        )
+        logger.info("Counting accepted swaps of posterior chains with beta == %f", beta)
 
         worker_idxs = self.get_workers_ge_beta(beta, idxs=True)
 

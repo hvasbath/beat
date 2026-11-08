@@ -63,11 +63,15 @@ class MPIRunner(object):
             tmp = os.path.abspath(tmp)
 
         if py_version is None:
-            py_version = sys.version_info.major
-            logger.info("Detected python%i " % py_version)
+            # use the running interpreter, e.g. of a virtual environment,
+            # a bare "python3" may resolve to a different installation
+            self.py_version = sys.version_info.major
+            self.python_cmd = sys.executable
+        else:
+            self.py_version = py_version
+            self.python_cmd = "python{}".format(self.py_version)
 
-        self.py_version = py_version
-        self.python_cmd = "python{}".format(self.py_version)
+        logger.info("Using python executable: %s" % self.python_cmd)
         self.keep_tmp = keep_tmp
         self.tempdir = mkdtemp(prefix="mpiexec-", dir=tmp)
         logger.info("Done initialising mpi runner")
@@ -77,14 +81,11 @@ class MPIRunner(object):
             raise ValueError("n_jobs has to be defined!")
 
         program = program_bins["mpi"]
-        args = " -n %i %s %s %s %s" % (
-            n_jobs,
-            self.python_cmd,
-            script_path,
-            loglevel,
-            project_dir,
-        )
-        commandstr = program + args
+        command = [program, "-n", str(n_jobs), self.python_cmd, script_path, loglevel]
+        if project_dir:
+            command.append(project_dir)
+
+        args = " ".join(command[1:])
 
         old_wd = os.getcwd()
 
@@ -99,10 +100,9 @@ class MPIRunner(object):
         original = signal.signal(signal.SIGINT, signal_handler)
         try:
             try:
-                proc = Popen(commandstr.split(), stdout=sys.stdout, stderr=sys.stderr)
+                proc = Popen(command, stdout=sys.stdout, stderr=sys.stderr)
 
             except OSError:
-                os.chdir(old_wd)
                 raise NotInstalledError('''could not start "%s"''' % program)
 
             logger.debug("Running mpi with arguments: %s" % args)
@@ -110,10 +110,12 @@ class MPIRunner(object):
 
         finally:
             signal.signal(signal.SIGINT, original)
+            # always return, the temporary directory is removed in __del__
+            os.chdir(old_wd)
 
         if interrupted:
             logger.warning(
-                "Got Ctrl + C, collecting and " "shutting down child processes ..."
+                "Got Ctrl + C, collecting and shutting down child processes ..."
             )
             import psutil
 
@@ -122,13 +124,11 @@ class MPIRunner(object):
                 processes = [
                     process
                     for process in psutil.process_iter()
-                    if self.python_cmd in process.name().lower()
+                    if "python" in process.name().lower()
                 ]
 
                 nprocesses = len(processes)
-                logger.debug(
-                    "Found {} {} processes".format(nprocesses, self.python_cmd)
-                )
+                logger.debug("Found {} python processes".format(nprocesses))
 
                 exit_counter = 0
                 for p in processes:
@@ -152,7 +152,6 @@ class MPIRunner(object):
         if errmess:
             self.keep_tmp = True
 
-            os.chdir(old_wd)
             raise MPIError(
                 """
 mpiexec has been invoked as "%s"

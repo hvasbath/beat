@@ -1,11 +1,12 @@
 [build-system]
-requires = ["setuptools >= 61.0.0", "oldest-supported-numpy"]
+# extensions built against numpy 2 are compatible with numpy 1.x at runtime
+requires = ["setuptools >= 61.0.0", "numpy >= 2.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "beat"
 version = "2.0.5"
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 license = {text = "GPLv3"}
 description = "'Bayesian Earthquake Analysis Tool'"
 readme = "README.md"
@@ -19,7 +20,10 @@ keywords = ["Bayesian Inference", "seismology", "geodesy", "earthquake", "volcan
 classifiers = [
     "Intended Audience :: Science/Research",
     "Topic :: Scientific/Engineering :: Physics",
-    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Programming Language :: C",
     "Operating System :: POSIX",
     "Operating System :: MacOS"
@@ -41,7 +45,12 @@ GitHub = "https://github.com/hvasbath/beat"
 Issues = "https://github.com/hvasbath/beat/issues"
 
 [project.optional-dependencies]
-formatting = ["flake8", "ruff"]
+formatting = ["ruff", "pre-commit"]
+test = ["pytest>=7.0", "pytest-cov", "pytest-timeout"]
+mpi = ["mpi4py"]
+# kite imports pkg_resources, which was removed with setuptools 81
+kite = ["kite", "setuptools<81"]
+bem = ["pygmsh", "cutde"]
 
 [project.scripts]
 beat = "beat.apps.beat:main"
@@ -59,5 +68,47 @@ packages=[
     "beat.models",
     "beat.plotting",
     "beat.ffi",
+    "beat.bem",
     "beat.apps"
 ]
+
+[tool.ruff.lint]
+# the rule selection of the former ruff default, newer ruff versions select
+# more rules by default
+select = ["E4", "E7", "E9", "F"]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["test"]
+addopts = ["-ra", "--strict-markers"]
+timeout = 900
+markers = [
+    "slow: long running test (deselect with '-m \"not slow\"')",
+    "mpi: needs mpi4py and an MPI installation (mpiexec)",
+    "gmt: needs GMT installed",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning:pyrocko.*",
+]
+
+[tool.coverage.run]
+source = ["beat"]
+
+[tool.cibuildwheel]
+build = "cp311-* cp312-* cp313-*"
+skip = "*-musllinux_*"
+build-frontend = "build"
+# the compiled extensions only depend on numpy
+test-command = 'python -c "import fast_sweep_ext, voronoi_ext"'
+# The pinned dependencies (pymc<=5.16.2 -> pytensor 2.25) are not installable
+# on Python 3.13, see also the tests workflow.
+test-skip = "cp313-*"
+
+[tool.cibuildwheel.linux]
+# glibc 2.28: Ubuntu 22.04 and newer
+manylinux-x86_64-image = "manylinux_2_28"
+manylinux-aarch64-image = "manylinux_2_28"
+
+[tool.cibuildwheel.macos]
+# macOS 13 (Ventura, 2022) and newer
+environment = { MACOSX_DEPLOYMENT_TARGET = "13.0" }

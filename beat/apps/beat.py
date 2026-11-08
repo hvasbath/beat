@@ -53,8 +53,7 @@ def d2u(d):
 
 
 subcommand_descriptions = {
-    "init": "create a new EQ model project, use only event"
-    " name to skip catalog search",
+    "init": "create a new EQ model project, use only event name to skip catalog search",
     "import": "import data or results, from external format or "
     "modeling results, respectively",
     "update": "update configuration file",
@@ -64,11 +63,11 @@ subcommand_descriptions = {
     "plot": "plot specified setups or results",
     "check": "check setup specific requirements",
     "summarize": "collect results and create statistics",
-    "export": "export waveforms and displacement maps of" " specific solution(s)",
+    "export": "export waveforms and displacement maps of specific solution(s)",
 }
 
 subcommand_usages = {
-    "init": 'init <event_name> <event_date "YYYY-MM-DD"> ' "[options]",
+    "init": 'init <event_name> <event_date "YYYY-MM-DD"> [options]',
     "import": "import <event_name> [options]",
     "update": "update <event_name> [options]",
     "sample": "sample <event_name> [options]",
@@ -130,7 +129,7 @@ nargs_dict = {
 
 mode_choices = [geometry_mode_str, ffi_mode_str, bem_mode_str]
 
-supported_geodetic_formats = ["matlab", "ascii", "kite"]
+supported_geodetic_formats = ["ascii", "kite"]
 supported_geodetic_types = ["SAR", "GNSS"]
 supported_samplers = ["SMC", "Metropolis", "PT"]
 
@@ -225,7 +224,7 @@ def command_init(args):
             dest="min_mag",
             type=float,
             default=6.0,
-            help="Minimum Mw for event, for catalog search." ' Default: "6.0"',
+            help='Minimum Mw for event, for catalog search. Default: "6.0"',
         )
 
         parser.add_option(
@@ -386,7 +385,7 @@ def command_import(args):
             dest="results",
             type="string",
             default="",
-            help="Import results from previous modeling step" " of given project path",
+            help="Import results from previous modeling step of given project path",
         )
 
         parser.add_option(
@@ -485,7 +484,7 @@ def command_import(args):
                 logger.info("Pickle seismic data to %s" % seismic_outpath)
                 utility.dump_objects(seismic_outpath, outlist=[stations, data_traces])
                 logger.info(
-                    "Successfully imported traces for" " %i stations!" % len(stations)
+                    "Successfully imported traces for %i stations!" % len(stations)
                 )
             else:
                 logger.info("%s exists! Use --force to overwrite!" % seismic_outpath)
@@ -502,11 +501,7 @@ def command_import(args):
                         % (typ, config.datadir)
                     )
                     if typ == "SAR":
-                        if "matlab" in options.geodetic_format:
-                            gtargets.extend(
-                                inputf.load_SAR_data(config.datadir, config.names)
-                            )
-                        elif "kite" in options.geodetic_format:
+                        if "kite" in options.geodetic_format:
                             gtargets.extend(config.load_data())
                         else:
                             raise ImportError(
@@ -535,7 +530,7 @@ def command_import(args):
                     utility.dump_objects(geodetic_outpath, outlist=gtargets)
                 else:
                     raise ImportError(
-                        "Data import failed-found no data! " "Please check filepaths!"
+                        "Data import failed-found no data! Please check filepaths!"
                     )
             else:
                 logger.info("%s exists! Use --force to overwrite!" % geodetic_outpath)
@@ -561,7 +556,7 @@ def command_import(args):
             rvs = set(problem.varnames)
             source_params = list(priors.intersection(rvs))
             logger.info(
-                "Importing priors for variables:" " %s" % list2string(source_params)
+                "Importing priors for variables: %s" % list2string(source_params)
             )
 
             stage = Stage(
@@ -753,7 +748,7 @@ def command_import(args):
                         new_bounds[param].append(point[param])
                     except KeyError:
                         logger.info(
-                            "Parameter {} was fixed, not importing " "...".format(param)
+                            "Parameter {} was fixed, not importing ...".format(param)
                         )
 
                 c.problem_config.set_vars(new_bounds, attribute="priors")
@@ -887,8 +882,7 @@ def command_clone(args):
             "--copy_data",
             dest="copy_data",
             action="store_true",
-            help="If set, the imported data will be copied into the cloned"
-            " directory.",
+            help="If set, the imported data will be copied into the cloned directory.",
         )
 
         parser.add_option(
@@ -960,7 +954,7 @@ def command_clone(args):
             else:
                 if datatype in c.problem_config.datatypes:
                     logger.warning(
-                        'Removing datatype "%s" ' "from cloned config!" % datatype
+                        'Removing datatype "%s" from cloned config!' % datatype
                     )
                     c[datatype + "_config"] = None
 
@@ -1599,9 +1593,7 @@ def command_build_gfs(args):
                 )
 
         elif os.path.exists(faultpath):
-            logger.info(
-                "Discretized fault geometry exists! Use --force to" " overwrite!"
-            )
+            logger.info("Discretized fault geometry exists! Use --force to overwrite!")
             logger.info("Loading existing discretized fault")
             fault = utility.load_objects(faultpath)[0]
 
@@ -1794,7 +1786,7 @@ def command_plot(args):
             dest="nensemble",
             type="int",
             default=0,
-            help="Int of the number of solutions that" " are used for fuzzy plots",
+            help="Int of the number of solutions that are used for fuzzy plots",
         )
 
         parser.add_option(
@@ -1803,7 +1795,7 @@ def command_plot(args):
             callback=list_callback,
             type="string",
             default="",
-            help="Indexes to patches" " of slip distribution to draw marginals for",
+            help="Indexes to patches of slip distribution to draw marginals for",
         )
 
         parser.add_option(
@@ -1934,7 +1926,7 @@ selected giving a comma separated list.""" % list2string(plots_avail)
                 po.reference = load(filename=results_test_point).point
             else:
                 raise ValueError(
-                    "Results test point does not exist" " at: %s" % results_test_point
+                    "Results test point does not exist at: %s" % results_test_point
                 )
         else:
             try:
@@ -2056,7 +2048,7 @@ def command_check(args):
     elif options.what == "library":
         if options.mode != ffi_mode_str:
             logger.warning(
-                'GF library exists only for "%s" ' "optimization mode." % ffi_mode_str
+                'GF library exists only for "%s" optimization mode.' % ffi_mode_str
             )
         else:
             from beat import ffi
@@ -2133,8 +2125,7 @@ def command_check(args):
             )
         else:
             logger.warning(
-                "Checking discretization is only for"
-                ' "%s" mode available' % ffi_mode_str
+                'Checking discretization is only for "%s" mode available' % ffi_mode_str
             )
 
     elif options.what == "geometry":
@@ -2235,7 +2226,7 @@ def command_check(args):
                 )
             except (AttributeError, KeyError):
                 raise ValueError(
-                    "%s not supported for display in Talpa!" "" % src_class_name
+                    "%s not supported for display in Talpa!" % src_class_name
                 )
 
         filename = pjoin(tempdir, "%s.yml" % dataset.name)
@@ -2291,7 +2282,7 @@ def command_export(args):
             "--reference",
             dest="reference",
             action="store_true",
-            help="Export data for test point instead of result point " "(post_llk)",
+            help="Export data for test point instead of result point (post_llk)",
         )
 
         parser.add_option(
@@ -2398,7 +2389,7 @@ def command_export(args):
 
         if geom is not None:
             logger.info(
-                "Exporting finite rupture evolution" " to %s" % ffi_rupture_table_path
+                "Exporting finite rupture evolution to %s" % ffi_rupture_table_path
             )
             dump(geom, filename=ffi_rupture_table_path)
 

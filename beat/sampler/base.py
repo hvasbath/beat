@@ -586,9 +586,7 @@ def iter_parallel_chains(
         n_chains = len(corrupted_chains)
 
         if n_chains > 0:
-            logger.warning(
-                "%i Chains not finished sampling," " restarting ..." % n_chains
-            )
+            logger.warning("%i Chains not finished sampling, restarting ..." % n_chains)
 
         chains = corrupted_chains
 

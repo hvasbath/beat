@@ -1,14 +1,12 @@
-import logging
-import unittest
-
 import numpy as num
+import pytest
 from matplotlib import pyplot as plt
-
-# from numpy.testing import assert_allclose
-from pyrocko import util
 from pyrocko.gf.targets import StaticTarget
 
-from beat.bem import (
+pytest.importorskip("pygmsh")
+pytest.importorskip("cutde")
+
+from beat.bem import (  # noqa: E402
     BEMEngine,
     CurvedBEMSource,
     DiskBEMSource,
@@ -17,12 +15,11 @@ from beat.bem import (
     TriangleBEMSource,
     check_intersection,
 )
-from beat.config import BEMConfig
-from beat.plotting.bem import slip_distribution_3d
+from beat.config import BEMConfig  # noqa: E402
+from beat.plotting.bem import slip_distribution_3d  # noqa: E402
 
 km = 1.0e3
 pi = num.pi
-logger = logging.getLogger("test_sources")
 
 mesh_size = 1.0
 
@@ -258,63 +255,60 @@ def get_curved_setup_dipslip():
     return config, sources, targets
 
 
-class TestBEM(unittest.TestCase):
-    def __init__(self, *args, **kwargs):
-        unittest.TestCase.__init__(self, *args, **kwargs)
+def run_bem_engine(setup_function, **kwargs):
+    config, sources, targets = setup_function(**kwargs)
 
-    def _run_bem_engine(self, setup_function, plot=True, **kwargs):
-        config, sources, targets = setup_function(**kwargs)
-
-        engine = BEMEngine(config)
-        response = engine.process(sources=sources, targets=targets)
-
-        results = response.static_results()
-        if plot and response.is_valid:
-            for i, result in enumerate(results):
-                plot_static_result(result.result, targets[i])
-
-            slip_vectors = response.source_slips()
-
-            slip_distribution_3d(response.discretized_sources, slip_vectors, debug=True)
-            plt.show()
-
-    def test_bem_engine_tensile_only_triangle(self):
-        self._run_bem_engine(get_triangle_tensile_only_setup)
-
-    def test_bem_engine_tensile_only_dike(self):
-        self._run_bem_engine(get_disk_tensile_only_setup)
-
-    def test_bem_engine_dike(self):
-        self._run_bem_engine(get_disk_setup)
-
-    def test_bem_engine_rectangle(self):
-        self._run_bem_engine(get_rectangular_setup_strikeslip)
-        self._run_bem_engine(get_rectangular_setup_dipslip)
-        self._run_bem_engine(get_rectangular_setup_opening)
-
-    def test_bem_engine_curved(self):
-        # self._run_bem_engine(get_quadrangular_setup_strikeslip)
-        self._run_bem_engine(get_curved_setup_dipslip)
-
-    def test_bem_engine_dike_ringfault(self):
-        kwargs = {"intersect": True}
-        self._run_bem_engine(get_disk_ringfault_setup, **kwargs)
-
-        kwargs = {"intersect": False}
-        self._run_bem_engine(get_disk_ringfault_setup, **kwargs)
-
-    def test_bem_source_intersection(self):
-        config, sources, _ = get_disk_ringfault_setup(intersect=True)
-
-        intersect = check_intersection(sources, mesh_size=config.mesh_size * km)
-        assert intersect is True
-
-        config, sources, _ = get_disk_ringfault_setup(intersect=False)
-
-        intersect = check_intersection(sources, mesh_size=config.mesh_size * km)
-        assert intersect is False
+    engine = BEMEngine(config)
+    response = engine.process(sources=sources, targets=targets)
+    return response, sources, targets
 
 
-if __name__ == "__main__":
-    util.setup_logging("test_bem", "info")
-    unittest.main()
+@pytest.mark.parametrize(
+    "setup_function, kwargs",
+    [
+        (get_triangle_tensile_only_setup, {}),
+        (get_disk_tensile_only_setup, {}),
+        (get_disk_setup, {}),
+        (get_rectangular_setup_strikeslip, {}),
+        (get_rectangular_setup_dipslip, {}),
+        (get_rectangular_setup_opening, {}),
+        (get_curved_setup_dipslip, {}),
+        (get_disk_ringfault_setup, {"intersect": False}),
+    ],
+    ids=lambda x: getattr(x, "__name__", str(x)),
+)
+def test_bem_engine(setup_function, kwargs):
+    response, sources, targets = run_bem_engine(setup_function, **kwargs)
+
+    assert response.is_valid
+
+    slip_vectors = response.source_slips()
+    assert len(slip_vectors) == len(sources)
+    for slips in slip_vectors:
+        assert slips.ndim == 2 and slips.shape[1] == 3
+        assert num.isfinite(slips).all()
+        assert num.abs(slips).max() > 0.0
+
+    results = response.static_results()
+    assert len(results) == len(targets)
+    for result, target in zip(results, targets):
+        for component in ["displacement.n", "displacement.e", "displacement.d"]:
+            displacement = result.result[component]
+            assert displacement.size == target.east_shifts.size
+            assert num.isfinite(displacement).all()
+
+        assert num.abs(result.result["displacement.d"]).max() > 0.0
+        plot_static_result(result.result, target)
+
+    slip_distribution_3d(response.discretized_sources, slip_vectors, debug=True)
+
+
+def test_bem_engine_intersecting_sources_invalid():
+    response, _, _ = run_bem_engine(get_disk_ringfault_setup, intersect=True)
+    assert not response.is_valid
+
+
+@pytest.mark.parametrize("intersect", [True, False])
+def test_bem_source_intersection(intersect):
+    config, sources, _ = get_disk_ringfault_setup(intersect=intersect)
+    assert check_intersection(sources, mesh_size=config.mesh_size * km) is intersect

@@ -851,6 +851,7 @@ def plot_covariances(datasets, covariances):
 
     for kidx, (cov, dataset) in enumerate(zip(covariances, datasets)):
         figidx, rowidx = utility.mod_i(kidx, ndmax)
+        fig = figures[figidx]
         axs = axes[figidx][rowidx, :]
 
         f = factors[figidx]

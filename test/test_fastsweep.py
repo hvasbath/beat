@@ -1,138 +1,106 @@
-import logging
-import unittest
-from time import time
-
 import numpy as num
 import pytensor.tensor as tt
-from pyrocko import util
+import pytest
+from numpy.testing import assert_allclose
+from pytensor import config as tconfig
 from pytensor import function
 
 from beat import pytensorf
 from beat.fast_sweeping import fast_sweep
 
 km = 1000.0
+PATCH_SIZE = 10.0 * km
+NUC_X = 2
+NUC_Y = 3
+N_PATCH_STRIKE = 4
+N_PATCH_DIP = 6
 
-logger = logging.getLogger("test_fastsweep")
+
+@pytest.fixture
+def slownesses():
+    velo1 = num.ones((N_PATCH_DIP, N_PATCH_STRIKE // 2))
+    velo2 = num.ones((N_PATCH_DIP, N_PATCH_STRIKE // 2)) * 3.5
+    return 1.0 / num.concatenate((velo1, velo2), axis=1)
 
 
-class FastSweepingTestCase(unittest.TestCase):
-    def __init__(self, *args, **kwargs):
-        unittest.TestCase.__init__(self, *args, **kwargs)
-        self.patch_size = 10.0 * km
-        self.nuc_x = 2
-        self.nuc_y = 3
-        self.n_patch_strike = 4
-        self.n_patch_dip = 6
+def numpy_implementation(slownesses):
+    return fast_sweep.get_rupture_times_numpy(
+        slownesses, PATCH_SIZE / km, N_PATCH_STRIKE, N_PATCH_DIP, NUC_X, NUC_Y
+    ).flatten()
 
-    def get_slownesses(self):
-        velo1 = num.ones((self.n_patch_dip, self.n_patch_strike // 2))
-        velo2 = num.ones((self.n_patch_dip, self.n_patch_strike // 2)) * 3.5
-        velocities = num.concatenate((velo1, velo2), axis=1)
-        return 1.0 / velocities
 
-    def _numpy_implementation(self):
-        slownesses = self.get_slownesses()
+def pytensor_implementation(slownesses):
+    t_slownesses = tt.dmatrix("slownesses")
+    t_slownesses.tag.test_value = slownesses
 
-        t0 = time()
-        numpy_start_times = fast_sweep.get_rupture_times_numpy(
-            slownesses,
-            self.patch_size / km,
-            self.n_patch_strike,
-            self.n_patch_dip,
-            self.nuc_x,
-            self.nuc_y,
+    nuc_x = tt.lscalar("nuc_x")
+    nuc_x.tag.test_value = NUC_X
+
+    nuc_y = tt.lscalar("nuc_y")
+    nuc_y.tag.test_value = NUC_Y
+
+    patch_size = tt.cast(PATCH_SIZE / km, "float64")
+
+    # scan inner graph variables have no test values
+    with tconfig.change_flags(compute_test_value="off"):
+        start_times = fast_sweep.get_rupture_times_pytensor(
+            t_slownesses, patch_size, nuc_x, nuc_y
         )
-        # print("np", numpy_start_times)
-        t1 = time()
-
-        logger.info("done numpy fast_sweeping in %f" % (t1 - t0))
-        return numpy_start_times
-
-    def _pytensor_implementation(self):
-        Slownesses = self.get_slownesses()
-
-        slownesses = tt.dmatrix("slownesses")
-        slownesses.tag.test_value = Slownesses
-
-        nuc_x = tt.lscalar("nuc_x")
-        nuc_x.tag.test_value = self.nuc_x
-
-        nuc_y = tt.lscalar("nuc_y")
-        nuc_y.tag.test_value = self.nuc_y
-
-        patch_size = tt.cast(self.patch_size / km, "float64")
-
-        pytensor_start_times = fast_sweep.get_rupture_times_pytensor(
-            slownesses, patch_size, nuc_x, nuc_y
-        )
-
-        t0 = time()
-        f = function([slownesses, nuc_x, nuc_y], pytensor_start_times)
-        t1 = time()
-        pytensor_start_times = f(Slownesses, self.nuc_x, self.nuc_y)
-        t2 = time()
-
-        logger.info("pytensor compile time %f" % (t1 - t0))
-        logger.info("done pytensor fast_sweeping in %f" % (t2 - t1))
-        return pytensor_start_times
-
-    def _pytensor_c_wrapper(self):
-        Slownesses = self.get_slownesses()
-
-        slownesses = tt.dvector("slownesses")
-        slownesses.tag.test_value = Slownesses.flatten()
-
-        nuc_x = tt.lscalar("nuc_x")
-        nuc_x.tag.test_value = self.nuc_x
-
-        nuc_y = tt.lscalar("nuc_y")
-        nuc_y.tag.test_value = self.nuc_y
-
-        cleanup = pytensorf.Sweeper(
-            self.patch_size / km, self.n_patch_dip, self.n_patch_strike, "c"
-        )
-
-        start_times = cleanup(slownesses, nuc_y, nuc_x)
-
-        t0 = time()
-        f = function([slownesses, nuc_y, nuc_x], start_times)
-        t1 = time()
-        pytensor_c_wrap_start_times = f(Slownesses.flatten(), self.nuc_y, self.nuc_x)
-        # print("tc", pytensor_c_wrap_start_times)
-        t2 = time()
-        logger.info("pytensor C wrapper compile time %f", (t1 - t0))
-        logger.info("done pytensor C wrapper fast_sweeping in %f", (t2 - t1))
-        logger.info("pytensor C wrapper compile time %f", (t1 - t0))
-        return pytensor_c_wrap_start_times
-
-    def _c_implementation(self):
-        slownesses = self.get_slownesses()
-
-        t0 = time()
-        c_start_times = fast_sweep.get_rupture_times_c(
-            slownesses.flatten(),
-            self.patch_size / km,
-            self.n_patch_strike,
-            self.n_patch_dip,
-            self.nuc_x,
-            self.nuc_y,
-        )
-        t1 = time()
-        # print("c", c_start_times)
-        logger.info("done c fast_sweeping in %f" % (t1 - t0))
-        return c_start_times
-
-    def test_differences(self):
-        np_i = self._numpy_implementation().flatten()
-        t_i = self._pytensor_implementation().flatten()
-        c_i = self._c_implementation()
-        tc_i = self._pytensor_c_wrapper()
-
-        num.testing.assert_allclose(np_i, t_i, rtol=0.0, atol=1e-6)
-        num.testing.assert_allclose(np_i, c_i, rtol=0.0, atol=1e-6)
-        num.testing.assert_allclose(np_i, tc_i, rtol=0.0, atol=1e-6)
+        f = function([t_slownesses, nuc_x, nuc_y], start_times)
+    return f(slownesses, NUC_X, NUC_Y).flatten()
 
 
-if __name__ == "__main__":
-    util.setup_logging("test_fast_sweeping", "info")
-    unittest.main()
+def c_implementation(slownesses):
+    return fast_sweep.get_rupture_times_c(
+        slownesses.flatten(),
+        PATCH_SIZE / km,
+        N_PATCH_STRIKE,
+        N_PATCH_DIP,
+        NUC_X,
+        NUC_Y,
+    )
+
+
+def pytensor_c_wrapper(slownesses):
+    t_slownesses = tt.dvector("slownesses")
+    t_slownesses.tag.test_value = slownesses.flatten()
+
+    nuc_x = tt.lscalar("nuc_x")
+    nuc_x.tag.test_value = NUC_X
+
+    nuc_y = tt.lscalar("nuc_y")
+    nuc_y.tag.test_value = NUC_Y
+
+    sweeper = pytensorf.Sweeper(PATCH_SIZE / km, N_PATCH_DIP, N_PATCH_STRIKE, "c")
+    start_times = sweeper(t_slownesses, nuc_y, nuc_x)
+
+    f = function([t_slownesses, nuc_y, nuc_x], start_times)
+    return f(slownesses.flatten(), NUC_Y, NUC_X)
+
+
+def test_numpy_rupture_times_properties(slownesses):
+    times = numpy_implementation(slownesses).reshape((N_PATCH_DIP, N_PATCH_STRIKE))
+
+    assert times[NUC_Y, NUC_X] == pytest.approx(0.0)
+    assert (times >= 0.0).all()
+    # direct neighbour along strike in the same velocity domain
+    assert times[NUC_Y, NUC_X + 1] == pytest.approx(
+        PATCH_SIZE / km * slownesses[NUC_Y, NUC_X + 1], rel=0.5
+    )
+    # rupture times increase away from the nucleation point along dip
+    assert (num.diff(times[NUC_Y:, NUC_X]) > 0).all()
+    assert (num.diff(times[: NUC_Y + 1, NUC_X]) < 0).all()
+
+
+@pytest.mark.parametrize(
+    "implementation",
+    [pytensor_implementation, c_implementation, pytensor_c_wrapper],
+    ids=["pytensor", "c", "pytensor_c_wrapper"],
+)
+def test_implementations_match_numpy(implementation, slownesses):
+    assert_allclose(
+        implementation(slownesses),
+        numpy_implementation(slownesses),
+        rtol=0.0,
+        atol=1e-6,
+    )

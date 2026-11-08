@@ -306,7 +306,7 @@ total number of patches: %i """ % (
             if slips is not None:
                 rs.update(slip=slips[i])
 
-            if slips[i] != 0.0:
+            if rs.slip != 0.0:
                 pm = rs.get_moment(target=target, store=store)
             else:
                 pm = 0.0
@@ -637,7 +637,7 @@ total number of patches: %i """ % (
         except KeyError:
             rv = num.zeros(self.npatches)
             logger.debug(
-                "Variable %s is not contained in point returning" " zeros!" % varname
+                "Variable %s is not contained in point returning zeros!" % varname
             )
 
         if index is not None:
@@ -1059,7 +1059,7 @@ def write_fault_to_pscmp(
     # open file and write header
     if not os.path.exists(filename) or force:
         logger.info(
-            "Writing fault geometry to pscmp formatted text" " under: \n %s" % filename
+            "Writing fault geometry to pscmp formatted text under: \n %s" % filename
         )
         with open(filename, "wb") as fh:
             header = (
@@ -1281,7 +1281,9 @@ def initialise_fault_geometry(
                 param_mod["rake"] += s.rake
                 if var == "utens":
                     if s.opening_fraction == 0:
-                        raise ValueError("Tensile source configured, but reference source has zero opening fraction! Please adjust!")
+                        raise ValueError(
+                            "Tensile source configured, but reference source has zero opening fraction! Please adjust!"
+                        )
                     param_mod["opening_fraction"] *= s.opening_fraction
                 s.update(**param_mod)
                 patch_length_m = patch_lengths[i] * km
@@ -2135,9 +2137,7 @@ def optimize_damping(
                 debug=False,
             )
 
-            logger.info(
-                "Storing discretized fault geometry to: " "%s" % fault_discr_path
-            )
+            logger.info("Storing discretized fault geometry to: %s" % fault_discr_path)
             dump_objects(fault_discr_path, [dfault])
 
             # overwrite again with original value

@@ -6,7 +6,7 @@ Detailed Installation instructions
 
 That section covers the detailed installation of numerical libraries to speedup performance of numpy and Pytensor.
 
-BEAT can be installed on any Unix based system with python>=3.9
+BEAT can be installed on any Unix based system with python>=3.11
 that supports its prerequisites.
 
 

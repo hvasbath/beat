@@ -150,7 +150,7 @@ class Covariance(Object):
                 cov_mat = num.zeros_like(self.data, dtype=tconfig.floatX)
             else:
                 raise ValueError(
-                    "%s covariances defined but size " "inconsistent!" % cov_mat_str
+                    "%s covariances defined but size inconsistent!" % cov_mat_str
                 )
 
         setattr(self, cov_mat_str, cov_mat)
@@ -477,7 +477,21 @@ class DynamicTarget(gf.Target):
 
 
 class TargetUnion(StringUnion):
+    """
+    Dataset identifier: either a :class:`DynamicTarget` (seismic) or a
+    string (geodetic dataset id).
+    """
+
     members = [DynamicTarget.T(), String.T()]
+
+    class __T(StringUnion.T):
+        def validate(self, val, regularize=False, depth=-1):
+            # regularizing a string to a DynamicTarget raises a TypeError,
+            # which is not caught by StringUnion
+            if isinstance(val, str):
+                return self.members[1].validate(val, regularize, depth=depth)
+
+            return self.members[0].validate(val, regularize, depth=depth)
 
 
 class ResultPoint(Object):
@@ -597,8 +611,7 @@ def results_for_export(results, datatype=None, attributes=None):
 
         except AttributeError:
             raise AttributeError(
-                "Result object does not have the attribute "
-                '"%s" to export!' % attribute
+                'Result object does not have the attribute "%s" to export!' % attribute
             )
 
         yield data, attribute
@@ -611,8 +624,9 @@ def list_repeat(arr, repeat=1):
     if isinstance(repeat, list):
         if len(repeat) != arr.size:
             raise ValueError(
-                "Inconsistent requested dimensions! "
-                "repeat: {}, {} array size".format(repeat, arr.size)
+                "Inconsistent requested dimensions! repeat: {}, {} array size".format(
+                    repeat, arr.size
+                )
             )
         else:
             out_values = []
@@ -632,7 +646,7 @@ class Parameter(Object):
     name = String.T(default="depth")
     form = String.T(
         default="Uniform",
-        help="Type of prior distribution to use. Options:" ' "Uniform", ...',
+        help='Type of prior distribution to use. Options: "Uniform", ...',
     )
     lower = Array.T(
         shape=(None,),
@@ -666,7 +680,7 @@ class Parameter(Object):
                 name = "time_shift"
             else:
                 raise TypeError(
-                    'The parameter "%s" cannot' " be optimized for!" % self.name
+                    'The parameter "%s" cannot be optimized for!' % self.name
                 )
         else:
             name = self.name
@@ -748,7 +762,7 @@ class Parameter(Object):
             return (self.get_upper(shape) - lower) * rands + lower
         except ValueError:
             raise ValueError(
-                "Value inconsistency shapes: {} parameter " "dimension {}".format(
+                "Value inconsistency shapes: {} parameter dimension {}".format(
                     shape, self.dimension
                 )
             )
@@ -881,7 +895,7 @@ class PolarityTarget(gf.meta.Receiver):
 
             except gf.StoreError:
                 logger.warning(
-                    "Could not find takeoff-angle table," " falling back to cake..."
+                    "Could not find takeoff-angle table, falling back to cake..."
                 )
                 self.takeoff_angle_rad = (
                     self.get_takeoff_angle_cake(source, store) * d2r
@@ -960,6 +974,8 @@ class SeismicDataset(trace.Trace):
             self.covariance,
         ) = state
 
+        # extra code of pyrocko traces (since pyrocko v2024), not pickled
+        self.extra = ""
         self._growbuffer = None
         self._update_ids()
 
@@ -1269,7 +1285,7 @@ class GNSSCompoundComponent(GeodeticDataset):
                     station_blacklist_idxs.append(s2idx[code])
                 except KeyError:
                     logger.warning(
-                        "Blacklisted station %s not in dataset," " skipping ..." % code
+                        "Blacklisted station %s not in dataset, skipping ..." % code
                     )
 
         elif corr_config.station_whitelist:
@@ -1314,7 +1330,7 @@ class GNSSCompoundComponent(GeodeticDataset):
                     components.append(st.components[comp])
                     comp_stations.append(st)
                 except KeyError:
-                    logger.warngin("No data for GNSS station: {}".format(st.code))
+                    logger.warning("No data for GNSS station: {}".format(st.code))
 
             lats, lons = num.array([loc.effective_latlon for loc in comp_stations]).T
             vs = num.array([c.shift for c in components])
@@ -1331,7 +1347,7 @@ class GNSSCompoundComponent(GeodeticDataset):
                     east_shifts=num.zeros_like(lats),
                     north_shifts=num.zeros_like(lats),
                     component=comp,
-                    odw=num.ones_like(lats.size),
+                    odw=num.ones_like(lats),
                 )
             )
 
@@ -1348,8 +1364,7 @@ class ResultReport(Object):
     mean_point = Dict.T(
         optional=True,
         default=None,
-        help="mean of distributions, used for model"
-        " prediction covariance calculation.",
+        help="mean of distributions, used for model prediction covariance calculation.",
     )
 
 
@@ -1447,7 +1462,7 @@ class DiffIFG(IFG):
 
         with open(filename, mode="w") as f:
             f.write(
-                "lat[deg], lon[deg], incidence[deg], heading[deg], " "displacement[m]\n"
+                "lat[deg], lon[deg], incidence[deg], heading[deg], displacement[m]\n"
             )
             for lat, lon, inci, head, dis in zip(
                 self.lats, self.lons, self.incidence, self.heading, displacement
@@ -1793,7 +1808,7 @@ def vary_model(
                     logger.debug("Velocity error: %f ", error_velocities)
 
             deltavp = float(
-                num.random.normal(0, layer.mtop.vp * error_velocities / 3.0, 1)
+                num.random.normal(0, layer.mtop.vp * error_velocities / 3.0)
             )
 
             if layer.ztop == 0:
@@ -1837,9 +1852,7 @@ def vary_model(
 
         while repeat:
             # ensure that bottom of layer is not shallower than the top
-            deltaz = float(
-                num.random.normal(0, layer.zbot * factor_d / 3.0, 1)
-            )  # 3 sigma
+            deltaz = float(num.random.normal(0, layer.zbot * factor_d / 3.0))  # 3 sigma
             layer.zbot += deltaz
             if layer.zbot < layer.ztop:
                 layer.zbot -= deltaz
@@ -2557,15 +2570,16 @@ def get_phase_arrival_time(engine, source, target, wavename=None, snap=True):
     try:
         store = engine.get_store(target.store_id)
     except gf.seismosizer.NoSuchStore:
-        raise gf.seismosizer.NoSuchStore(
+        logger.error(
             "No such store with ID %s found, distance [deg] to event: %f "
             % (target.store_id, cake.m2d * dist)
         )
+        raise
 
     if wavename is None:
         wavename = store.config.tabulated_phases[0].id
         logger.debug(
-            "Wavename not specified using " "first tabulated phase! %s" % wavename
+            "Wavename not specified using first tabulated phase! %s" % wavename
         )
 
     logger.debug(
@@ -2661,7 +2675,7 @@ class BaseMapping(object):
                     self._phase_markers.append(marker)
                 else:
                     logger.warning(
-                        "Marker is not of class PhaseMarker skipping: \n " "%s ",
+                        "Marker is not of class PhaseMarker skipping: \n %s ",
                         marker.__str__(),
                     )
 
@@ -3017,7 +3031,7 @@ class WaveformMapping(BaseMapping):
             return int(nhyp)
         else:
             raise ValueError(
-                "hyperparameter size is not integer " "for wavemap %s" % self._mapid
+                "hyperparameter size is not integer for wavemap %s" % self._mapid
             )
 
     def get_marker_arrival_times(self):
@@ -3054,7 +3068,7 @@ class WaveformMapping(BaseMapping):
                 'Found %i custom arrival times for "%s"' % (ncustom_times, self._mapid)
             )
         else:
-            logger.info("Using theoretical arrival times for " '"%s"' % self._mapid)
+            logger.info('Using theoretical arrival times for "%s"' % self._mapid)
 
         for i, target in enumerate(self.targets):
             try:
@@ -3143,8 +3157,7 @@ class WaveformMapping(BaseMapping):
             )
         else:
             logger.info(
-                "Consistent number of "
-                "datasets and targets in %s wavemap!" % self._mapid
+                "Consistent number of datasets and targets in %s wavemap!" % self._mapid
             )
 
 
@@ -3326,7 +3339,7 @@ class DataWaveformCollection(object):
                     target.update_response(*self._responses[nslc_id])
                 except KeyError:
                     logger.warn(
-                        "No response for target %s in " "the collection!" % str(nslc_id)
+                        "No response for target %s in the collection!" % str(nslc_id)
                     )
 
         targets = utility.weed_targets(
@@ -4182,7 +4195,7 @@ def geo_synthetics(
     -------
     depends on outmode:
     'stacked_array'
-    :class:`numpy.ndarray` (n_observations; ux-North, uy-East, uz-Down)
+    :class:`numpy.ndarray` (n_observations; ux-North, uy-East, uz-Up)
     'stacked_arrays'
     or list of
     :class:`numpy.ndarray` (target.samples; ux-North, uy-East, uz-Down)
@@ -4291,8 +4304,7 @@ def taper_filter_traces(
             taper = None
 
         logger.debug(
-            "Filtering, tapering, chopping ... "
-            "trace_samples: %i" % cut_trace.ydata.size
+            "Filtering, tapering, chopping ... trace_samples: %i" % cut_trace.ydata.size
         )
 
         cut_trace = post_process_trace(
@@ -4438,6 +4450,11 @@ class StrainRateTensor(Object):
         return float(0.5 * r2d * num.arctan(2 * self.exy / (self.exx - self.exy)))
 
 
+def _to_float(value):
+    """Scalar or size one array to float."""
+    return float(num.asarray(value).squeeze())
+
+
 def velocities_from_strain_rate_tensor(
     lats, lons, exx=0.0, eyy=0.0, exy=0.0, rotation=0.0
 ):
@@ -4471,8 +4488,8 @@ def velocities_from_strain_rate_tensor(
     D = (
         num.array(
             [
-                [float(exx), 0.5 * float(exy + rotation)],
-                [0.5 * float(exy - rotation), float(eyy)],
+                [_to_float(exx), 0.5 * _to_float(exy + rotation)],
+                [0.5 * _to_float(exy - rotation), _to_float(eyy)],
             ]
         )
         * nanostrain

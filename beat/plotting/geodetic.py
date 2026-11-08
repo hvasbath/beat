@@ -195,7 +195,7 @@ def gnss_fits(problem, stage, plot_options):
         from tqdm import tqdm
 
         logger.info(
-            "Collecting ensemble of %i " "synthetic displacements ..." % po.nensemble
+            "Collecting ensemble of %i synthetic displacements ..." % po.nensemble
         )
         nchains = len(stage.mtrace)
         csteps = float(nchains) / po.nensemble
@@ -234,8 +234,7 @@ def gnss_fits(problem, stage, plot_options):
 
     if radius < 30.0 * km:
         logger.warning(
-            "Radius of GNSS campaign %s too small, defaulting"
-            " to 30 km" % campaign.name
+            "Radius of GNSS campaign %s too small, defaulting to 30 km" % campaign.name
         )
         radius = 30 * km
 
@@ -581,7 +580,7 @@ def scene_fits(problem, stage, plot_options):
         from tqdm import tqdm
 
         logger.info(
-            "Collecting ensemble of %i " "synthetic displacements ..." % po.nensemble
+            "Collecting ensemble of %i synthetic displacements ..." % po.nensemble
         )
         nchains = len(stage.mtrace)
         csteps = float(nchains) / po.nensemble
