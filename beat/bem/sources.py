@@ -426,21 +426,19 @@ class DiskBEMSource(EllipseBEMSource):
         EllipseBEMSource.__init__(self, **kwargs)
 
     def outline(self, cs="xy", npoints=50):
-        return num.flipud(
-            get_ellipse_points(
-                self.lon,
-                self.lat,
-                self.east_shift,
-                self.north_shift,
-                self.a_half_axis,
-                self.b_half_axis,
-                self.dip,
-                self.plunge,
-                self.strike,
-                cs=cs,
-                npoints=npoints,
+        return get_ellipse_points(
+            self.lon,
+            self.lat,
+            self.east_shift,
+            self.north_shift,
+            self.a_half_axis,
+            self.b_half_axis,
+            self.dip,
+            self.plunge,
+            self.strike,
+            cs=cs,
+            npoints=npoints,
             )
-        )
 
     def get_source_surface(self, geom, mesh_size):
         self._init_points_geometry(
@@ -948,10 +946,10 @@ def get_ellipse_points(
 
     ring = num.linspace(0, 2 * num.pi, npoints)
     ellipse = num.array(
-        [b_half_axis_rot * num.cos(ring), a_half_axis_rot * num.sin(ring)]
-    )
+        [a_half_axis_rot * num.sin(ring), b_half_axis_rot * num.cos(ring)]
+    )   # y, x | lat, lon
 
-    strike_rad = -strike * DEG2RAD
+    strike_rad = -(strike + 90) * DEG2RAD
     rot_strike = num.array(
         [
             [num.cos(strike_rad), -num.sin(strike_rad)],
@@ -961,9 +959,10 @@ def get_ellipse_points(
     ellipse_rot = rot_strike.dot(ellipse)
 
     points = num.atleast_2d(num.zeros([npoints, 2]))
-    points[:, 0] += ellipse_rot[1, :] + north_shift
-    points[:, 1] += ellipse_rot[0, :] + east_shift
+    points[:, 0] += ellipse_rot[0, :] + north_shift
+    points[:, 1] += ellipse_rot[1, :] + east_shift
 
+   # breakpoint()
     if cs == "xy":
         return points
     elif cs in ("latlon", "lonlat"):

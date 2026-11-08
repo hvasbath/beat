@@ -139,7 +139,7 @@ class BEMEngine(object):
         self._obs_points = None
         self._ncoords_targets = None
 
-    def process(self, sources: list, targets: list, debug=False) -> num.ndarray:
+    def process(self, sources: list, targets: list, debug=False, nthreads=1) -> num.ndarray:
         mesh_size = self.config.mesh_size * km
 
         if self.config.check_mesh_intersection:
