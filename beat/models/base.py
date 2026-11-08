@@ -225,9 +225,9 @@ def sample(step, problem):
             start = []
             for i in tqdm(range(step.n_chains)):
                 point = problem.get_random_point()
-                # print(point)
-                lsq_point = problem.lsq_solution(point)
-                # print("lsq", lsq_point)
+                #print(point)
+                lsq_point = problem.lsq_solution(point, plot=False)
+                #print("lsq", lsq_point)
                 start.append(lsq_point)
     else:
         start = None

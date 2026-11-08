@@ -1279,6 +1279,10 @@ def initialise_fault_geometry(
                 param_mod = copy.deepcopy(slip_directions[var])
                 s = copy.deepcopy(source)
                 param_mod["rake"] += s.rake
+                if var == "utens":
+                    if s.opening_fraction == 0:
+                        raise ValueError("Tensile source configured, but reference source has zero opening fraction! Please adjust!")
+                    param_mod["opening_fraction"] *= s.opening_fraction
                 s.update(**param_mod)
                 patch_length_m = patch_lengths[i] * km
                 patch_width_m = patch_widths[i] * km
